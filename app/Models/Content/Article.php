@@ -1,0 +1,50 @@
+<?php
+
+namespace App\Models\Content;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Article extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $table = 'articles';
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'title',
+        'slug',
+        'content',
+        'author_id',
+        'is_published',
+        'published_at',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_published' => 'boolean',
+            'published_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Get the author (user) that owns the article.
+     */
+    public function author()
+    {
+        return $this->belongsTo(\App\Models\Users\User::class, 'author_id')->withTrashed();
+    }
+}
+
