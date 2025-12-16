@@ -24,5 +24,8 @@ class RoleSeeder extends Seeder
             'description' => 'Super admin role',
             'is_default' => false,
         ]);
+
+        // run this seeder in next command
+        // php artisan db:seed --class=RoleSeeder
     }
 }

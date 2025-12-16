@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\Auth;
 
+use App\Models\Users\Role;
 use App\Models\Users\User;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\Hash;
@@ -92,7 +93,10 @@ class AuthService
         ]);
 
         // create user role
-        $user->roles()->attach(1);
+        $user->roles()->create([
+            'role_id' => Role::where('name', 'user')->first()->id,
+            'created_at' => now(),
+        ]);
 
         // Send OTP to phone number
         $message = __('messages.verification.code_message_rigster', [ 
