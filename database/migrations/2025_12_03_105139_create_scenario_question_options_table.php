@@ -24,7 +24,7 @@ return new class extends Migration
             $table->unsignedBigInteger('order_index')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['question_id', 'order_index', 'deleted_at']);
+            $table->index(['question_id', 'order_index', 'deleted_at'], 'scenario_qo_index');
         });
 
         Schema::enableForeignKeyConstraints();
