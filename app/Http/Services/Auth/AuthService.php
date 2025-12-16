@@ -150,7 +150,7 @@ class AuthService
 
         return [
             'user' => $user,
-            'token' => $user->createToken($user->first_name)->plainTextToken,
+            'token' => $user->createToken($user->first_name . 'auth_token')->plainTextToken,
         ];
     }
 
