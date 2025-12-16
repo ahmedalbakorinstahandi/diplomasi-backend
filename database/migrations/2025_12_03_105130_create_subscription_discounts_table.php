@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('discount_value', 10, 2);
             $table->timestamp('applied_at')->nullable();
             $table->softDeletes();
-            $table->unique(['subscription_id', 'discount_id', 'deleted_at']);
+            $table->unique(['subscription_id', 'discount_id', 'deleted_at'], 'sub_discounts_unique');
         });
 
         Schema::enableForeignKeyConstraints();
