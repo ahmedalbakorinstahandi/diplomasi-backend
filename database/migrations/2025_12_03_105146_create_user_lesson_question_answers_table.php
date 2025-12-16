@@ -26,8 +26,8 @@ return new class extends Migration
             $table->timestamp('answered_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['attempt_id', 'step_index']);
-            $table->unique(['attempt_id', 'question_id', 'deleted_at']);
+            $table->index(['attempt_id', 'step_index'], 'user_lesson_question_answers_index');
+            $table->unique(['attempt_id', 'question_id', 'deleted_at'], 'user_lesson_question_answers_unique');
         });
 
         Schema::enableForeignKeyConstraints();

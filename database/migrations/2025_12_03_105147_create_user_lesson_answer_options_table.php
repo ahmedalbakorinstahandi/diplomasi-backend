@@ -22,8 +22,8 @@ return new class extends Migration
             $table->tinyInteger('is_correct')->nullable();
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();
-            $table->index(['user_answer_id', 'option_id']);
-            $table->unique(['user_answer_id', 'option_id', 'deleted_at']);
+            $table->index(['user_answer_id', 'option_id'], 'user_lesson_answer_options_index');
+            $table->unique(['user_answer_id', 'option_id', 'deleted_at'], 'user_lesson_answer_options_unique');
         });
 
         Schema::enableForeignKeyConstraints();
