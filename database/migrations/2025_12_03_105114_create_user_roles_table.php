@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('user_roles', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('Users');
+            $table->foreign('user_id')->references('id')->on('users');
             $table->unsignedBigInteger('role_id');
-            $table->foreign('role_id')->references('id')->on('Roles');
+            $table->foreign('role_id')->references('id')->on('roles');
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();
             $table->unique(['user_id', 'role_id', 'deleted_at']);

@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('subscription_discounts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('subscription_id');
-            $table->foreign('subscription_id')->references('id')->on('Subscriptions');
+            $table->foreign('subscription_id')->references('id')->on('subscriptions');
             $table->unsignedBigInteger('discount_id');
-            $table->foreign('discount_id')->references('id')->on('DiscountCoupons');
+            $table->foreign('discount_id')->references('id')->on('discount_coupons');
             $table->enum('discount_type', ["fixed","percentage"]);
             $table->decimal('discount_value', 10, 2);
             $table->timestamp('applied_at')->nullable();

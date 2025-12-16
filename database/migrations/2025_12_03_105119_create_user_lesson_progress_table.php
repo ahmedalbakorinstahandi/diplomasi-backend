@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('user_lesson_progress', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('Users');
+            $table->foreign('user_id')->references('id')->on('users');
             $table->unsignedBigInteger('lesson_id');
-            $table->foreign('lesson_id')->references('id')->on('Lessons');
+            $table->foreign('lesson_id')->references('id')->on('lessons');
             $table->enum('status', ["not_started","in_progress","completed"]);
             $table->decimal('score', 6, 2);
             $table->timestamp('started_at')->nullable();

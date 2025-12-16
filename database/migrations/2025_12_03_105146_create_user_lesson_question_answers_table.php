@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('user_lesson_question_answers', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('attempt_id');
-            $table->foreign('attempt_id')->references('id')->on('UserLessonAttempts');
+            $table->foreign('attempt_id')->references('id')->on('user_lesson_attempts');
             $table->unsignedBigInteger('question_id')->index();
-            $table->foreign('question_id')->references('id')->on('LessonQuestions');
+            $table->foreign('question_id')->references('id')->on('lesson_questions');
             $table->unsignedInteger('step_index');
             $table->tinyInteger('is_correct')->nullable();
             $table->decimal('score', 6, 2)->nullable();

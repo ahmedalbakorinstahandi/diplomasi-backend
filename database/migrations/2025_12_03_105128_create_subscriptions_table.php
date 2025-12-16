@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('subscriptions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('Users');
+            $table->foreign('user_id')->references('id')->on('users');
             $table->unsignedBigInteger('plan_id');
-            $table->foreign('plan_id')->references('id')->on('Plans');
+            $table->foreign('plan_id')->references('id')->on('plans');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->enum('status', ["active","cancelled","expired","past_due"]);

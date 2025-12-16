@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('lesson_question_options', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('question_id');
-            $table->foreign('question_id')->references('id')->on('LessonQuestions');
+            $table->foreign('question_id')->references('id')->on('lesson_questions');
             $table->text('option_text');
             $table->string('pair_key', 100)->nullable();
             $table->tinyInteger('is_correct')->nullable();

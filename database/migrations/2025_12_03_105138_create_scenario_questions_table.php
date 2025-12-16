@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('scenario_questions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('scenario_id');
-            $table->foreign('scenario_id')->references('id')->on('Scenarios');
+            $table->foreign('scenario_id')->references('id')->on('scenarios');
             $table->string('code', 20);
             $table->enum('type', ["single_choice", "true_false"]);
             $table->text('question_text');

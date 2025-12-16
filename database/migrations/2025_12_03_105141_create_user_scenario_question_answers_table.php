@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('user_scenario_question_answers', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('question_id');
-            $table->foreign('question_id')->references('id')->on('ScenarioQuestions');
+            $table->foreign('question_id')->references('id')->on('scenario_questions');
             $table->unsignedBigInteger('attempt_id');
-            $table->foreign('attempt_id')->references('id')->on('UserScenarioAttempts');
+            $table->foreign('attempt_id')->references('id')->on('user_scenario_attempts');
             $table->integer('step_index');
             $table->timestamp('answered_at')->nullable();
             $table->integer('time_spent')->nullable();

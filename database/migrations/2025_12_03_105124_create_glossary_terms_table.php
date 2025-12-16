@@ -17,7 +17,7 @@ return new class extends Migration
             $table->id();
             $table->string('term', 255);
             $table->text('definition');
-            $table->string('language', 10)->nullable()->default('en');
+            $table->string('language', 10)->nullable()->default('ar');
             $table->timestamps();
             $table->softDeletes();
         });

@@ -16,9 +16,9 @@ return new class extends Migration
         Schema::create('user_scenario_answer_options', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_answer_id');
-            $table->foreign('user_answer_id')->references('id')->on('UserScenarioQuestionAnswers');
+            $table->foreign('user_answer_id')->references('id')->on('user_scenario_question_answers');
             $table->unsignedBigInteger('option_id');
-            $table->foreign('option_id')->references('id')->on('ScenarioQuestionOptions');
+            $table->foreign('option_id')->references('id')->on('scenario_question_options');
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();
             $table->unique(['user_answer_id', 'option_id', 'deleted_at']);

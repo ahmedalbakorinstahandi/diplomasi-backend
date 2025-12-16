@@ -16,10 +16,11 @@ return new class extends Migration
         Schema::create('user_courses', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('Users');
+            $table->foreign('user_id')->references('id')->on('users');
             $table->bigInteger('course_id');
-            $table->foreign('course_id')->references('id')->on('Courses');
+            $table->foreign('course_id')->references('id')->on('courses');
             $table->bigInteger('subscription_id')->nullable();
+            $table->foreign('subscription_id')->references('id')->on('subscriptions');
             $table->enum('status', ["active","completed","expired","cancelled"]);
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();

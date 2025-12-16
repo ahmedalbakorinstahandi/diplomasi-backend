@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('slug', 255);
             $table->text('content');
             $table->unsignedBigInteger('author_id')->nullable();
-            $table->foreign('author_id')->references('id')->on('Users');
+            $table->foreign('author_id')->references('id')->on('users');
             $table->boolean('is_published')->default(false);
             $table->timestamp('published_at')->nullable();
             $table->timestamps();

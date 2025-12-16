@@ -16,13 +16,13 @@ return new class extends Migration
         Schema::create('scenarios', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('level_id');
-            $table->foreign('level_id')->references('id')->on('Levels');
+            $table->foreign('level_id')->references('id')->on('levels');
             $table->text('title')->nullable();
             $table->json('description');
             $table->boolean('is_published')->default(false);
             $table->boolean('is_free');
             $table->unsignedBigInteger('start_question_id')->nullable();
-            $table->foreign('start_question_id')->references('id')->on('ScenarioQuestions');
+            $table->foreign('start_question_id')->references('id')->on('scenario_questions');
             $table->unsignedBigInteger('order_index')->nullable();
             $table->timestamps();
             $table->softDeletes();

@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('lesson_questions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('lesson_id');
-            $table->foreign('lesson_id')->references('id')->on('Lessons');
+            $table->foreign('lesson_id')->references('id')->on('lessons');
             $table->enum('type', ["single_choice","multiple_choice","true_false","match"]);
             $table->text('question_text');
             $table->string('attached_path', 100)->nullable();

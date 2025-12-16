@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('subscription_events', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('subscription_id');
-            $table->foreign('subscription_id')->references('id')->on('Subscriptions');
+            $table->foreign('subscription_id')->references('id')->on('subscriptions');
             $table->enum('event_type', ["created","renewed","upgraded","downgraded","cancelled","expired","status_changed"]);
             $table->unsignedBigInteger('plan_id')->nullable();
             $table->enum('status', ["active","cancelled","expired","past_due"]);

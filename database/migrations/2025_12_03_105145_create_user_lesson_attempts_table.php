@@ -17,11 +17,11 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('lesson_id');
-            $table->foreign('lesson_id')->references('id')->on('Lessons');
+            $table->foreign('lesson_id')->references('id')->on('lessons');
             $table->enum('status', ["in_progress", "finished"]);
             $table->decimal('score', 6, 2);
             $table->unsignedBigInteger('current_question_id')->nullable();
-            $table->foreign('current_question_id')->references('id')->on('LessonQuestions');
+            $table->foreign('current_question_id')->references('id')->on('lesson_questions');
             $table->timestamp('started_at');
             $table->timestamp('finished_at')->nullable();
             $table->unsignedInteger('total_time')->nullable();

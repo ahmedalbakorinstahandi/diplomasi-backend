@@ -16,11 +16,11 @@ return new class extends Migration
         Schema::create('certificates', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('Users');
+            $table->foreign('user_id')->references('id')->on('users');
             $table->unsignedBigInteger('course_id');
-            $table->foreign('course_id')->references('id')->on('Courses');
+            $table->foreign('course_id')->references('id')->on('courses');
             $table->unsignedBigInteger('level_id')->nullable();
-            $table->foreign('level_id')->references('id')->on('Levels');
+            $table->foreign('level_id')->references('id')->on('levels');
             $table->string('certificate_code', 50);
             $table->timestamp('issued_at')->nullable()->useCurrent();
             $table->string('qr_code', 255)->nullable();

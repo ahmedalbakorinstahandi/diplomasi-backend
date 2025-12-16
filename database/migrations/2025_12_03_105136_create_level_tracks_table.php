@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('level_tracks', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('level_id');
-            $table->foreign('level_id')->references('id')->on('Levels');
+            $table->foreign('level_id')->references('id')->on('levels');
             $table->unsignedBigInteger('trackable_id');
             $table->string('trackable_type')->comment('lesson,scenario');
             $table->unsignedBigInteger('order_index');

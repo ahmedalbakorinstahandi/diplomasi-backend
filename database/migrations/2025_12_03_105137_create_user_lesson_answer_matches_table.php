@@ -17,9 +17,9 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_answer_id');
             $table->unsignedBigInteger('left_option_id');
-            $table->foreign('left_option_id')->references('id')->on('LessonQuestionOptions');
+            $table->foreign('left_option_id')->references('id')->on('lesson_question_options');
             $table->unsignedBigInteger('right_option_id');
-            $table->foreign('right_option_id')->references('id')->on('LessonQuestionOptions');
+            $table->foreign('right_option_id')->references('id')->on('lesson_question_options');
             $table->boolean('is_correct');
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();

@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('levels', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('course_id');
-            $table->foreign('course_id')->references('id')->on('Courses');
+            $table->foreign('course_id')->references('id')->on('courses');
             $table->unsignedInteger('level_number');
             $table->string('title', 255);
             $table->text('description')->nullable();

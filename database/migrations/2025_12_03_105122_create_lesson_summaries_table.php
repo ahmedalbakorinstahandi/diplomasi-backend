@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('lesson_summaries', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('lesson_id');
-            $table->foreign('lesson_id')->references('id')->on('Lessons');
+            $table->foreign('lesson_id')->references('id')->on('lessons');
             $table->text('content')->nullable();
             $table->string('attached_path', 100);
             $table->timestamps();

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('scenario_id');
-            $table->foreign('scenario_id')->references('id')->on('Scenarios');
+            $table->foreign('scenario_id')->references('id')->on('scenarios');
             $table->enum('status', ["in_progress","finished","abandoned"]);
             $table->timestamp('started_at')->nullable();
             $table->timestamp('finished_at')->nullable();
