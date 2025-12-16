@@ -21,8 +21,8 @@ return new class extends Migration
             $table->foreign('option_id')->references('id')->on('scenario_question_options');
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();
-            $table->unique(['user_answer_id', 'option_id', 'deleted_at']);
-            $table->index(['user_answer_id', 'option_id']);
+            $table->unique(['user_answer_id', 'option_id', 'deleted_at'], 'user_scenario_answer_options_unique');
+            $table->index(['user_answer_id', 'option_id'], 'user_scenario_answer_options_index');
         });
 
         Schema::enableForeignKeyConstraints();
