@@ -93,7 +93,7 @@ class AuthService
         ]);
 
         // create user role
-        $user->roles()->create([
+        $user->userRoles()->create([
             'role_id' => Role::where('name', 'user')->first()->id,
             'created_at' => now(),
         ]);
