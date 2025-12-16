@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name', 100)->comment('UNIQUE');
             $table->string('description', 255)->nullable();
+            $table->boolean('is_default')->default(false);
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['name', 'deleted_at']);

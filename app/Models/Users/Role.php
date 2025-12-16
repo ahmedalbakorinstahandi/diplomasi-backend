@@ -20,6 +20,16 @@ class Role extends Model
     protected $fillable = [
         'name',
         'description',
+        'is_default',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_default' => 'boolean',
     ];
 
     /**

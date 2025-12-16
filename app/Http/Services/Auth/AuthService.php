@@ -91,6 +91,9 @@ class AuthService
             'otp_expire_at' => $otpExpireAt,
         ]);
 
+        // create user role
+        $user->roles()->attach(1);
+
         // Send OTP to phone number
         $message = __('messages.verification.code_message_rigster', [ 
             'first_name' => $user->first_name,
