@@ -63,8 +63,7 @@ class AuthService
     public function register($data)
     {
 
-        $user = User::where('email', $data['email'])
-            ->first();
+        $user = User::where('email', $data['email'])->first();
 
         if ($user) {
             MessageService::abort(
