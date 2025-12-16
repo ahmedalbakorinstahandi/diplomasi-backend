@@ -14,11 +14,4 @@ class ForgotPasswordRequest extends BaseFormRequest
             'email' => 'required|email',
         ];
     }
-
-    public function messages(): array
-    {
-        return [
-            'email.email' => 'يجب أن يكون البريد الإلكتروني صالح',
-        ];
-    }
 }

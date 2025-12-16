@@ -42,7 +42,7 @@ class AuthController extends Controller
 
         return ResponseService::response([
             'status' => 200,
-            'message' => 'auth.we_sent_verification_code_to_your_phone',
+            'message' => 'auth.we_sent_verification_code_to_your_email',
             'data' => new UserResource($data['user']),
             'info' => [
                 'code_duration' => $data['minutes'],
@@ -58,7 +58,7 @@ class AuthController extends Controller
 
         return ResponseService::response([
             'status' => 200,
-            'message' => 'auth.we_sent_verification_code_to_your_phone',
+            'message' => 'auth.we_sent_verification_code_to_your_email',
             'data' => new UserResource($data['user']),
             'info' => [
                 'code_duration' => $data['minutes'],

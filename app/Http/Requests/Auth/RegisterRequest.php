@@ -20,11 +20,4 @@ class RegisterRequest extends BaseFormRequest
             'phone' => 'required|string|max:50',
         ];
     }
-
-    public function messages(): array
-    {
-        return [
-            'email.unique' => 'هذا البريد الإلكتروني مستخدم بالفعل',
-        ];
-    }
 }
