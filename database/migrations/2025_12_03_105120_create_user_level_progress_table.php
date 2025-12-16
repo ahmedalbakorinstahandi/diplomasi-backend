@@ -15,9 +15,9 @@ return new class extends Migration
 
         Schema::create('user_level_progress', function (Blueprint $table) {
             $table->id();
-            $table->bigInteger('user_id');
+            $table->unsignedBigInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users');
-            $table->bigInteger('level_id');
+            $table->unsignedBigInteger('level_id');
             $table->foreign('level_id')->references('id')->on('levels');
             $table->unsignedBigInteger('current_lesson_id')->nullable();
             $table->foreign('current_lesson_id')->references('id')->on('lessons');
