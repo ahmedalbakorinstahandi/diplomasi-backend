@@ -22,7 +22,7 @@ return new class extends Migration
             $table->unsignedBigInteger('order_index');
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['level_id', 'trackable_id', 'trackable_type', 'deleted_at']);
+            $table->unique(['level_id', 'trackable_id', 'trackable_type', 'deleted_at'], 'level_tracks_unique');
         });
 
         Schema::enableForeignKeyConstraints();
