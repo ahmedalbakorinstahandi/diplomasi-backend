@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class User extends Authenticatable
 {
@@ -57,6 +59,41 @@ class User extends Authenticatable
             'otp_expire_at' => 'datetime',
         ];
     }
+
+
+    public function getAvatarUrlAttribute()
+    {
+        if (empty($this->avatar) || is_null($this->avatar) || !isset($this->avatar)) {
+            $name = urlencode($this->first_name . ' ' . $this->last_name);
+            // Generate consistent color based on user name
+            $colors = ['f44336', 'e91e63', '9c27b0', '673ab7', '3f51b5', '2196f3', '03a9f4', '00bcd4', '009688', '4caf50', '8bc34a', 'cddc39', 'ffeb3b', 'ffc107', 'ff9800', 'ff5722'];
+            $colorIndex = abs(crc32($this->first_name . $this->last_name)) % count($colors);
+            $backgroundColor = $colors[$colorIndex];
+
+            return "https://ui-avatars.com/api/?name={$name}&size=256&background={$backgroundColor}&color=fff";
+        } else {
+            return asset('storage/' . $this->avatar);
+        }
+    }
+
+    public static function auth()
+    {
+        // Check if user is authenticated
+        if (!Auth::guard('sanctum')->check()) {
+            return null;
+        }
+
+        $token = request()->bearerToken();
+        if (!$token) {
+            return null;
+        }
+
+        $cacheKey = 'request_user_' . $token;
+
+        // Get user from cache (stored by SetLocaleMiddleware)
+        return cache()->get($cacheKey);
+    }
+
 
     /**
      * Get the roles for the user.
@@ -157,4 +194,3 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\Content\Article::class, 'author_id');
     }
 }
-

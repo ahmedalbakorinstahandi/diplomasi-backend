@@ -1,6 +1,6 @@
-ssh root@45.132.241.51
-
 diplomasi-$aY44ix2V5E*8CtA@bx&
+
+ssh root@45.132.241.51
 
 // diplomasi-backend.ahmed-albakor.com
 
