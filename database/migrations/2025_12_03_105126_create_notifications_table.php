@@ -15,7 +15,7 @@ return new class extends Migration
 
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
-            $table->bigInteger('user_id')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users');
             $table->text('title');
             $table->longText('body')->nullable();
