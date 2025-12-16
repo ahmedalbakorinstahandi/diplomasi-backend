@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('question_id');
             $table->foreign('question_id')->references('id')->on('scenario_questions');
             $table->text('option_text');
-            $table->bigInteger('next_question_id')->nullable();
+            $table->unsignedBigInteger('next_question_id')->nullable();
             $table->foreign('next_question_id')->references('id')->on('scenario_questions');
             $table->string('attached_path', 100)->nullable();
             $table->unsignedBigInteger('order_index')->nullable();
