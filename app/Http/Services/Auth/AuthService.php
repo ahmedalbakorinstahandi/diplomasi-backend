@@ -87,7 +87,6 @@ class AuthService
             'phone_verified' => false,
             'email_verified' => false,
             'password' => Hash::make($data['password']),
-            'role' => 'user',
             'status' => 'active',
             'otp' => $otp,
             'otp_expire_at' => $otpExpireAt,
