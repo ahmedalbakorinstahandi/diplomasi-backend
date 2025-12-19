@@ -1,0 +1,3472 @@
+{
+  "info": {
+    "_postman_id": "diplomasi-api-collection",
+    "name": "Diplomasi API",
+    "description": "مجموعة Postman منظمة (4 مجلدات رئيسية) مع شرح عربي واختبارات تخزين التوكن تلقائياً بعد تسجيل الدخول.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "مصادقة المستخدمين - يشمل تسجيل الدخول، التسجيل، التحقق، إعادة كلمة السر",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@demo.test\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "description": "تسجيل دخول وإرجاع access_token\n\nالحقول المطلوبة/الاختيارية:\n- email: بريد مستخدم مفعل\n- password: من 6-255 حرف\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"access_token\": \"<token>\",\n  \"message\": \"auth.login_success\",\n  \"data\": {\n    \"id\": 1,\n    \"first_name\": \"Admin\",\n    \"last_name\": \"User\"\n  }\n}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) { pm.environment.set('token', res.access_token); }",
+                  "if (res.data && res.data.email) { pm.environment.set('last_email', res.data.email); }",
+                  "pm.test('Token returned', function () { pm.expect(res.access_token).to.exist; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Test\",\n  \"last_name\": \"User\",\n  \"email\": \"test@example.com\",\n  \"phone\": \"+201234567890\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"avatar\": null\n}"
+            },
+            "description": "تسجيل مستخدم جديد (يُرسل OTP)\n\nالحقول المطلوبة/الاختيارية:\n- first_name، last_name: نص حتى 50\n- email: فريد\n- phone: نص\n- password + password_confirmation: من 6 حروف، confirmed\n- avatar: اختياري رابط\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"message\": \"auth.we_sent_verification_code_to_your_email\",\n  \"data\": {\n    \"id\": 10,\n    \"email\": \"test@example.com\"\n  },\n  \"info\": {\n    \"code_duration\": 5,\n    \"otp_expire_at\": \"2025-01-01T10:00:00Z\"\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"otp\": 12345\n}"
+            },
+            "description": "تفعيل الحساب بعد التسجيل أو استعادة كلمة السر\n\nالحقول المطلوبة/الاختيارية:\n- email\n- otp: أرقام 5 خانات\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"access_token\": \"<token>\",\n  \"message\": \"auth.otp_verified\"\n}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) { pm.environment.set('token', res.access_token); }",
+                  "if (res.data && res.data.email) { pm.environment.set('last_email', res.data.email); }",
+                  "pm.test('Token returned', function () { pm.expect(res.access_token).to.exist; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/forgot-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\"\n}"
+            },
+            "description": "إرسال OTP لإعادة التعيين\n\nالحقول المطلوبة/الاختيارية:\n- email: مسجل\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"message\": \"auth.we_sent_verification_code_to_your_email\",\n  \"info\": {\n    \"code_duration\": 10\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"NewPass123\",\n  \"password_confirmation\": \"NewPass123\"\n}"
+            },
+            "description": "تعيين كلمة مرور جديدة (يتطلب توكن صالح)\n\nالحقول المطلوبة/الاختيارية:\n- password + password_confirmation: من 8 حروف ومؤكدة\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"message\": \"auth.password_reset_success\",\n  \"access_token\": \"<new_token>\"\n}\n```"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "تسجيل الخروج وحذف التوكن الحالي\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"message\": \"auth.user_logged_out_successfully\"\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛠️ Admin (Dashboard)",
+      "description": "نفس تقسيمة مجلدات الكود للوحة التحكم",
+      "item": [
+        {
+          "name": "👥 Users",
+          "item": [
+            {
+              "name": "List Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/users",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "عرض المستخدمين مع ترقيم\n\nالحقول المطلوبة/الاختيارية:\n- per_page، page: اختياري\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"data\": {\n    \"data\": [\n      {\n        \"id\": 1,\n        \"email\": \"admin@demo.test\"\n      }\n    ],\n    \"meta\": {\n      \"total\": 1,\n      \"per_page\": 20\n    }\n  }\n}\n```"
+              }
+            },
+            {
+              "name": "Get User",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/users/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users",
+                    "1"
+                  ]
+                },
+                "description": "تفاصيل مستخدم"
+              }
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/users",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"first_name\": \"New\",\n  \"last_name\": \"User\",\n  \"email\": \"new@example.com\",\n  \"phone\": \"+201111111\",\n  \"password\": \"Password123!\",\n  \"status\": \"active\"\n}"
+                },
+                "description": "إنشاء مستخدم جديد\n\nالحقول المطلوبة/الاختيارية:\n- status: active | inactive | banneded\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"data\": {\n    \"id\": 20\n  }\n}\n```"
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/users/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"first_name\": \"Updated\",\n  \"status\": \"inactive\"\n}"
+                },
+                "description": "تحديث بيانات مستخدم\n\nالحقول المطلوبة/الاختيارية:\n- يمكن إرسال أي حقل من: first_name, last_name, email, phone, password, status"
+              }
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/users/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users",
+                    "1"
+                  ]
+                },
+                "description": "حذف (soft delete) مستخدم"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🛡️ Roles & Permissions",
+          "item": [
+            {
+              "name": "List Permissions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/permissions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "permissions"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "50"
+                    }
+                  ]
+                },
+                "description": "عرض الصلاحيات المتاحة\n\nالحقول المطلوبة/الاختيارية:\n- per_page: رقم"
+              }
+            },
+            {
+              "name": "List Roles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "عرض الأدوار"
+              }
+            },
+            {
+              "name": "Get Role",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles",
+                    "1"
+                  ]
+                },
+                "description": "تفاصيل دور"
+              }
+            },
+            {
+              "name": "Create Role",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"editor\",\n  \"description\": \"Content editor\",\n  \"is_default\": false\n}"
+                },
+                "description": "إنشاء دور جديد\n\nالحقول المطلوبة/الاختيارية:\n- name: فريد\n- description: اختياري\n- is_default: boolean\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"data\": {\n    \"id\": 5\n  }\n}\n```"
+              }
+            },
+            {
+              "name": "Update Role",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"editor\",\n  \"description\": \"Updated\"\n}"
+                },
+                "description": "تعديل دور\n\nالحقول المطلوبة/الاختيارية:\n- الحقل اختياري لكن مع send يعمل validation"
+              }
+            },
+            {
+              "name": "Delete Role",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles",
+                    "1"
+                  ]
+                },
+                "description": "حذف دور"
+              }
+            },
+            {
+              "name": "Sync Role Permissions",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/roles/1/permissions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "roles",
+                    "1",
+                    "permissions"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"permission_names\": [\n    \"article.view\",\n    \"article.create\"\n  ]\n}"
+                },
+                "description": "ربط صلاحيات بالدور\n\nالحقول المطلوبة/الاختيارية:\n- permission_names[]: أسماء صلاحيات موجودة\n\nمثال Response 200:\n```json\n{\n  \"status\": 200,\n  \"message\": \"updated\"\n}\n```"
+              }
+            }
+          ]
+        },
+        {
+          "name": "📰 Articles",
+          "item": [
+            {
+              "name": "List Articles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/articles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "articles"
+                  ]
+                },
+                "description": "عرض المقالات"
+              }
+            },
+            {
+              "name": "Get Article",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/articles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "articles",
+                    "1"
+                  ]
+                },
+                "description": "تفاصيل مقال"
+              }
+            },
+            {
+              "name": "Create Article",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/articles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "articles"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"New Article\",\n  \"slug\": null,\n  \"content\": \"Body\",\n  \"author_id\": 1,\n  \"is_published\": true,\n  \"published_at\": \"2025-01-01\"\n}"
+                },
+                "description": "إنشاء مقال\n\nالحقول المطلوبة/الاختيارية:\n- title, content, author_id\n- slug: اختياري unique\n- is_published: boolean\n- published_at: تاريخ"
+              }
+            },
+            {
+              "name": "Update Article",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/articles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "articles",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated\"\n}"
+                },
+                "description": "تعديل مقال"
+              }
+            },
+            {
+              "name": "Delete Article",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/articles/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "articles",
+                    "1"
+                  ]
+                },
+                "description": "حذف مقال"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🎓 Learning",
+          "item": [
+            {
+              "name": "📚 Courses",
+              "item": [
+                {
+                  "name": "List Courses",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses"
+                      ],
+                      "query": [
+                        {
+                          "key": "per_page",
+                          "value": "20"
+                        }
+                      ]
+                    },
+                    "description": "عرض الدورات"
+                  }
+                },
+                {
+                  "name": "Get Course",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Create Course",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"New Course\",\n  \"description\": \"Desc\",\n  \"image_url\": \"https://picsum.photos/800/400\",\n  \"is_published\": true,\n  \"is_free\": false\n}"
+                    },
+                    "description": "إنشاء دورة\n\nالحقول المطلوبة/الاختيارية:\n- title إجباري\n- is_published، is_free: boolean"
+                  }
+                },
+                {
+                  "name": "Update Course",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses",
+                        "1"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Updated Course\"\n}"
+                    },
+                    "description": "تعديل دورة"
+                  }
+                },
+                {
+                  "name": "Delete Course",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Reorder Course",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/courses/1/reorder",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "courses",
+                        "1",
+                        "reorder"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"sort_order\": 1\n}"
+                    },
+                    "description": "إعادة ترتيب الدورات\n\nالحقول المطلوبة/الاختيارية:\n- sort_order: رقم يبدأ من 1"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "📑 Levels",
+              "item": [
+                {
+                  "name": "List Levels",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Get Level",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Create Level",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"course_id\": 1,\n  \"level_number\": 1,\n  \"title\": \"Level 1\",\n  \"description\": \"\",\n  \"is_published\": true,\n  \"is_free\": false,\n  \"has_certificate\": false,\n  \"order_index\": 0\n}"
+                    },
+                    "description": "إنشاء مستوى\n\nالحقول المطلوبة/الاختيارية:\n- course_id: exists\n- level_number: رقم\n- is_free, has_certificate: boolean"
+                  }
+                },
+                {
+                  "name": "Update Level",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels",
+                        "1"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Updated Level\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Delete Level",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Reorder Level",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/levels/1/reorder",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "levels",
+                        "1",
+                        "reorder"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"sort_order\": 1\n}"
+                    },
+                    "description": "إعادة ترتيب المستويات\n\nالحقول المطلوبة/الاختيارية:\n- sort_order: رقم يبدأ من 1"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "🎥 Lessons",
+              "item": [
+                {
+                  "name": "List Lessons",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Get Lesson",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Create Lesson",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"level_id\": 1,\n  \"lesson_number\": 1,\n  \"title\": \"Lesson 1\",\n  \"description\": \"\",\n  \"video_url\": \"https://video\",\n  \"content\": \"\",\n  \"order_index\": 0,\n  \"is_published\": true\n}"
+                    },
+                    "description": "إنشاء درس\n\nالحقول المطلوبة/الاختيارية:\n- level_id: exists\n- lesson_number: رقم\n- video_url: رابط"
+                  }
+                },
+                {
+                  "name": "Update Lesson",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons",
+                        "1"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Updated Lesson\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Delete Lesson",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons/1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons",
+                        "1"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "Reorder Lesson",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "X-Context",
+                        "value": "{{x_context_dashboard}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/api/v1/admin/lessons/1/reorder",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "admin",
+                        "lessons",
+                        "1",
+                        "reorder"
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"sort_order\": 1\n}"
+                    },
+                    "description": "إعادة ترتيب الدروس\n\nالحقول المطلوبة/الاختيارية:\n- sort_order: رقم يبدأ من 1"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "🧭 Scenarios",
+          "item": [
+            {
+              "name": "List Scenarios",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Scenario",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Scenario",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"level_id\": 1,\n  \"title\": \"Scenario 1\",\n  \"description\": {\n    \"ar\": \"...\"\n  },\n  \"is_published\": true,\n  \"is_free\": false,\n  \"start_question_id\": null,\n  \"order_index\": 0\n}"
+                },
+                "description": "إنشاء سيناريو\n\nالحقول المطلوبة/الاختيارية:\n- level_id\n- title\n- description: array (مثلاً {\"ar\":\"...\"})\n- is_free,is_published: boolean\n- start_question_id: optional"
+              }
+            },
+            {
+              "name": "Update Scenario",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Scenario\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Scenario",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Reorder Scenario",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/scenarios/1/reorder",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "scenarios",
+                    "1",
+                    "reorder"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sort_order\": 1\n}"
+                },
+                "description": "إعادة ترتيب السيناريوهات\n\nالحقول المطلوبة/الاختيارية:\n- sort_order: رقم يبدأ من 1"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔔 Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "notifications"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Notification",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/notifications/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "notifications",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Notification",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "notifications"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": null,\n  \"title\": \"Hello\",\n  \"body\": \"Body text\",\n  \"type\": \"info\",\n  \"data\": {}\n}"
+                },
+                "description": "إرسال/إنشاء إشعار\n\nالحقول المطلوبة/الاختيارية:\n- user_id: اختياري (null = broadcast?)\n- title, body: نص\n- type: نص قصير\n- data: كائن JSON"
+              }
+            },
+            {
+              "name": "Update Notification",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/notifications/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "notifications",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/notifications/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "notifications",
+                    "1"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "⚙️ Settings",
+          "item": [
+            {
+              "name": "List Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Setting",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"key_name\": \"app.name\",\n  \"value\": \"Diplomasi\",\n  \"type\": \"string\",\n  \"is_settings\": true\n}"
+                },
+                "description": "إضافة إعداد\n\nالحقول المطلوبة/الاختيارية:\n- key_name: فريد\n- value: string\n- type: اختياري\n- is_settings: boolean"
+              }
+            },
+            {
+              "name": "Show Setting",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings/app.name",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings",
+                    "app.name"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Setting",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings/app.name",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings",
+                    "app.name"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"value\": \"New Value\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Many Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"settings\": [\n    {\n      \"key_name\": \"app.name\",\n      \"value\": \"Diplomasi\"\n    },\n    {\n      \"key_name\": \"app.locale\",\n      \"value\": \"ar\"\n    }\n  ]\n}"
+                },
+                "description": "تعديل مجموعة إعدادات دفعة واحدة"
+              }
+            },
+            {
+              "name": "Delete Setting",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/settings/app.name",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "settings",
+                    "app.name"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "💳 Subscriptions",
+          "item": [
+            {
+              "name": "List Subscriptions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Subscription",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Subscription",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 1,\n  \"plan_id\": 1,\n  \"start_date\": \"2025-01-01\",\n  \"end_date\": \"2025-02-01\",\n  \"status\": \"active\",\n  \"price\": 100,\n  \"currency\": \"USD\",\n  \"auto_renew\": true\n}"
+                },
+                "description": "إنشاء اشتراك\n\nالحقول المطلوبة/الاختيارية:\n- status: active|inactive|cancelled|expired\n- auto_renew: boolean"
+              }
+            },
+            {
+              "name": "Update Subscription",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"inactive\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Subscription",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Cancel Subscription",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions/1/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions",
+                    "1",
+                    "cancel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"user request\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Renew Subscription",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/subscriptions/1/renew",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "subscriptions",
+                    "1",
+                    "renew"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📱 User (App)",
+      "description": "واجهات تطبيق الموبايل بعد تسجيل الدخول",
+      "item": [
+        {
+          "name": "👤 Profile",
+          "item": [
+            {
+              "name": "Get Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "me"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "me"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"User\",\n  \"email\": \"user@example.com\",\n  \"phone\": \"+20123\",\n  \"password\": \"NewPass\",\n  \"current_password\": \"Password123!\"\n}"
+                },
+                "description": "تحديث بيانات المستخدم الحالي\n\nالحقول المطلوبة/الاختيارية:\n- current_password مطلوب عند تغيير password"
+              }
+            },
+            {
+              "name": "Dashboard Permissions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_dashboard}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/permissions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "permissions"
+                  ]
+                },
+                "description": "الصلاحيات الخاصة بالداشبورد"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔔 Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/notifications",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "notifications"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+      {
+        "name": "Show Notification",
+        "request": {
+          "method": "GET",
+          "header": [
+            {
+              "key": "X-Context",
+              "value": "{{x_context_app}}"
+            },
+            {
+              "key": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "url": {
+            "raw": "{{base_url}}/api/v1/user/notifications/1",
+            "host": [
+              "{{base_url}}"
+            ],
+            "path": [
+              "api",
+              "v1",
+              "user",
+              "notifications",
+              "1"
+            ]
+          }
+        }
+      },
+            {
+              "name": "Mark As Read",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/notifications/1/read",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "notifications",
+                    "1",
+                    "read"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Mark All Read",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/notifications/mark-all-read",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "notifications",
+                    "mark-all-read"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Unread Count",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/notifications/unread-count",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "notifications",
+                    "unread-count"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "📈 Progress",
+          "item": [
+            {
+              "name": "List Progress",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/progress/lesson",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "progress",
+                    "lesson"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Progress",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/progress/lesson",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "progress",
+                    "lesson"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 1,\n  \"course_id\": 1,\n  \"lesson_id\": 1,\n  \"level_id\": 1,\n  \"progress_percentage\": 50,\n  \"completed_at\": null\n}"
+                },
+                "description": "تسجيل تقدم مستخدم"
+              }
+            },
+            {
+              "name": "Show Progress",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/progress/lesson/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "progress",
+                    "lesson",
+                    "1"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Progress",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/progress/lesson/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "progress",
+                    "lesson",
+                    "1"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"progress_percentage\": 100,\n  \"completed_at\": \"2025-01-01\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "🧭 Scenarios",
+          "item": [
+            {
+              "name": "List Scenarios",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/scenarios",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "scenarios"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Start Attempt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/scenarios/start-attempt",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "scenarios",
+                    "start-attempt"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scenario_id\": 1\n}"
+                }
+              }
+            },
+            {
+              "name": "Submit Answer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/scenarios/submit-answer",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "scenarios",
+                    "submit-answer"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"attempt_id\": 1,\n  \"question_id\": 1,\n  \"option_id\": 1,\n  \"answer_text\": null\n}"
+                }
+              }
+            },
+            {
+              "name": "Show Scenario",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Context",
+                    "value": "{{x_context_app}}"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/user/scenarios/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "user",
+                    "scenarios",
+                    "1"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public / General",
+      "description": "نقاط عامة ومتاحة بدون توكن",
+      "item": [
+        {
+          "name": "List Courses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/courses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "courses"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Course",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/courses/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "courses",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Levels",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/levels",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "levels"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Level",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/levels/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "levels",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Lessons",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/lessons",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "lessons"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Lesson",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/lessons/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "lessons",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Articles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Article",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/articles/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "articles",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "General Setting by Key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/general/settings/{key}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "general",
+                "settings",
+                "{key}"
+              ]
+            },
+            "description": "إرجاع قيمة إعداد عام حسب key"
+          }
+        },
+        {
+          "name": "Public Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Context",
+                "value": "{{x_context_app}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/user/settings/public",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "settings",
+                "public"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "x_context_app",
+      "value": "app",
+      "type": "string"
+    },
+    {
+      "key": "x_context_dashboard",
+      "value": "dashboard",
+      "type": "string"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ use App\Http\Resources\Scenarios\UserScenarioAttemptResource;
 use App\Http\Resources\System\ActivityLogResource;
 use App\Http\Resources\System\CertificateResource;
 use App\Http\Resources\System\NotificationResource;
+use App\Services\MediaUrlService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,7 +31,7 @@ class UserResource extends JsonResource
             'last_name' => $this->last_name,
             'phone_verified' => $this->phone_verified,
             'email_verified' => $this->email_verified,
-            'avatar' => $this->avatar,
+            'avatar' => MediaUrlService::toUrl($this->avatar),
             'email' => $this->email,
             'phone' => $this->phone,
             'language' => $this->language,

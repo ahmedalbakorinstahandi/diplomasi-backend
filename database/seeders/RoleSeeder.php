@@ -13,17 +13,23 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
-        Role::create([
-            'name' => 'user',
-            'description' => 'User role',
-            'is_default' => true,
-        ]);
+        Role::withTrashed()->updateOrCreate(
+            ['name' => 'user'],
+            [
+                'description' => 'User role',
+                'is_default' => true,
+                'deleted_at' => null,
+            ]
+        );
 
-        Role::create([
-            'name' => 'super_admin',
-            'description' => 'Super admin role',
-            'is_default' => false,
-        ]);
+        Role::withTrashed()->updateOrCreate(
+            ['name' => 'super_admin'],
+            [
+                'description' => 'Super admin role',
+                'is_default' => false,
+                'deleted_at' => null,
+            ]
+        );
 
         // run this seeder in next command
         // php artisan db:seed --class=RoleSeeder

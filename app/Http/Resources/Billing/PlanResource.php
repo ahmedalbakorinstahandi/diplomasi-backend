@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Billing;
 
+use App\Services\MediaUrlService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,7 +22,7 @@ class PlanResource extends JsonResource
             'price' => $this->price,
             'interval' => $this->interval,
             'description' => $this->description,
-            'icon_url' => $this->icon_url,
+            'icon_url' => MediaUrlService::toUrl($this->icon_url),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             

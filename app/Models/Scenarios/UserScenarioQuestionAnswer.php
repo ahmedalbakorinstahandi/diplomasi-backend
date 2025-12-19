@@ -13,6 +13,15 @@ class UserScenarioQuestionAnswer extends Model
     protected $table = 'user_scenario_question_answers';
 
     /**
+     * Indicates if the model should be timestamped.
+     *
+     * user_scenario_question_answers table does NOT have created_at/updated_at columns.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

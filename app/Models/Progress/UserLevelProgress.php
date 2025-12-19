@@ -13,6 +13,15 @@ class UserLevelProgress extends Model
     protected $table = 'user_level_progress';
 
     /**
+     * Indicates if the model should be timestamped.
+     *
+     * user_level_progress table does NOT have created_at/updated_at columns.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

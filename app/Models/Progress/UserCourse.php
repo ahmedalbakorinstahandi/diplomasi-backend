@@ -13,6 +13,15 @@ class UserCourse extends Model
     protected $table = 'user_courses';
 
     /**
+     * Indicates if the model should be timestamped.
+     *
+     * user_courses table does NOT have created_at/updated_at columns.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

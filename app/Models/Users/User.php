@@ -95,6 +95,90 @@ class User extends Authenticatable
         return cache()->get($cacheKey);
     }
 
+    /**
+     * Check if user has a specific role.
+     */
+    public function hasRole(string $roleName): bool
+    {
+        return $this->roles()->where('name', $roleName)->exists();
+    }
+
+    /**
+     * Check if user has any of the given roles.
+     */
+    public function hasAnyRole(array $roles): bool
+    {
+        return $this->roles()->whereIn('name', $roles)->exists();
+    }
+
+    /**
+     * Check if user is admin (has super_admin role).
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('super_admin');
+    }
+
+    /**
+     * Check if user has a specific permission through their roles.
+     */
+    public function hasPermission(string $permissionName): bool
+    {
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $this->roles()
+            ->whereHas('permissions', function ($query) use ($permissionName) {
+                $query->where('name', $permissionName);
+            })
+            ->exists();
+    }
+
+    /**
+     * Check if user has any of the given permissions.
+     */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $this->roles()
+            ->whereHas('permissions', function ($query) use ($permissions) {
+                $query->whereIn('name', $permissions);
+            })
+            ->exists();
+    }
+
+    /**
+     * Get all effective permission names (merged across all roles).
+     *
+     * @return array<int, string>
+     */
+    public function getEffectivePermissionNames(): array
+    {
+        // Super admin implicitly has all permissions.
+        if ($this->hasRole('super_admin')) {
+            return Permission::query()->pluck('name')->values()->all();
+        }
+
+        $this->loadMissing(['roles.permissions']);
+
+        return $this->roles
+            ->flatMap(fn ($role) => $role->permissions->pluck('name'))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Check if user is active.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
 
     /**
      * Get the roles for the user.

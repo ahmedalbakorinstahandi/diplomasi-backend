@@ -12,14 +12,7 @@ class AuthService
 {
     public function login($data)
     {
-
-        $roles = ['admin', 'user'];
-
-        $user = User::where('email', $data['email'])
-            ->whereHas('roles', function ($query) use ($roles) {
-                $query->whereIn('name', $roles);
-            })
-            ->first();
+        $user = User::where('email', $data['email'])->first();
 
 
         if (!$user) {
