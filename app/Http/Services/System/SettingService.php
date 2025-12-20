@@ -40,10 +40,10 @@ class SettingService
 
     public function show($idOrKey)
     {
-        $setting = is_numeric($idOrKey) 
+        $setting = is_numeric($idOrKey)
             ? Setting::where('id', $idOrKey)->first()
             : Setting::where('key_name', $idOrKey)->first();
-            
+
         if (!$setting) {
             MessageService::abort(404, 'messages.setting.not_found');
         }
@@ -75,28 +75,31 @@ class SettingService
         return $this->show($key);
     }
 
+    public function getValue(string $key, $default = null)
+    {
+        return Setting::getValue($key, $default);
+    }
+
+    public function setValue(string $key, $value, string $type = 'text')
+    {
+        Setting::setValue($key, $value, $type);
+
+        return $this->show($key);
+    }
+
     public function updateMany($data)
     {
         $updated = [];
-        
-        foreach ($data['settings'] as $settingData) {
-            $setting = Setting::where('key_name', $settingData['key_name'])->first();
-            
-            if ($setting) {
-                $setting->value = $settingData['value'];
-                $setting->save();
-                $updated[] = $setting;
+
+        foreach ($data as $key => $value) {
+            if (is_array($value) && isset($value['value'])) {
+                $type = $value['type'] ?? 'text';
+                $updated[] = $this->setValue($key, $value['value'], $type);
             } else {
-                $updated[] = Setting::create([
-                    'key_name' => $settingData['key_name'],
-                    'value' => $settingData['value'],
-                    'type' => $settingData['type'] ?? 'text',
-                    'is_settings' => $settingData['is_settings'] ?? false,
-                ]);
+                $updated[] = $this->setValue($key, $value);
             }
         }
-        
+
         return $updated;
     }
 }
-
