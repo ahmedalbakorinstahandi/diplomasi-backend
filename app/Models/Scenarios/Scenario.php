@@ -35,7 +35,7 @@ class Scenario extends Model
     protected function casts(): array
     {
         return [
-            'description' => 'array',
+            'description' => 'string',
             'is_published' => 'boolean',
             'is_free' => 'boolean',
         ];
