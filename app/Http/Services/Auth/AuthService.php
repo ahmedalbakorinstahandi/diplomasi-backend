@@ -125,7 +125,7 @@ class AuthService
 
 
         // TODO: Remove this after testing
-        if ($data['otp'] == 5555) {
+        if ($data['otp'] == 55555) {
         } else
 
         if ($user->otp !== $data['otp'] || $user->otp_expire_at < now()) {
