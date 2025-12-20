@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Learning\Level;
 use App\Models\Scenarios\Scenario;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class ScenarioSeeder extends Seeder
@@ -14,13 +15,12 @@ class ScenarioSeeder extends Seeder
 
         foreach ($levels as $level) {
             for ($i = 1; $i <= 5; $i++) {
-                Scenario::withTrashed()->updateOrCreate(
+                $scenario = Scenario::withTrashed()->updateOrCreate(
                     [
                         'level_id' => $level->id,
-                        'order_index' => $i,
+                        'title' => "سيناريو {$i}",
                     ],
                     [
-                        'title' => "سيناريو {$i}",
                         'description' => [
                             'ar' => "وصف تجريبي للسيناريو {$i} ضمن {$level->title}.",
                         ],
@@ -30,6 +30,10 @@ class ScenarioSeeder extends Seeder
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($scenario->wasRecentlyCreated || $scenario->order_index === null) {
+                    OrderHelper::assign($scenario, 'order_index');
+                }
             }
         }
     }

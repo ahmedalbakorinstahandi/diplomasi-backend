@@ -9,7 +9,7 @@ class ReOrderLessonRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'new_order_index' => 'required|integer|exists:lessons,id',
+            'new_order_index' => 'required|integer|min:1',
         ];
     }
 }

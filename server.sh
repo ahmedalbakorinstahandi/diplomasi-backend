@@ -1,8 +1,8 @@
-diplomasi-$aY44ix2V5E*8CtA@bx&
+# diplomasi-backend.ahmed-albakor.com
+# diplomasi-$aY44ix2V5E*8CtA@bx&
 
 ssh root@45.132.241.51
 
-// diplomasi-backend.ahmed-albakor.com
 
 cd /
 cd /home/ahmed-albakor-diplomasi-backend/htdocs/diplomasi-backend.ahmed-albakor.com

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Learning\Lesson;
 use App\Models\Learning\Level;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class LessonSeeder extends Seeder
@@ -25,7 +26,7 @@ class LessonSeeder extends Seeder
             for ($i = 1; $i <= 6; $i++) {
                 $lessonNumber = (string) $i;
 
-                Lesson::withTrashed()->updateOrCreate(
+                $lesson = Lesson::withTrashed()->updateOrCreate(
                     [
                         'level_id' => $level->id,
                         'lesson_number' => $lessonNumber,
@@ -35,11 +36,14 @@ class LessonSeeder extends Seeder
                         'description' => "شرح وتمارين للدرس {$i} ضمن {$level->title}.",
                         'video_url' => $videoUrls[($i - 1) % count($videoUrls)],
                         'content' => "هذا محتوى تدريبي تجريبي للدرس {$i}. يتضمن نقاطاً مختصرة وأمثلة تطبيقية وأسئلة للمراجعة.",
-                        'order_index' => $i,
                         'is_published' => (bool) $level->is_published && $i !== 6,
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($lesson->wasRecentlyCreated || $lesson->order_index === null) {
+                    OrderHelper::assign($lesson, 'order_index');
+                }
             }
         }
     }

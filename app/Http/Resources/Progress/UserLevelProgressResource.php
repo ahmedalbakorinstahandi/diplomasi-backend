@@ -26,9 +26,7 @@ class UserLevelProgressResource extends JsonResource
             'score' => $this->score,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
-            
+
             // Relationships
             'user' => new UserResource($this->whenLoaded('user')),
             'level' => new LevelResource($this->whenLoaded('level')),
@@ -36,4 +34,3 @@ class UserLevelProgressResource extends JsonResource
         ];
     }
 }
-

@@ -9,7 +9,7 @@ class ReOrderCourseRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'sort_order' => 'required|integer|min:1',
+            'new_order_index' => 'required|integer|min:1',
         ];
     }
 }

@@ -14,11 +14,11 @@ class LevelService
     {
         $query = Level::query()->with([
             'course',
-            'lessons',
-            'scenarios',
-            'levelTracks',
-            'userLevelProgress',
-            'certificates'
+            // 'lessons',
+            // 'scenarios',
+            // 'levelTrack',
+            // 'userLevelProgress',
+            // 'certificates'
         ]);
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
@@ -55,11 +55,11 @@ class LevelService
 
         $level->load([
             'course',
-            'lessons',
-            'scenarios',
-            'levelTracks',
-            'userLevelProgress',
-            'certificates'
+            // 'lessons',
+            // 'scenarios',
+            'levelTrack',
+            // 'userLevelProgress',
+            // 'certificates'
         ]);
 
         return $level;
@@ -68,6 +68,8 @@ class LevelService
     public function create($data)
     {
         $level = Level::create($data);
+
+        OrderHelper::assign($level, 'order_index');
 
         $level = $this->show($level->id);
 
@@ -97,13 +99,8 @@ class LevelService
 
     public function reorder($level, $validatedData)
     {
-        // If order_index is used for ordering, update it
-        if (isset($validatedData['order_index'])) {
-            $level->order_index = $validatedData['order_index'];
-            $level->save();
-        }
+        OrderHelper::reorder($level, $validatedData['new_order_index'], 'order_index');
 
-        return $level;
+        return $this->show($level->id);
     }
 }
-

@@ -8,6 +8,7 @@ use App\Models\Scenarios\UserScenarioAttempt;
 use App\Models\Scenarios\UserScenarioQuestionAnswer;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use App\Services\OrderHelper;
 use App\Models\Users\User;
 
 class ScenarioService
@@ -67,6 +68,8 @@ class ScenarioService
     {
         $scenario = Scenario::create($data);
 
+        OrderHelper::assign($scenario, 'order_index');
+
         $scenario = $this->show($scenario->id);
 
         return $scenario;
@@ -92,12 +95,9 @@ class ScenarioService
 
     public function reorder($scenario, $validatedData)
     {
-        if (isset($validatedData['order_index'])) {
-            $scenario->order_index = $validatedData['order_index'];
-            $scenario->save();
-        }
+        OrderHelper::reorder($scenario, $validatedData['new_order_index'], 'order_index');
 
-        return $scenario;
+        return $this->show($scenario->id);
     }
 
     public function startAttempt($scenarioId)

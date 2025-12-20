@@ -69,9 +69,9 @@ class Level extends Model
     /**
      * Get the level tracks.
      */
-    public function levelTracks()
+    public function levelTrack()
     {
-        return $this->hasMany(LevelTrack::class);
+        return $this->hasOne(LevelTrack::class);
     }
 
     /**
@@ -90,4 +90,3 @@ class Level extends Model
         return $this->hasMany(\App\Models\System\Certificate::class);
     }
 }
-

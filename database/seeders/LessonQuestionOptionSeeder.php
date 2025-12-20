@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Learning\LessonQuestion;
 use App\Models\Learning\LessonQuestionOption;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class LessonQuestionOptionSeeder extends Seeder
@@ -19,20 +20,23 @@ class LessonQuestionOptionSeeder extends Seeder
                     ['text' => 'خطأ', 'is_correct' => 0],
                 ];
 
-                foreach ($options as $idx => $opt) {
-                    LessonQuestionOption::withTrashed()->updateOrCreate(
+                foreach ($options as $opt) {
+                    $option = LessonQuestionOption::withTrashed()->updateOrCreate(
                         [
                             'question_id' => $question->id,
-                            'order_index' => $idx + 1,
+                            'option_text' => $opt['text'],
                         ],
                         [
-                            'option_text' => $opt['text'],
                             'pair_key' => null,
                             'is_correct' => $opt['is_correct'],
                             'attached_path' => null,
                             'deleted_at' => null,
                         ]
                     );
+
+                    if ($option->wasRecentlyCreated || $option->order_index === null) {
+                        OrderHelper::assign($option, 'order_index');
+                    }
                 }
 
                 continue;
@@ -46,20 +50,23 @@ class LessonQuestionOptionSeeder extends Seeder
                     ['text' => 'تعريف 2', 'pair_key' => null, 'is_correct' => null],
                 ];
 
-                foreach ($options as $idx => $opt) {
-                    LessonQuestionOption::withTrashed()->updateOrCreate(
+                foreach ($options as $opt) {
+                    $option = LessonQuestionOption::withTrashed()->updateOrCreate(
                         [
                             'question_id' => $question->id,
-                            'order_index' => $idx + 1,
+                            'option_text' => $opt['text'],
                         ],
                         [
-                            'option_text' => $opt['text'],
                             'pair_key' => $opt['pair_key'],
                             'is_correct' => $opt['is_correct'],
                             'attached_path' => null,
                             'deleted_at' => null,
                         ]
                     );
+
+                    if ($option->wasRecentlyCreated || $option->order_index === null) {
+                        OrderHelper::assign($option, 'order_index');
+                    }
                 }
 
                 continue;
@@ -73,20 +80,23 @@ class LessonQuestionOptionSeeder extends Seeder
                 ['text' => 'خيار (د)', 'is_correct' => $question->type === 'multiple_choice' ? 1 : 0],
             ];
 
-            foreach ($options as $idx => $opt) {
-                LessonQuestionOption::withTrashed()->updateOrCreate(
+            foreach ($options as $opt) {
+                $option = LessonQuestionOption::withTrashed()->updateOrCreate(
                     [
                         'question_id' => $question->id,
-                        'order_index' => $idx + 1,
+                        'option_text' => $opt['text'],
                     ],
                     [
-                        'option_text' => $opt['text'],
                         'pair_key' => null,
                         'is_correct' => $opt['is_correct'],
                         'attached_path' => null,
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($option->wasRecentlyCreated || $option->order_index === null) {
+                    OrderHelper::assign($option, 'order_index');
+                }
             }
         }
     }

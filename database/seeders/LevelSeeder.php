@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Learning\Course;
 use App\Models\Learning\Level;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class LevelSeeder extends Seeder
@@ -16,7 +17,7 @@ class LevelSeeder extends Seeder
             for ($i = 1; $i <= 3; $i++) {
                 $isPublished = (bool) $course->is_published && $i !== 3 ? true : (bool) ($course->is_published && $i === 3);
 
-                Level::withTrashed()->updateOrCreate(
+                $level = Level::withTrashed()->updateOrCreate(
                     [
                         'course_id' => $course->id,
                         'level_number' => $i,
@@ -27,10 +28,13 @@ class LevelSeeder extends Seeder
                         'is_published' => $isPublished,
                         'is_free' => $i === 1 ? (bool) $course->is_free : false,
                         'has_certificate' => $i === 3,
-                        'order_index' => $i,
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($level->wasRecentlyCreated || $level->order_index === null) {
+                    OrderHelper::assign($level, 'order_index');
+                }
             }
         }
     }

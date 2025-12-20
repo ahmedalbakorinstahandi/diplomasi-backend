@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Learning\Level;
 use App\Models\Learning\LevelTrack;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class LevelTrackSeeder extends Seeder
@@ -31,19 +32,21 @@ class LevelTrackSeeder extends Seeder
                 ];
             }
 
-            $order = 1;
             foreach ($items as $item) {
-                LevelTrack::withTrashed()->updateOrCreate(
+                $track = LevelTrack::withTrashed()->updateOrCreate(
                     [
                         'level_id' => $level->id,
                         'trackable_id' => $item['trackable_id'],
                         'trackable_type' => $item['trackable_type'],
                     ],
                     [
-                        'order_index' => $order++,
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($track->wasRecentlyCreated || $track->order_index === null) {
+                    OrderHelper::assign($track, 'order_index');
+                }
             }
         }
     }

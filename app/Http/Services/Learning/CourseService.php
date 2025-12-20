@@ -13,17 +13,17 @@ class CourseService
     public function index($filters = [])
     {
         $query = Course::query()->with([
-            'levels',
-            'userCourses',
-            'certificates'
+            // 'levels',
+            // 'userCourses',
+            // 'certificates'
         ]);
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
-        $filters['sort_field'] = $filters['sort_field'] ?? 'id';
-        $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
+        $filters['sort_field'] = $filters['sort_field'] ?? 'order_index';
+        $filters['sort_order'] = $filters['sort_order'] ?? 'asc';
 
         $searchFields = ['title', 'description'];
-        $numericFields = [];
+        $numericFields = ['order_index'];
         $dateFields = ['created_at'];
         $exactMatchFields = ['is_published', 'is_free'];
         $inFields = [];
@@ -51,9 +51,9 @@ class CourseService
         }
 
         $course->load([
-            'levels',
-            'userCourses',
-            'certificates'
+            // 'levels',
+            // 'userCourses',
+            // 'certificates'
         ]);
 
         return $course;
@@ -62,6 +62,8 @@ class CourseService
     public function create($data)
     {
         $course = Course::create($data);
+
+        OrderHelper::assign($course, 'order_index');
 
         $course = $this->show($course->id);
 
@@ -89,9 +91,8 @@ class CourseService
 
     public function reorder($course, $validatedData)
     {
-        // Note: Courses don't have sort_order in the model, so reorder might not be applicable
-        // If sort_order is needed, it should be added to the model and migration
-        return $course;
+        OrderHelper::reorder($course, $validatedData['new_order_index'], 'order_index');
+
+        return $this->show($course->id);
     }
 }
-

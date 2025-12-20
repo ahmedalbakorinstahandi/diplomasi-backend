@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\ScenarioQuestion;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class ScenarioQuestionSeeder extends Seeder
@@ -15,14 +16,14 @@ class ScenarioQuestionSeeder extends Seeder
         foreach ($scenarios as $scenario) {
             for ($i = 1; $i <= 3; $i++) {
                 $type = $i === 2 ? 'true_false' : 'single_choice';
+                $code = "S{$scenario->id}Q{$i}";
 
                 $q = ScenarioQuestion::withTrashed()->updateOrCreate(
                     [
                         'scenario_id' => $scenario->id,
-                        'order_index' => $i,
+                        'code' => $code,
                     ],
                     [
-                        'code' => "S{$scenario->id}Q{$i}",
                         'type' => $type,
                         'question_text' => "سؤال سيناريو ({$type}) رقم {$i} للسيناريو {$scenario->id}",
                         'attached_path' => null,
@@ -30,6 +31,10 @@ class ScenarioQuestionSeeder extends Seeder
                         'deleted_at' => null,
                     ]
                 );
+
+                if ($q->wasRecentlyCreated || $q->order_index === null) {
+                    OrderHelper::assign($q, 'order_index');
+                }
 
                 // Ensure scenario has a start question.
                 if ($i === 1 && !$scenario->start_question_id) {

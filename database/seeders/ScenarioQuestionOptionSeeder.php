@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Scenarios\ScenarioQuestion;
 use App\Models\Scenarios\ScenarioQuestionOption;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class ScenarioQuestionOptionSeeder extends Seeder
@@ -36,19 +37,22 @@ class ScenarioQuestionOptionSeeder extends Seeder
                     ];
                 }
 
-                foreach ($options as $oIdx => $opt) {
-                    ScenarioQuestionOption::withTrashed()->updateOrCreate(
+                foreach ($options as $opt) {
+                    $option = ScenarioQuestionOption::withTrashed()->updateOrCreate(
                         [
                             'question_id' => $question->id,
-                            'order_index' => $oIdx + 1,
+                            'option_text' => $opt['text'],
                         ],
                         [
-                            'option_text' => $opt['text'],
                             'next_question_id' => $opt['next_question_id'],
                             'attached_path' => null,
                             'deleted_at' => null,
                         ]
                     );
+
+                    if ($option->wasRecentlyCreated || $option->order_index === null) {
+                        OrderHelper::assign($option, 'order_index');
+                    }
                 }
             }
         }
