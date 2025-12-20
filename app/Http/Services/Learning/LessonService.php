@@ -14,10 +14,10 @@ class LessonService
     {
         $query = Lesson::query()->with([
             'level',
-            'lessonQuestions',
-            'lessonSummary',
-            'userLessonProgress',
-            'userLessonAttempts'
+            // 'lessonQuestions',
+            // 'lessonSummary',
+            // 'userLessonProgress',
+            // 'userLessonAttempts'
         ]);
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
@@ -54,10 +54,10 @@ class LessonService
 
         $lesson->load([
             'level',
-            'lessonQuestions',
-            'lessonSummary',
-            'userLessonProgress',
-            'userLessonAttempts'
+            // 'lessonQuestions',
+            // 'lessonSummary',
+            // 'userLessonProgress',
+            // 'userLessonAttempts'
         ]);
 
         return $lesson;

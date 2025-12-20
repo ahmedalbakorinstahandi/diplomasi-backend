@@ -21,7 +21,7 @@ class LessonController extends Controller
         $this->lessonService = $lessonService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         LessonPermission::canView();
 
@@ -29,6 +29,7 @@ class LessonController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $lessons,
             'meta' => true,
             'resource' => LessonResource::class,
@@ -106,7 +107,6 @@ class LessonController extends Controller
 
         $lesson = $this->lessonService->reorder($lesson, $request->validated());
 
-        return $this->index(request());
+        return $this->index(request(), 'messages.lesson.reordered');
     }
 }
-
