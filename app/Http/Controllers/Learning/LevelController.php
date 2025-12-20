@@ -21,7 +21,7 @@ class LevelController extends Controller
         $this->levelService = $levelService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         LevelPermission::canView();
 
@@ -33,6 +33,7 @@ class LevelController extends Controller
             'meta' => true,
             'resource' => LevelResource::class,
             'status' => 200,
+            'message' => $message,
         ]);
     }
 
@@ -106,7 +107,6 @@ class LevelController extends Controller
 
         $level = $this->levelService->reorder($level, $request->validated());
 
-        return $this->index(request());
+        return $this->index(request(), 'messages.level.reordered');
     }
 }
-
