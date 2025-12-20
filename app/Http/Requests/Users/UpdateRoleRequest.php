@@ -17,11 +17,9 @@ class UpdateRoleRequest extends BaseFormRequest
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles', 'name')->whereNull('deleted_at')->ignore($roleId),
+                // Rule::unique('roles', 'name')->whereNull('deleted_at')->ignore($roleId),
             ],
             'description' => 'sometimes|nullable|string|max:1000',
-            'is_default' => 'sometimes|boolean',
         ];
     }
 }
-

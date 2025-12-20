@@ -17,7 +17,6 @@ class CreateRoleRequest extends BaseFormRequest
                 // Rule::unique('roles', 'name')->whereNull('deleted_at'),
             ],
             'description' => 'nullable|string|max:1000',
-            'is_default' => 'nullable|boolean',
         ];
     }
 }

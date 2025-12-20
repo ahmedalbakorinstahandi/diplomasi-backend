@@ -62,6 +62,13 @@ class RoleService
 
     public function update(array $data, Role $role): Role
     {
+        if (isset($data['name'])) {
+            $existingRole = Role::where('name', $data['name'])->where('id', '!=', $role->id)->first();
+            if ($existingRole) {
+                MessageService::abort(400, 'messages.role.already_exists');
+            }
+        }
+
         $role->update($data);
 
         return $this->show($role->id);
@@ -118,4 +125,3 @@ class RoleService
         return $this->show($role->id);
     }
 }
-
