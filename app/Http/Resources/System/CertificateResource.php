@@ -5,6 +5,7 @@ namespace App\Http\Resources\System;
 use App\Http\Resources\Learning\CourseResource;
 use App\Http\Resources\Learning\LevelResource;
 use App\Http\Resources\Users\UserResource;
+use App\Services\MediaUrlService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -24,11 +25,11 @@ class CertificateResource extends JsonResource
             'level_id' => $this->level_id,
             'certificate_code' => $this->certificate_code,
             'issued_at' => $this->issued_at,
-            'qr_code' => $this->qr_code,
-            'pdf_url' => $this->pdf_url,
+            'qr_code' => MediaUrlService::toUrl($this->qr_code),
+            'pdf_url' => MediaUrlService::toUrl($this->pdf_url),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            
+
             // Relationships
             'user' => new UserResource($this->whenLoaded('user')),
             'course' => new CourseResource($this->whenLoaded('course')),
@@ -36,4 +37,3 @@ class CertificateResource extends JsonResource
         ];
     }
 }
-
