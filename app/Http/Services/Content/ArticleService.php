@@ -6,6 +6,7 @@ use App\Http\Permissions\Content\ArticlePermission;
 use App\Models\Content\Article;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use App\Services\OrderHelper;
 
 class ArticleService
 {
@@ -76,5 +77,11 @@ class ArticleService
     {
         $article->delete();
     }
-}
 
+    public function reorder($article, $validatedData)
+    {
+        OrderHelper::reorder($article, $validatedData['new_order_index'], 'order_index');
+
+        return $article;
+    }
+}

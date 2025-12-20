@@ -10,6 +10,7 @@ use App\Http\Resources\Content\ArticleResource;
 use App\Http\Services\Content\ArticleService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
+use App\Http\Requests\Content\ReOrderArticleRequest;
 
 class ArticleController extends Controller
 {
@@ -20,7 +21,7 @@ class ArticleController extends Controller
         $this->articleService = $articleService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         ArticlePermission::canView();
 
@@ -28,6 +29,7 @@ class ArticleController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $articles,
             'meta' => true,
             'resource' => ArticleResource::class,
@@ -96,5 +98,15 @@ class ArticleController extends Controller
             'status' => 200,
         ]);
     }
-}
 
+    public function reorder(int $id, ReOrderArticleRequest $request)
+    {
+        ArticlePermission::canReorder();
+
+        $article = $this->articleService->show($id);
+
+        $article = $this->articleService->reorder($article, $request->validated());
+
+        return $this->index(request(), 'messages.article.reordered');
+    }
+}

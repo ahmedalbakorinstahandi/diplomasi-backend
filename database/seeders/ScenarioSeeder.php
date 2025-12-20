@@ -21,9 +21,7 @@ class ScenarioSeeder extends Seeder
                         'title' => "سيناريو {$i}",
                     ],
                     [
-                        'description' => [
-                            'ar' => "وصف تجريبي للسيناريو {$i} ضمن {$level->title}.",
-                        ],
+                        'description' => "وصف تجريبي للسيناريو {$i} ضمن {$level->title}.",
                         'is_published' => (bool) $level->is_published && $i !== 5,
                         'is_free' => $i === 1 ? (bool) $level->is_free : false,
                         'start_question_id' => null,
@@ -38,4 +36,3 @@ class ScenarioSeeder extends Seeder
         }
     }
 }
-

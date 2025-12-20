@@ -68,6 +68,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::post('articles', [ArticleController::class, 'create']);
         Route::put('articles/{id}', [ArticleController::class, 'update']);
         Route::delete('articles/{id}', [ArticleController::class, 'delete']);
+        Route::put('articles/{id}/reorder', [ArticleController::class, 'reorder']);
 
         // Subscriptions
         Route::get('subscriptions', [SubscriptionController::class, 'index']);

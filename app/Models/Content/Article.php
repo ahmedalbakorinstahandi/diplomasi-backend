@@ -24,6 +24,7 @@ class Article extends Model
         'author_id',
         'is_published',
         'published_at',
+        'order_index',
     ];
 
     /**
@@ -36,6 +37,7 @@ class Article extends Model
         return [
             'is_published' => 'boolean',
             'published_at' => 'datetime',
+            'order_index' => 'integer',
         ];
     }
 

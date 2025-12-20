@@ -9,7 +9,7 @@ class ReOrderScenarioRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'new_order_index' => 'required|integer|min:1',
+            'new_order_index' => 'required|exists:scenarios,id',
         ];
     }
 }

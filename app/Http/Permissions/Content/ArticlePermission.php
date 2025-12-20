@@ -64,5 +64,12 @@ class ArticlePermission
 
         MessageService::abort(403, 'messages.permission.error');
     }
-}
 
+    public static function canReorder(): void
+    {
+        if (RequestContext::isDashboard()) {
+            AuthorizationService::authorize('article.reorder');
+            return;
+        }
+    }
+}
