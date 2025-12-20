@@ -29,7 +29,7 @@ class AuthService
             );
         }
 
-        if ($user->status === 'banneded') {
+        if ($user->status === 'banned') {
             MessageService::abort(
                 401,
                 'auth.account_banned',
