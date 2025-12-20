@@ -14,6 +14,7 @@ return [
         'created' => 'تم إنشاء المستخدم بنجاح',
         'updated' => 'تم تحديث المستخدم بنجاح',
         'deleted' => 'تم حذف المستخدم بنجاح',
+        'email_already_exists' => 'البريد الإلكتروني مستخدم من قبل',
     ],
     'role' => [
         'not_found' => 'الدور غير موجود',
@@ -149,5 +150,8 @@ return [
         'code_message_rigster' => 'مرحباً :first_name، رمز التحقق الخاص بك هو :otp. صالح لمدة :minutes دقائق.',
         'code_message_forgot_password' => 'مرحباً :first_name، رمز التحقق لإعادة تعيين كلمة المرور هو :otp. صالح لمدة :minutes دقائق.',
     ],
+
+
+
 
 ];
