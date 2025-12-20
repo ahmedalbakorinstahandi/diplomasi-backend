@@ -8,7 +8,7 @@
  * This script tests all major endpoints to ensure they're working correctly.
  */
 
-$baseUrl = 'http://localhost:8000/api/v1';
+$baseUrl = getenv('API_BASE_URL') ?: 'http://127.0.0.1:8000/api/v1';
 $token = '';
 $context = 'dashboard';
 
@@ -71,12 +71,14 @@ $loginResult = makeRequest('POST', "{$baseUrl}/auth/login", [
     'password' => 'Password123!'
 ]);
 
-if ($loginResult['code'] === 200 && isset($loginResult['body']['data']['token'])) {
-    $token = $loginResult['body']['data']['token'];
+if ($loginResult['code'] === 200 && isset($loginResult['body']['access_token'])) {
+    $token = $loginResult['body']['access_token'];
     echo "{$green}✓ Login successful{$reset}\n";
     echo "Token: " . substr($token, 0, 20) . "...\n\n";
 } else {
     echo "{$red}✗ Login failed{$reset}\n";
+    echo "  HTTP Code: {$loginResult['code']}\n";
+    echo "  Response: " . json_encode($loginResult['body']) . "\n";
     exit(1);
 }
 

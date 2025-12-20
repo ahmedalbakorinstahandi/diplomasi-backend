@@ -9,9 +9,6 @@ use Illuminate\Database\Seeder;
 
 class RolePermissionSeeder extends Seeder
 {
-    /**
-     * Attach minimal dashboard entry + RBAC management permissions to "admin" role.
-     */
     public function run(): void
     {
         $adminRole = Role::withTrashed()->updateOrCreate(
@@ -23,22 +20,12 @@ class RolePermissionSeeder extends Seeder
             ]
         );
 
-        $permissionNames = [
-            'admin.access',
-            'permission.view',
-            'role.view',
-            'role.create',
-            'role.update',
-            'role.delete',
-            'role.assign_permissions',
-        ];
-
-        $permissions = Permission::query()->whereIn('name', $permissionNames)->get();
-        foreach ($permissions as $permission) {
+        // Grant admin role ALL available permissions so dashboard endpoints work out of the box.
+        Permission::query()->get()->each(function (Permission $permission) use ($adminRole) {
             RolePermission::withTrashed()->updateOrCreate(
                 ['role_id' => $adminRole->id, 'permission_id' => $permission->id],
                 ['deleted_at' => null]
             );
-        }
+        });
     }
 }

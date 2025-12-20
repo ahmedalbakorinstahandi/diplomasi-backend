@@ -58,9 +58,9 @@ Route::group(['prefix' => 'user'], function () {
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);
-        Route::get('notifications/{id}', [NotificationController::class, 'show']);
-        Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
         Route::get('notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+        Route::get('notifications/{id}', [NotificationController::class, 'show']);
+        Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     });
 });
