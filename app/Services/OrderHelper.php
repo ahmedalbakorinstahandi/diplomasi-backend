@@ -10,7 +10,7 @@ class OrderHelper
     /**
      * تعيين ترتيب جديد تلقائي عند الإنشاء (بأعلى رقم موجود + 1).
      */
-    public static function assign(Model $model, string $orderField = 'sort_order'): void
+    public static function assign(Model $model, string $orderField = 'order_index'): void
     {
         $max = $model->newQuery()->withTrashed()->max($orderField) ?? 0;
         $model->{$orderField} = $max + 1;
@@ -20,7 +20,7 @@ class OrderHelper
     /**
      * إعادة ترتيب عنصر بتحريكه إلى موقع جديد.
      */
-    public static function reorder(Model $model, int $newOrder, string $orderField = 'sort_order'): void
+    public static function reorder(Model $model, int $newOrder, string $orderField = 'order_index'): void
     {
         $oldOrder = $model->{$orderField};
 

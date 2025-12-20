@@ -24,6 +24,7 @@ class CourseResource extends JsonResource
             'image_url' => MediaUrlService::toUrl($this->image_url),
             'is_published' => $this->is_published,
             'is_free' => $this->is_free,
+            'order_index' => $this->order_index,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             

@@ -35,8 +35,10 @@ class ResponseService
                     break;
 
                 case 'message':
-                    $response['message'] = trans($value, $replace);
-                    $response['key'] = $value;
+                    if ($value) {
+                        $response['message'] = trans($value, $replace);
+                        $response['key'] = $value;
+                    }
                     break;
 
                 case 'data':

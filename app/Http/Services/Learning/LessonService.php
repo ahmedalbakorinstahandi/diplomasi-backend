@@ -67,6 +67,8 @@ class LessonService
     {
         $lesson = Lesson::create($data);
 
+        OrderHelper::assign($lesson, 'order_index');
+
         $lesson = $this->show($lesson->id);
 
         return $lesson;
@@ -94,13 +96,8 @@ class LessonService
 
     public function reorder($lesson, $validatedData)
     {
-        // If order_index is used for ordering, update it
-        if (isset($validatedData['order_index'])) {
-            $lesson->order_index = $validatedData['order_index'];
-            $lesson->save();
-        }
+        OrderHelper::reorder($lesson, $validatedData['new_order_index'], 'order_index');
 
         return $lesson;
     }
 }
-

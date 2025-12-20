@@ -23,6 +23,7 @@ class Course extends Model
         'image_url',
         'is_published',
         'is_free',
+        'order_index',
     ];
 
     /**
@@ -35,6 +36,7 @@ class Course extends Model
         return [
             'is_published' => 'boolean',
             'is_free' => 'boolean',
+            'order_index' => 'integer',
         ];
     }
 

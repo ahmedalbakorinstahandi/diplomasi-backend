@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // add phone_verified and email_verified columns
-            $table->boolean('phone_verified')->default(false);
-            $table->boolean('email_verified')->default(false);
+            $table->boolean('phone_verified')->default(false)->after('phone');
+            $table->boolean('email_verified')->default(false)->after('email');
         });
     }
 

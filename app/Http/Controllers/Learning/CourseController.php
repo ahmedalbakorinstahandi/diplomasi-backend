@@ -21,7 +21,7 @@ class CourseController extends Controller
         $this->courseService = $courseService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         CoursePermission::canView();
 
@@ -33,6 +33,7 @@ class CourseController extends Controller
             'meta' => true,
             'resource' => CourseResource::class,
             'status' => 200,
+            'message' => $message,
         ]);
     }
 
@@ -106,7 +107,6 @@ class CourseController extends Controller
 
         $course = $this->courseService->reorder($course, $request->validated());
 
-        return $this->index(request());
+        return $this->index(request(), 'messages.course.reordered');
     }
 }
-
