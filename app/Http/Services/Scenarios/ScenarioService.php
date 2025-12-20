@@ -17,9 +17,9 @@ class ScenarioService
     {
         $query = Scenario::query()->with([
             'level',
-            'startQuestion',
-            'scenarioQuestions',
-            'userScenarioAttempts'
+            // 'startQuestion',
+            // 'scenarioQuestions',
+            // 'userScenarioAttempts'
         ]);
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
@@ -57,8 +57,8 @@ class ScenarioService
         $scenario->load([
             'level',
             'startQuestion',
-            'scenarioQuestions',
-            'userScenarioAttempts'
+            // 'scenarioQuestions',
+            // 'userScenarioAttempts'
         ]);
 
         return $scenario;

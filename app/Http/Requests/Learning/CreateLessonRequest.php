@@ -15,7 +15,6 @@ class CreateLessonRequest extends BaseFormRequest
             'description' => 'nullable|string',
             'video_url' => 'nullable|string|max:500',
             'content' => 'nullable|string',
-            'order_index' => 'nullable|integer|min:0',
             'is_published' => 'nullable|boolean',
         ];
     }

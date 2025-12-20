@@ -15,7 +15,6 @@ class UpdateScenarioRequest extends BaseFormRequest
             'is_published' => 'sometimes|nullable|boolean',
             'is_free' => 'sometimes|nullable|boolean',
             'start_question_id' => 'sometimes|nullable|exists:scenario_questions,id',
-            'order_index' => 'sometimes|nullable|integer|min:0',
         ];
     }
 }

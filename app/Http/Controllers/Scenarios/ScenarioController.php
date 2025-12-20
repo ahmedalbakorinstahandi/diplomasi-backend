@@ -23,7 +23,7 @@ class ScenarioController extends Controller
         $this->scenarioService = $scenarioService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         ScenarioPermission::canView();
 
@@ -31,6 +31,7 @@ class ScenarioController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $scenarios,
             'meta' => true,
             'resource' => ScenarioResource::class,
@@ -108,7 +109,7 @@ class ScenarioController extends Controller
 
         $scenario = $this->scenarioService->reorder($scenario, $request->validated());
 
-        return $this->index(request());
+        return $this->index(request(), 'messages.scenario.reordered');
     }
 
     public function startAttempt(StartScenarioAttemptRequest $request)

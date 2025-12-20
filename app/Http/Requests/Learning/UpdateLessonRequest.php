@@ -15,7 +15,6 @@ class UpdateLessonRequest extends BaseFormRequest
             'description' => 'sometimes|nullable|string',
             'video_url' => 'sometimes|nullable|string|max:500',
             'content' => 'sometimes|nullable|string',
-            'order_index' => 'sometimes|nullable|integer|min:0',
             'is_published' => 'sometimes|nullable|boolean',
         ];
     }
