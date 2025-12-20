@@ -75,28 +75,21 @@ class SettingService
         return $this->show($key);
     }
 
-    public function getValue(string $key, $default = null)
-    {
-        return Setting::getValue($key, $default);
-    }
-
-    public function setValue(string $key, $value, string $type = 'text')
-    {
-        Setting::setValue($key, $value, $type);
-
-        return $this->show($key);
-    }
-
     public function updateMany($data)
     {
         $updated = [];
 
-        foreach ($data as $key => $value) {
-            if (is_array($value) && isset($value['value'])) {
-                $type = $value['type'] ?? 'text';
-                $updated[] = $this->setValue($key, $value['value'], $type);
+        foreach ($data['settings'] as $settingData) {
+            $setting = Setting::where('key_name', $settingData['key_name'])->first();
+
+            if ($setting) {
+                $setting->value = $settingData['value'];
+                $setting->save();
+                $updated[] = $setting;
             } else {
-                $updated[] = $this->setValue($key, $value);
+                $updated[] = Setting::create([
+                    'value' => $settingData['value'],
+                ]);
             }
         }
 

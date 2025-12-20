@@ -17,7 +17,7 @@ class SettingResource extends JsonResource
         return [
             'id' => $this->id,
             'key_name' => $this->key_name,
-            'value' => $this->value,
+            'value' => $this->getValueAttribute(),
             'type' => $this->type,
             'is_settings' => $this->is_settings,
             'created_at' => $this->created_at,

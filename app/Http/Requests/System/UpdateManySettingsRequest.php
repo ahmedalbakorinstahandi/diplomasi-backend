@@ -9,9 +9,9 @@ class UpdateManySettingsRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            '*' => 'required',
-            '*.value' => 'nullable',
-            '*.type' => 'nullable|in:int,float,text,long_text,json,bool,datetime,html',
+            'settings' => 'required|array',
+            'settings.*.key_name' => 'required|string|max:255',
+            'settings.*.value' => 'required|string',
         ];
     }
 }

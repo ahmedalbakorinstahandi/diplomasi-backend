@@ -36,41 +36,16 @@ class Setting extends Model
         ];
     }
 
-    // Helper methods
-    public static function getValue(string $key, $default = null)
+    // attribute to get value as json
+    public function getValueAttribute()
     {
-        $setting = static::where('key', $key)->first();
-
-        if (!$setting) {
-            return $default;
-        }
-
-        return match ($setting->type) {
-            'int' => (int) $setting->value,
-            'float' => (float) $setting->value,
-            'bool' => (bool) $setting->value,
-            'json' => json_decode($setting->value, true),
-            'datetime' => $setting->value ? now()->parse($setting->value) : null,
-            default => $setting->value,
+        return match ($this->type) {
+            'int' => (int) $this->value,
+            'float' => (float) $this->value,
+            'bool' => (bool) $this->value,
+            'json' => json_decode($this->value, true),
+            'datetime' => $this->value ? now()->parse($this->value) : null,
+            default => $this->value,
         };
-    }
-
-    public static function setValue(string $key, $value, string $type = 'text'): void
-    {
-        $processedValue = match ($type) {
-            'json' => json_encode($value),
-            'bool' => $value ? '1' : '0',
-            'datetime' => $value ? now()->parse($value)->toDateTimeString() : null,
-            default => (string) $value,
-        };
-
-        static::updateOrCreate(
-            ['key' => $key],
-            [
-                'value' => $processedValue,
-                'type' => $type,
-                'is_settings' => true,
-            ]
-        );
     }
 }

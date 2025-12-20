@@ -12,7 +12,6 @@ class UpdateSettingRequest extends BaseFormRequest
             'key_name' => 'sometimes|required|string|max:255',
             'value' => 'sometimes|required|string',
             'type' => 'sometimes|nullable|string|max:50',
-            'is_settings' => 'sometimes|nullable|boolean',
         ];
     }
 }
