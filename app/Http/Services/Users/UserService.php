@@ -72,6 +72,11 @@ class UserService
 
     public function update($data, $user)
     {
+        $existingUser = User::where('email', $data['email'])->where('id', '!=', $user->id)->first();
+        if ($existingUser) {
+            MessageService::abort(400, 'messages.user.email_already_exists');
+        }
+
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
