@@ -21,7 +21,7 @@ class SettingController extends Controller
         $this->settingService = $settingService;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $message = null)
     {
         SettingPermission::canView();
 
@@ -30,6 +30,7 @@ class SettingController extends Controller
         return ResponseService::response([
             'success' => true,
             'data' => $settings,
+            'message' => $message,
             'meta' => true,
             'resource' => SettingResource::class,
             'status' => 200,
@@ -102,15 +103,9 @@ class SettingController extends Controller
     {
         SettingPermission::canUpdateMany();
 
-        $settings = $this->settingService->updateMany($request->validated());
+        $this->settingService->updateMany($request->validated());
 
-        return ResponseService::response([
-            'success' => true,
-            'data' => $settings,
-            'message' => 'messages.setting.updated_many',
-            'status' => 200,
-            'resource' => SettingResource::class,
-        ]);
+        return $this->index(request(), 'messages.setting.updated_many');
     }
 
     public function getByKey(string $key)
@@ -128,4 +123,3 @@ class SettingController extends Controller
         ]);
     }
 }
-
