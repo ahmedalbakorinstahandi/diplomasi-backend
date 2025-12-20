@@ -29,11 +29,11 @@ class CourseController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $courses,
             'meta' => true,
             'resource' => CourseResource::class,
             'status' => 200,
-            'message' => $message,
         ]);
     }
 

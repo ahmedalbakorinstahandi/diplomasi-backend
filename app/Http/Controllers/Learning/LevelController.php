@@ -29,11 +29,11 @@ class LevelController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $levels,
             'meta' => true,
             'resource' => LevelResource::class,
             'status' => 200,
-            'message' => $message,
         ]);
     }
 
