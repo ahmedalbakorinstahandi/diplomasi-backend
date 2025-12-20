@@ -39,13 +39,16 @@ class Setting extends Model
     // attribute to get value as json
     public function getValueAttribute()
     {
-        return match ($this->type) {
-            'int' => (int) $this->value,
-            'float' => (float) $this->value,
-            'bool' => (bool) $this->value,
-            'json' => json_decode($this->value, true),
-            'datetime' => $this->value ? now()->parse($this->value) : null,
-            default => $this->value,
+        $rawValue = $this->attributes['value'] ?? null;
+        $type = $this->attributes['type'] ?? null;
+
+        return match ($type) {
+            'int' => $rawValue !== null ? (int) $rawValue : null,
+            'float' => $rawValue !== null ? (float) $rawValue : null,
+            'bool' => $rawValue !== null ? (bool) $rawValue : null,
+            'json' => $rawValue !== null ? json_decode($rawValue, true) : null,
+            'datetime' => $rawValue ? now()->parse($rawValue) : null,
+            default => $rawValue,
         };
     }
 }
