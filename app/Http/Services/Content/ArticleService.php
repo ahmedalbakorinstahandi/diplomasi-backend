@@ -59,6 +59,8 @@ class ArticleService
     {
         $article = Article::create($data);
 
+        OrderHelper::assign($article);
+
         $article = $this->show($article->id);
 
         return $article;
