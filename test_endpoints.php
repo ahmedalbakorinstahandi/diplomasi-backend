@@ -8,7 +8,7 @@
  * This script tests all major endpoints to ensure they're working correctly.
  */
 
-$baseUrl = getenv('API_BASE_URL') ?: 'https://diplomasi-bakend.ahmed-albakor.com//api/v1';
+$baseUrl = getenv('API_BASE_URL') ?: 'https://diplomasi-bakend.ahmed-albakor.com/api/v1';
 $token = '';
 $context = 'dashboard';
 
