@@ -54,6 +54,13 @@ class UserService
 
     public function create($data)
     {
+
+        $user = User::where('email', $data['email'])->first();
+        if ($user) {
+            MessageService::abort(400, 'messages.user.email_already_exists');
+        }
+
+
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
@@ -113,4 +120,3 @@ class UserService
         return $this->getProfile();
     }
 }
-
