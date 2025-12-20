@@ -76,9 +76,9 @@ class Scenario extends Model
     /**
      * Get the level tracks.
      */
-    public function levelTracks()
+    public function levelTrack()
     {
-        return $this->morphMany(\App\Models\Learning\LevelTrack::class, 'trackable');
+        return $this->morphOne(\App\Models\Learning\LevelTrack::class, 'trackable');
     }
 }
 

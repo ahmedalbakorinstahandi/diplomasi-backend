@@ -16,7 +16,6 @@ class CreateLevelRequest extends BaseFormRequest
             'is_published' => 'nullable|boolean',
             'is_free' => 'nullable|boolean',
             'has_certificate' => 'nullable|boolean',
-            'order_index' => 'nullable|integer|min:0',
         ];
     }
 }

@@ -16,7 +16,6 @@ class UpdateLevelRequest extends BaseFormRequest
             'is_published' => 'sometimes|nullable|boolean',
             'is_free' => 'sometimes|nullable|boolean',
             'has_certificate' => 'sometimes|nullable|boolean',
-            'order_index' => 'sometimes|nullable|integer|min:0',
         ];
     }
 }

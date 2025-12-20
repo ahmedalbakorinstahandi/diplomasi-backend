@@ -35,7 +35,7 @@ class LessonResource extends JsonResource
             'lesson_summary' => new LessonSummaryResource($this->whenLoaded('lessonSummary')),
             'user_lesson_progress' => UserLessonProgressResource::collection($this->whenLoaded('userLessonProgress')),
             'user_lesson_attempts' => UserLessonAttemptResource::collection($this->whenLoaded('userLessonAttempts')),
-            'level_tracks' => LevelTrackResource::collection($this->whenLoaded('levelTracks')),
+            'level_track' => new LevelTrackResource($this->whenLoaded('levelTrack')),
         ];
     }
 }

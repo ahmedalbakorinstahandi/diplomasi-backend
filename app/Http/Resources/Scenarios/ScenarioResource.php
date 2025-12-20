@@ -33,7 +33,7 @@ class ScenarioResource extends JsonResource
             'start_question' => new ScenarioQuestionResource($this->whenLoaded('startQuestion')),
             'scenario_questions' => ScenarioQuestionResource::collection($this->whenLoaded('scenarioQuestions')),
             'user_scenario_attempts' => UserScenarioAttemptResource::collection($this->whenLoaded('userScenarioAttempts')),
-            'level_tracks' => LevelTrackResource::collection($this->whenLoaded('levelTracks')),
+            'level_track' => new LevelTrackResource($this->whenLoaded('levelTrack')),
         ];
     }
 }

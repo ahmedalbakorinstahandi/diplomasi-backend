@@ -90,7 +90,7 @@ class LevelService
         // Delete related records if needed
         $level->lessons()->delete();
         $level->scenarios()->delete();
-        $level->levelTracks()->delete();
+        $level->levelTrack()->delete();
         $level->userLevelProgress()->delete();
         $level->certificates()->delete();
 

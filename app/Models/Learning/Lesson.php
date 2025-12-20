@@ -83,9 +83,8 @@ class Lesson extends Model
     /**
      * Get the level tracks.
      */
-    public function levelTracks()
+    public function levelTrack()
     {
-        return $this->morphMany(LevelTrack::class, 'trackable');
+        return $this->morphOne(LevelTrack::class, 'trackable');
     }
 }
-
