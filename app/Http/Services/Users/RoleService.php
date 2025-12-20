@@ -50,6 +50,11 @@ class RoleService
 
     public function create(array $data): Role
     {
+        $existingRole = Role::where('name', $data['name'])->first();
+        if ($existingRole) {
+            MessageService::abort(400, 'messages.role.already_exists');
+        }
+
         $role = Role::create($data);
 
         return $this->show($role->id);
