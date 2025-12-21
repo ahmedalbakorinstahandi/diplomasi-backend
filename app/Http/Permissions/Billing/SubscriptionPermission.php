@@ -78,5 +78,15 @@ class SubscriptionPermission
 
         MessageService::abort(403, 'messages.permission.error');
     }
+
+    public static function canUpgrade(): void
+    {
+        if (RequestContext::isDashboard()) {
+            AuthorizationService::authorize('subscription.upgrade');
+            return;
+        }
+
+        MessageService::abort(403, 'messages.permission.error');
+    }
 }
 

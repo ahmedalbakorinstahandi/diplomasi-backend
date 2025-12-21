@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Permissions\Billing\SubscriptionPermission;
 use App\Http\Requests\Billing\CancelSubscriptionRequest;
 use App\Http\Requests\Billing\CreateSubscriptionRequest;
+use App\Http\Requests\Billing\UpgradeSubscriptionRequest;
 use App\Http\Requests\Billing\UpdateSubscriptionRequest;
 use App\Http\Resources\Billing\SubscriptionResource;
 use App\Http\Services\Billing\SubscriptionService;
@@ -126,6 +127,27 @@ class SubscriptionController extends Controller
             'success' => true,
             'data' => $subscription,
             'message' => 'messages.subscription.renewed',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    // upgrade subscription
+    public function upgrade(int $id, UpgradeSubscriptionRequest $request)
+    {
+        SubscriptionPermission::canUpgrade();
+
+        $subscription = $this->subscriptionService->show($id);
+
+        $subscription = $this->subscriptionService->upgradeSubscription(
+            $subscription,
+            $request->validated()['plan_id']
+        );
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'messages.subscription.upgraded',
             'status' => 200,
             'resource' => SubscriptionResource::class,
         ]);

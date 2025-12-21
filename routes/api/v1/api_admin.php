@@ -76,8 +76,9 @@ Route::group(['prefix' => 'admin'], function () {
         Route::post('subscriptions', [SubscriptionController::class, 'create']);
         Route::put('subscriptions/{id}', [SubscriptionController::class, 'update']);
         Route::delete('subscriptions/{id}', [SubscriptionController::class, 'delete']);
-        Route::post('subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
+        // Route::post('subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
         Route::post('subscriptions/{id}/renew', [SubscriptionController::class, 'renew']);
+        Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgrade']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);
