@@ -74,7 +74,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::get('subscriptions', [SubscriptionController::class, 'index']);
         Route::get('subscriptions/{id}', [SubscriptionController::class, 'show']);
         Route::post('subscriptions', [SubscriptionController::class, 'create']);
-        Route::put('subscriptions/{id}', [SubscriptionController::class, 'update']);
+        // Route::put('subscriptions/{id}', [SubscriptionController::class, 'update']);
         Route::delete('subscriptions/{id}', [SubscriptionController::class, 'delete']);
         // Route::post('subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
         Route::post('subscriptions/{id}/renew', [SubscriptionController::class, 'renew']);

@@ -34,7 +34,7 @@ class Notification extends Model
     protected function casts(): array
     {
         return [
-            'data' => 'array',
+            'data' => 'json',
             'read_at' => 'datetime',
         ];
     }
