@@ -15,6 +15,7 @@ class CreateArticleRequest extends BaseFormRequest
             'author_id' => 'required|exists:users,id',
             'is_published' => 'nullable|boolean',
             'published_at' => 'nullable|date',
+            'image_url' => 'required|string|max:255',
         ];
     }
 }

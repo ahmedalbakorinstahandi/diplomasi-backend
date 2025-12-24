@@ -22,6 +22,7 @@ class ArticleResource extends JsonResource
             'content' => $this->content,
             'author_id' => $this->author_id,
             'is_published' => $this->is_published,
+            'image_url' => $this->image_url,
             'published_at' => $this->published_at,
             'order_index' => $this->order_index,
             'created_at' => $this->created_at,

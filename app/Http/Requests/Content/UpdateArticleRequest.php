@@ -18,6 +18,7 @@ class UpdateArticleRequest extends BaseFormRequest
             'author_id' => 'sometimes|required|exists:users,id',
             'is_published' => 'sometimes|nullable|boolean',
             'published_at' => 'sometimes|nullable|date',
+            'image_url' => 'sometimes|nullable|string|max:255',
         ];
     }
 }

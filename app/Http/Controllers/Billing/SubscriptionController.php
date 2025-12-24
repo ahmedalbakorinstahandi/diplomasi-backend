@@ -55,7 +55,19 @@ class SubscriptionController extends Controller
     {
         SubscriptionPermission::canCreate();
 
-        $subscription = $this->subscriptionService->create($request->validated());
+        $data = $request->validated();
+        
+        // إضافة user_id من الطلب (لـ Admin) أو من المستخدم المصادق عليه
+        // ============================================================
+        // TODO: يمكن إضافة logic هنا لأخذ user_id من authenticated user
+        // إذا كان الطلب من User routes وليس Admin routes
+        // ============================================================
+        // $user = \App\Models\Users\User::auth();
+        // if (!$data['user_id'] && $user) {
+        //     $data['user_id'] = $user->id;
+        // }
+        
+        $subscription = $this->subscriptionService->create($data);
 
         return ResponseService::response([
             'success' => true,

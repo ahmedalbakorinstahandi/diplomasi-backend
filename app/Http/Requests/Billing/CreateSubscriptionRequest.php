@@ -9,15 +9,13 @@ class CreateSubscriptionRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'user_id' => 'required|exists:users,id',
             'plan_id' => 'required|exists:plans,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'status' => 'nullable|in:active,inactive,cancelled,expired',
-            'price' => 'required|numeric|min:0',
-            'currency' => 'nullable|string|max:3',
-            'stripe_subscription_id' => 'nullable|string|max:255',
             'auto_renew' => 'nullable|boolean',
+            'user_id' => 'nullable|exists:users,id', // اختياري - يمكن أخذه من authenticated user
+            // ============================================================
+            // باقي الحقول (price, currency, dates, status) 
+            // يتم حسابها تلقائياً على السيرفر من الخطة
+            // ============================================================
         ];
     }
 }

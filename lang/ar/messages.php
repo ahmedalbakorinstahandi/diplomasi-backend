@@ -219,6 +219,7 @@ return [
         'invalid_period_dates' => 'تواريخ الفترة غير صحيحة',
         'subscription_expired' => 'انتهت صلاحية الاشتراك',
         'invalid_period' => 'الفترة غير صحيحة',
+        'user_id_required' => 'معرف المستخدم مطلوب',
     ],
     'plan' => [
         'not_found' => 'الخطة غير موجودة',

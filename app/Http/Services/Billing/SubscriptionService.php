@@ -66,11 +66,71 @@ class SubscriptionService
 
     public function create($data)
     {
-        $subscription = Subscription::create($data);
+        return DB::transaction(function () use ($data) {
+            // Get plan
+            $plan = Plan::find($data['plan_id']);
+            if (!$plan) {
+                MessageService::abort(404, 'messages.plan.not_found');
+            }
 
-        $subscription = $this->show($subscription->id);
+            // Get user_id from data (should be passed from controller or request)
+            // في Admin routes: يتم إرسال user_id في request
+            // في User routes: يمكن أخذه من authenticated user
+            $userId = $data['user_id'] ?? null;
+            if (!$userId) {
+                MessageService::abort(400, 'messages.subscription.user_id_required');
+            }
 
-        return $subscription;
+            // Calculate dates
+            $now = Carbon::now();
+            $startDate = $now->copy();
+            $intervalDays = $this->getIntervalDays($plan->interval);
+            $endDate = $now->copy()->addDays($intervalDays);
+
+            // Prepare subscription data
+            $subscriptionData = [
+                'user_id' => $userId,
+                'plan_id' => $plan->id,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
+                'status' => 'active',
+                'price' => $plan->price,
+                'currency' => 'USD', // Default currency
+                'stripe_subscription_id' => $data['stripe_subscription_id'] ?? null,
+                'auto_renew' => $data['auto_renew'] ?? true, // Default to true
+            ];
+
+            // Create subscription
+            $subscription = Subscription::create($subscriptionData);
+
+            // Create subscription event
+            SubscriptionEvent::create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'created',
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'start_date' => $subscription->start_date,
+                'end_date' => $subscription->end_date,
+                'plan_price' => $plan->price,
+                'amount_charged' => $plan->price,
+                'amount_refunded' => 0,
+                'currency' => $subscription->currency,
+                // ============================================================
+                // 🔴 TODO: إضافة معلومات الدفع هنا بعد تنفيذ الدفع
+                // ============================================================
+                // 'stripe_invoice_id' => $stripeInvoice->id ?? null,
+                // 'stripe_payment_intent_id' => $paymentIntent->id ?? null,
+                // 'stripe_charge_id' => $paymentIntent->charges->data[0]->id ?? null,
+                // ============================================================
+                'meta' => [
+                    'auto_renew' => $subscription->auto_renew,
+                    'created_via' => 'api',
+                ],
+                'created_at' => now(),
+            ]);
+
+            return $this->show($subscription->id);
+        });
     }
 
     public function update($data, $subscription)

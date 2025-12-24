@@ -25,6 +25,7 @@ class Article extends Model
         'is_published',
         'published_at',
         'order_index',
+        'image_url',
     ];
 
     /**
