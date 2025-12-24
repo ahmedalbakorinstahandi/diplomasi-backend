@@ -22,4 +22,3 @@ class MediaUrlService
         return url('storage/' . ltrim($value, '/'));
     }
 }
-
