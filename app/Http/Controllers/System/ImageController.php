@@ -34,7 +34,7 @@ class ImageController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,png,jpg,jpeg,gif,webp,mp4,mov,avi,mkv,mp3,wav,m4a,ogg,webm,txt,csv,json,xml,zip,rar,7z,tar,gz,bz2,iso,dmg,pkg,deb,rpm,exe,app,msi,cab,jar,war,ear,whl,whl.gz,whl.zip,whl.whl,whl.tar,whl.gz.tar,whl.zip.tar,whl.whl.tar,whl.gz.zip,whl.zip.zip,whl.whl.zip,whl.gz.whl,whl.zip.whl,whl.whl.whl',
-            'folder' => 'required|string|in:sliders,listings,users,properties,features',
+            'folder' => 'required|string',
         ]);
 
 
