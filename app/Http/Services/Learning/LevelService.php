@@ -16,7 +16,7 @@ class LevelService
             'course',
             // 'lessons',
             // 'scenarios',
-            // 'levelTrack',
+            // 'levelTracks',
             // 'userLevelProgress',
             // 'certificates'
         ]);
@@ -57,7 +57,7 @@ class LevelService
             'course',
             // 'lessons',
             // 'scenarios',
-            'levelTrack',
+            'levelTracks',
             // 'userLevelProgress',
             // 'certificates'
         ]);
@@ -90,7 +90,7 @@ class LevelService
         // Delete related records if needed
         $level->lessons()->delete();
         $level->scenarios()->delete();
-        $level->levelTrack()->delete();
+        $level->levelTracks()->delete();
         $level->userLevelProgress()->delete();
         $level->certificates()->delete();
 

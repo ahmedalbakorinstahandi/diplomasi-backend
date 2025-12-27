@@ -3,6 +3,7 @@
 namespace App\Http\Services\Scenarios;
 
 use App\Http\Permissions\Scenarios\ScenarioPermission;
+use App\Models\Learning\LevelTrack;
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\UserScenarioAttempt;
 use App\Models\Scenarios\UserScenarioQuestionAnswer;
@@ -70,6 +71,9 @@ class ScenarioService
 
         OrderHelper::assign($scenario, 'order_index');
 
+        // Create or update LevelTrack
+        $this->syncLevelTrack($scenario);
+
         $scenario = $this->show($scenario->id);
 
         return $scenario;
@@ -77,7 +81,26 @@ class ScenarioService
 
     public function update($data, $scenario)
     {
+        $oldLevelId = $scenario->level_id;
+        
         $scenario->update($data);
+
+        // If level_id changed, update LevelTrack
+        if (isset($data['level_id']) && $data['level_id'] != $oldLevelId) {
+            // Delete old LevelTrack
+            $oldLevelTrack = LevelTrack::where('trackable_id', $scenario->id)
+                ->where('trackable_type', Scenario::class)
+                ->first();
+            if ($oldLevelTrack) {
+                $oldLevelTrack->delete();
+            }
+            
+            // Create new LevelTrack for new level
+            $this->syncLevelTrack($scenario);
+        } else {
+            // Just sync to ensure it exists
+            $this->syncLevelTrack($scenario);
+        }
 
         $scenario = $this->show($scenario->id);
 
@@ -89,6 +112,14 @@ class ScenarioService
         // Delete related records
         $scenario->scenarioQuestions()->delete();
         $scenario->userScenarioAttempts()->delete();
+        
+        // Delete LevelTrack
+        $levelTrack = LevelTrack::where('trackable_id', $scenario->id)
+            ->where('trackable_type', Scenario::class)
+            ->first();
+        if ($levelTrack) {
+            $levelTrack->delete();
+        }
 
         $scenario->delete();
     }
@@ -142,6 +173,27 @@ class ScenarioService
         ]);
 
         return $answer;
+    }
+
+    /**
+     * Sync LevelTrack for a scenario
+     */
+    private function syncLevelTrack(Scenario $scenario)
+    {
+        $levelTrack = LevelTrack::withTrashed()->updateOrCreate(
+            [
+                'level_id' => $scenario->level_id,
+                'trackable_id' => $scenario->id,
+                'trackable_type' => Scenario::class,
+            ],
+            [
+                'deleted_at' => null,
+            ]
+        );
+
+        if ($levelTrack->wasRecentlyCreated || $levelTrack->order_index === null) {
+            OrderHelper::assign($levelTrack, 'order_index');
+        }
     }
 }
 

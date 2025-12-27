@@ -4,6 +4,7 @@ namespace App\Http\Services\Learning;
 
 use App\Http\Permissions\Learning\LessonPermission;
 use App\Models\Learning\Lesson;
+use App\Models\Learning\LevelTrack;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\OrderHelper;
@@ -69,6 +70,9 @@ class LessonService
 
         OrderHelper::assign($lesson, 'order_index');
 
+        // Create or update LevelTrack
+        $this->syncLevelTrack($lesson);
+
         $lesson = $this->show($lesson->id);
 
         return $lesson;
@@ -76,7 +80,26 @@ class LessonService
 
     public function update($data, $lesson)
     {
+        $oldLevelId = $lesson->level_id;
+        
         $lesson->update($data);
+
+        // If level_id changed, update LevelTrack
+        if (isset($data['level_id']) && $data['level_id'] != $oldLevelId) {
+            // Delete old LevelTrack
+            $oldLevelTrack = LevelTrack::where('trackable_id', $lesson->id)
+                ->where('trackable_type', Lesson::class)
+                ->first();
+            if ($oldLevelTrack) {
+                $oldLevelTrack->delete();
+            }
+            
+            // Create new LevelTrack for new level
+            $this->syncLevelTrack($lesson);
+        } else {
+            // Just sync to ensure it exists
+            $this->syncLevelTrack($lesson);
+        }
 
         $lesson = $this->show($lesson->id);
 
@@ -90,6 +113,14 @@ class LessonService
         $lesson->lessonSummary()->delete();
         $lesson->userLessonProgress()->delete();
         $lesson->userLessonAttempts()->delete();
+        
+        // Delete LevelTrack
+        $levelTrack = LevelTrack::where('trackable_id', $lesson->id)
+            ->where('trackable_type', Lesson::class)
+            ->first();
+        if ($levelTrack) {
+            $levelTrack->delete();
+        }
 
         $lesson->delete();
     }
@@ -99,5 +130,26 @@ class LessonService
         OrderHelper::reorder($lesson, $validatedData['new_order_index'], 'order_index');
 
         return $lesson;
+    }
+
+    /**
+     * Sync LevelTrack for a lesson
+     */
+    private function syncLevelTrack(Lesson $lesson)
+    {
+        $levelTrack = LevelTrack::withTrashed()->updateOrCreate(
+            [
+                'level_id' => $lesson->level_id,
+                'trackable_id' => $lesson->id,
+                'trackable_type' => Lesson::class,
+            ],
+            [
+                'deleted_at' => null,
+            ]
+        );
+
+        if ($levelTrack->wasRecentlyCreated || $levelTrack->order_index === null) {
+            OrderHelper::assign($levelTrack, 'order_index');
+        }
     }
 }

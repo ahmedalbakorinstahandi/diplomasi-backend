@@ -69,9 +69,9 @@ class Level extends Model
     /**
      * Get the level tracks.
      */
-    public function levelTrack()
+    public function levelTracks()
     {
-        return $this->hasOne(LevelTrack::class);
+        return $this->hasMany(LevelTrack::class);
     }
 
     /**

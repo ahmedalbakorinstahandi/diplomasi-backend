@@ -34,7 +34,7 @@ class LevelResource extends JsonResource
             'course' => new CourseResource($this->whenLoaded('course')),
             'lessons' => LessonResource::collection($this->whenLoaded('lessons')),
             'scenarios' => ScenarioResource::collection($this->whenLoaded('scenarios')),
-            'level_track' => new LevelTrackResource($this->whenLoaded('levelTrack')),
+            'level_tracks' => LevelTrackResource::collection($this->whenLoaded('levelTracks')),
             'user_level_progress' => UserLevelProgressResource::collection($this->whenLoaded('userLevelProgress')),
             'certificates' => CertificateResource::collection($this->whenLoaded('certificates')),
         ];

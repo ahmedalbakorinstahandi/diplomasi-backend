@@ -5,6 +5,7 @@ use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
+use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Scenarios\ScenarioController;
 use App\Http\Controllers\System\NotificationController;
 use App\Http\Controllers\System\SettingController;
@@ -61,6 +62,15 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('scenarios/{id}', [ScenarioController::class, 'update']);
         Route::delete('scenarios/{id}', [ScenarioController::class, 'delete']);
         Route::put('scenarios/{id}/reorder', [ScenarioController::class, 'reorder']);
+
+        // Level Tracks
+        Route::get('level-tracks', [LevelTrackController::class, 'index']);
+        Route::get('level-tracks/{id}', [LevelTrackController::class, 'show']);
+        Route::post('level-tracks', [LevelTrackController::class, 'create']);
+        Route::put('level-tracks/{id}', [LevelTrackController::class, 'update']);
+        Route::delete('level-tracks/{id}', [LevelTrackController::class, 'delete']);
+        Route::put('level-tracks/{id}/reorder', [LevelTrackController::class, 'reorder']);
+        Route::post('levels/{levelId}/sync-level-tracks', [LevelTrackController::class, 'syncForLevel']);
 
         // Articles
         Route::get('articles', [ArticleController::class, 'index']);
