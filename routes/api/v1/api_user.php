@@ -4,6 +4,7 @@ use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
+use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Scenarios\ScenarioController;
 use App\Http\Controllers\System\NotificationController;
@@ -25,6 +26,9 @@ Route::group(['prefix' => 'user'], function () {
     // Public levels
     Route::get('levels', [LevelController::class, 'index']);
     Route::get('levels/{id}', [LevelController::class, 'show']);
+
+    // Public level tracks
+    Route::get('level-tracks', [LevelTrackController::class, 'index']);
 
     // Public scenarios
     Route::get('scenarios', [ScenarioController::class, 'index']);
