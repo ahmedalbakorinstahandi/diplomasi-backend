@@ -56,6 +56,13 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('progress/{type}', [ProgressController::class, 'create']);
         Route::put('progress/{type}/{id}', [ProgressController::class, 'update']);
 
+        // Lessons - Questions and Attempts
+        Route::post('lessons/{lessonId}/start-attempt', [LessonController::class, 'startAttempt']);
+        Route::get('lessons/{lessonId}/questions', [LessonController::class, 'getQuestions']);
+        Route::get('lessons/{lessonId}/attempts/{attemptId}/current-question', [LessonController::class, 'getCurrentQuestion']);
+        Route::post('lessons/{lessonId}/attempts/{attemptId}/submit-answer', [LessonController::class, 'submitAnswer']);
+        Route::post('lessons/{lessonId}/attempts/{attemptId}/finish', [LessonController::class, 'finishAttempt']);
+
         // Scenarios - User actions
         Route::post('scenarios/start-attempt', [ScenarioController::class, 'startAttempt']);
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);

@@ -17,6 +17,20 @@ class UserLessonAttemptResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // حساب معلومات التقدم
+        $answers = $this->whenLoaded('userLessonQuestionAnswers');
+        $answeredCount = $answers ? (is_countable($answers) ? count($answers) : $answers->count()) : 0;
+        
+        // جلب عدد الأسئلة الإجمالي من الدرس
+        $totalQuestions = 0;
+        $lesson = $this->whenLoaded('lesson');
+        if ($lesson) {
+            $totalQuestions = $this->lesson->lessonQuestions()->count();
+        } elseif ($this->lesson_id) {
+            // إذا لم يتم تحميل الدرس، نحصل على العدد مباشرة
+            $totalQuestions = \App\Models\Learning\LessonQuestion::where('lesson_id', $this->lesson_id)->count();
+        }
+
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
@@ -29,6 +43,13 @@ class UserLessonAttemptResource extends JsonResource
             'total_time' => $this->total_time,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            
+            // Progress information
+            'progress' => [
+                'answered' => $answeredCount,
+                'total' => $totalQuestions,
+                'percentage' => $totalQuestions > 0 ? round(($answeredCount / $totalQuestions) * 100, 2) : 0,
+            ],
             
             // Relationships
             'user' => new UserResource($this->whenLoaded('user')),

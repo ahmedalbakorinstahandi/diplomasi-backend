@@ -16,12 +16,15 @@ class LessonQuestionOptionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // إخفاء is_correct إذا كان المطلوب (يمكن تمرير hide_correct في query)
+        $hideCorrect = $request->query('hide_correct', false);
+        
         return [
             'id' => $this->id,
             'question_id' => $this->question_id,
             'option_text' => $this->option_text,
             'pair_key' => $this->pair_key,
-            'is_correct' => $this->is_correct,
+            'is_correct' => $hideCorrect ? null : $this->is_correct,
             'attached_path' => $this->attached_path,
             'order_index' => $this->order_index,
             'created_at' => $this->created_at,
