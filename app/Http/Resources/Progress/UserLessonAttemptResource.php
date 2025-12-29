@@ -18,13 +18,14 @@ class UserLessonAttemptResource extends JsonResource
     public function toArray(Request $request): array
     {
         // حساب معلومات التقدم
-        $answers = $this->whenLoaded('userLessonQuestionAnswers');
-        $answeredCount = $answers ? (is_countable($answers) ? count($answers) : $answers->count()) : 0;
+        $answeredCount = 0;
+        if ($this->relationLoaded('userLessonQuestionAnswers')) {
+            $answeredCount = $this->userLessonQuestionAnswers->count();
+        }
         
         // جلب عدد الأسئلة الإجمالي من الدرس
         $totalQuestions = 0;
-        $lesson = $this->whenLoaded('lesson');
-        if ($lesson) {
+        if ($this->relationLoaded('lesson') && $this->lesson) {
             $totalQuestions = $this->lesson->lessonQuestions()->count();
         } elseif ($this->lesson_id) {
             // إذا لم يتم تحميل الدرس، نحصل على العدد مباشرة
