@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
+use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
@@ -37,6 +38,10 @@ Route::group(['prefix' => 'user'], function () {
     // Public articles
     Route::get('articles', [ArticleController::class, 'index']);
     Route::get('articles/{id}', [ArticleController::class, 'show']);
+
+    // Public glossary terms
+    Route::get('glossary-terms', [GlossaryTermController::class, 'index']);
+    Route::get('glossary-terms/{id}', [GlossaryTermController::class, 'show']);
 
     // Public settings
     Route::get('settings/public', [SettingController::class, 'index']);

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
+use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
@@ -71,6 +72,14 @@ Route::group(['prefix' => 'admin'], function () {
         Route::delete('level-tracks/{id}', [LevelTrackController::class, 'delete']);
         Route::put('level-tracks/{id}/reorder', [LevelTrackController::class, 'reorder']);
         Route::post('levels/{levelId}/sync-level-tracks', [LevelTrackController::class, 'syncForLevel']);
+
+        // Glossary Terms
+        Route::get('glossary-terms', [GlossaryTermController::class, 'index']);
+        Route::get('glossary-terms/{id}', [GlossaryTermController::class, 'show']);
+        Route::post('glossary-terms', [GlossaryTermController::class, 'create']);
+        Route::put('glossary-terms/{id}', [GlossaryTermController::class, 'update']);
+        Route::delete('glossary-terms/{id}', [GlossaryTermController::class, 'delete']);
+        Route::put('glossary-terms/{id}/reorder', [GlossaryTermController::class, 'reorder']);
 
         // Articles
         Route::get('articles', [ArticleController::class, 'index']);
