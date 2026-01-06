@@ -22,6 +22,7 @@ class UserLessonAttempt extends Model
         'lesson_id',
         'status',
         'score',
+        'progress_percentage',
         'current_question_id',
         'started_at',
         'finished_at',
@@ -39,6 +40,7 @@ class UserLessonAttempt extends Model
     {
         return [
             'score' => 'decimal:2',
+            'progress_percentage' => 'decimal:2',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'video_watched' => 'boolean',

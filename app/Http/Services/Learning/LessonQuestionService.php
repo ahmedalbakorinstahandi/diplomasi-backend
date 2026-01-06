@@ -64,9 +64,14 @@ class LessonQuestionService
             'lesson_id' => $lessonId,
             'status' => 'in_progress',
             'score' => 0,
+            'progress_percentage' => 0,
             'current_question_id' => $firstQuestion->id,
             'started_at' => now(),
         ]);
+
+        // Update progress (initial state)
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateLessonProgress($lesson, $userId, $attempt);
 
         return $attempt;
     }
@@ -297,6 +302,10 @@ class LessonQuestionService
         // حساب النتيجة الإجمالية
         $this->calculateScore($attemptId);
 
+        // Update progress after answering
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateLessonProgress($attempt->lesson, $attempt->user_id, $attempt);
+
         return [
             'is_correct' => $result['is_correct'],
             'score' => $result['score'],
@@ -520,6 +529,10 @@ class LessonQuestionService
         $attempt->current_question_id = null;
         $attempt->save();
 
+        // Update progress after finishing (100%)
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateLessonProgress($attempt->lesson, $attempt->user_id, $attempt);
+
         // جلب الإحصائيات
         $answers = UserLessonQuestionAnswer::where('attempt_id', $attemptId)->get();
         $correctAnswers = $answers->where('is_correct', true)->count();
@@ -558,6 +571,10 @@ class LessonQuestionService
         $attempt->video_watched = true;
         $attempt->video_watched_at = now();
         $attempt->save();
+
+        // Update progress after marking video as watched
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateLessonProgress($attempt->lesson, $attempt->user_id, $attempt);
 
         return $attempt;
     }

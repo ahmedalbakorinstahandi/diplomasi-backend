@@ -173,8 +173,15 @@ class ScenarioService
             'user_id' => $user->id,
             'scenario_id' => $scenario->id,
             'status' => 'in_progress',
+            'progress_percentage' => 0,
+            'track_status' => 'open',
+            'is_completed' => false,
             'started_at' => now(),
         ]);
+
+        // Update progress (initial state)
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateScenarioProgress($scenario, $user->id, $attempt);
 
         $attempt->load(['scenario']);
 
@@ -354,6 +361,10 @@ class ScenarioService
             $attempt->finished_at = now();
             $attempt->save();
             $isFinished = true;
+
+            // Update progress after finishing (100%)
+            $trackProgressService = app(TrackProgressService::class);
+            $trackProgressService->calculateAndUpdateScenarioProgress($attempt->scenario, $attempt->user_id, $attempt);
         }
 
         $answer->load(['userScenarioAnswerOptions.scenarioQuestionOption']);
@@ -391,6 +402,10 @@ class ScenarioService
         $attempt->status = 'finished';
         $attempt->finished_at = now();
         $attempt->save();
+
+        // Update progress after finishing (100%)
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateScenarioProgress($attempt->scenario, $attempt->user_id, $attempt);
 
         return $attempt;
     }
@@ -441,6 +456,10 @@ class ScenarioService
         $attempt->description_read = true;
         $attempt->description_read_at = now();
         $attempt->save();
+
+        // Update progress after marking description as read
+        $trackProgressService = app(TrackProgressService::class);
+        $trackProgressService->calculateAndUpdateScenarioProgress($attempt->scenario, $attempt->user_id, $attempt);
 
         return $attempt;
     }

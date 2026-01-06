@@ -31,6 +31,9 @@ class UserLessonProgress extends Model
         'lesson_id',
         'status',
         'score',
+        'progress_percentage',
+        'track_status',
+        'is_completed',
         'started_at',
         'completed_at',
     ];
@@ -44,6 +47,8 @@ class UserLessonProgress extends Model
     {
         return [
             'score' => 'decimal:2',
+            'progress_percentage' => 'decimal:2',
+            'is_completed' => 'boolean',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

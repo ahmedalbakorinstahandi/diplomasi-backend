@@ -30,6 +30,9 @@ class UserScenarioAttempt extends Model
         'user_id',
         'scenario_id',
         'status',
+        'progress_percentage',
+        'track_status',
+        'is_completed',
         'started_at',
         'finished_at',
         'description_read',
@@ -44,6 +47,8 @@ class UserScenarioAttempt extends Model
     protected function casts(): array
     {
         return [
+            'progress_percentage' => 'decimal:2',
+            'is_completed' => 'boolean',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'description_read' => 'boolean',

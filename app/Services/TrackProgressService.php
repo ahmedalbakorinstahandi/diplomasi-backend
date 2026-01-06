@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Learning\Lesson;
 use App\Models\Learning\LevelTrack;
 use App\Models\Progress\UserLessonAttempt;
+use App\Models\Progress\UserLessonProgress;
 use App\Models\Progress\UserLessonQuestionAnswer;
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\UserScenarioAttempt;
@@ -13,6 +14,7 @@ class TrackProgressService
 {
     /**
      * Get track status: locked, open, or completed
+     * Reads from stored data in database
      *
      * @param LevelTrack $levelTrack
      * @param int $userId
@@ -20,12 +22,32 @@ class TrackProgressService
      */
     public function getTrackStatus(LevelTrack $levelTrack, int $userId): string
     {
-        // Check if previous track is completed
+        // Check if previous track is completed (for locked status)
         if (!$this->canAccessTrack($levelTrack, $userId)) {
             return 'locked';
         }
 
-        // Check if current track is completed
+        // Get status from stored data
+        if ($levelTrack->trackable instanceof Lesson) {
+            $progress = UserLessonProgress::where('user_id', $userId)
+                ->where('lesson_id', $levelTrack->trackable->id)
+                ->first();
+            
+            if ($progress && $progress->track_status) {
+                return $progress->track_status;
+            }
+        } elseif ($levelTrack->trackable instanceof Scenario) {
+            $attempt = UserScenarioAttempt::where('user_id', $userId)
+                ->where('scenario_id', $levelTrack->trackable->id)
+                ->orderBy('started_at', 'desc')
+                ->first();
+            
+            if ($attempt && $attempt->track_status) {
+                return $attempt->track_status;
+            }
+        }
+
+        // Fallback: calculate from completion status
         if ($this->isTrackCompleted($levelTrack->trackable, $userId)) {
             return 'completed';
         }
@@ -35,6 +57,7 @@ class TrackProgressService
 
     /**
      * Check if user can access a track (previous track is completed)
+     * Uses stored is_completed flag for better performance
      *
      * @param LevelTrack $levelTrack
      * @param int $userId
@@ -43,17 +66,17 @@ class TrackProgressService
     public function canAccessTrack(LevelTrack $levelTrack, int $userId): bool
     {
         // First track in level is always accessible
-        $firstTrack = LevelTrack::where('level_id', $levelTrack->level_id)
+        $previousTrack = LevelTrack::where('level_id', $levelTrack->level_id)
             ->where('order_index', '<', $levelTrack->order_index)
             ->orderBy('order_index', 'desc')
             ->first();
 
-        if (!$firstTrack) {
+        if (!$previousTrack) {
             return true; // This is the first track
         }
 
-        // Check if previous track is completed
-        return $this->isTrackCompleted($firstTrack->trackable, $userId);
+        // Check if previous track is completed using stored data
+        return $this->isTrackCompleted($previousTrack->trackable, $userId);
     }
 
     /**
@@ -77,6 +100,7 @@ class TrackProgressService
 
     /**
      * Check if lesson is completed (first attempt is finished)
+     * Uses stored is_completed flag
      *
      * @param Lesson $lesson
      * @param int $userId
@@ -84,6 +108,15 @@ class TrackProgressService
      */
     private function isLessonCompleted(Lesson $lesson, int $userId): bool
     {
+        $progress = UserLessonProgress::where('user_id', $userId)
+            ->where('lesson_id', $lesson->id)
+            ->first();
+
+        if ($progress && isset($progress->is_completed)) {
+            return $progress->is_completed;
+        }
+
+        // Fallback: check first finished attempt
         $firstFinishedAttempt = UserLessonAttempt::where('user_id', $userId)
             ->where('lesson_id', $lesson->id)
             ->where('status', 'finished')
@@ -95,6 +128,7 @@ class TrackProgressService
 
     /**
      * Check if scenario is completed (first attempt is finished)
+     * Uses stored is_completed flag
      *
      * @param Scenario $scenario
      * @param int $userId
@@ -102,6 +136,17 @@ class TrackProgressService
      */
     private function isScenarioCompleted(Scenario $scenario, int $userId): bool
     {
+        // Check latest attempt for is_completed flag
+        $attempt = UserScenarioAttempt::where('user_id', $userId)
+            ->where('scenario_id', $scenario->id)
+            ->orderBy('started_at', 'desc')
+            ->first();
+
+        if ($attempt && isset($attempt->is_completed)) {
+            return $attempt->is_completed;
+        }
+
+        // Fallback: check first finished attempt
         $firstFinishedAttempt = UserScenarioAttempt::where('user_id', $userId)
             ->where('scenario_id', $scenario->id)
             ->where('status', 'finished')
@@ -131,7 +176,7 @@ class TrackProgressService
 
     /**
      * Get lesson progress percentage
-     * 30% for video watched + 70% for answered questions
+     * Reads from stored progress_percentage in user_lesson_progress or user_lesson_attempts
      *
      * @param Lesson $lesson
      * @param int $userId
@@ -139,46 +184,31 @@ class TrackProgressService
      */
     private function getLessonProgressPercentage(Lesson $lesson, int $userId): float
     {
-        // Get the current or latest attempt
+        // First try to get from user_lesson_progress
+        $progress = UserLessonProgress::where('user_id', $userId)
+            ->where('lesson_id', $lesson->id)
+            ->first();
+
+        if ($progress && isset($progress->progress_percentage)) {
+            return (float) $progress->progress_percentage;
+        }
+
+        // Fallback: get from latest attempt
         $attempt = UserLessonAttempt::where('user_id', $userId)
             ->where('lesson_id', $lesson->id)
             ->orderBy('started_at', 'desc')
             ->first();
 
-        if (!$attempt) {
-            return 0;
+        if ($attempt && isset($attempt->progress_percentage)) {
+            return (float) $attempt->progress_percentage;
         }
 
-        $progress = 0;
-
-        // 30% for video watched
-        if ($attempt->video_watched) {
-            $progress += 30;
-        }
-
-        // 70% for answered questions
-        $totalQuestions = $lesson->lessonQuestions()->count();
-        if ($totalQuestions > 0) {
-            $answeredCount = UserLessonQuestionAnswer::where('attempt_id', $attempt->id)
-                ->count();
-            $questionsProgress = ($answeredCount / $totalQuestions) * 70;
-            $progress += $questionsProgress;
-        } else {
-            // If no questions, video watching is 100% of progress
-            $progress = $attempt->video_watched ? 100 : 0;
-        }
-
-        // If attempt is finished, it's 100%
-        if ($attempt->status === 'finished') {
-            return 100;
-        }
-
-        return min(round($progress, 2), 100);
+        return 0;
     }
 
     /**
      * Get scenario progress percentage
-     * 30% for description read + 70% when finished
+     * Reads from stored progress_percentage in user_scenario_attempts
      *
      * @param Scenario $scenario
      * @param int $userId
@@ -192,23 +222,11 @@ class TrackProgressService
             ->orderBy('started_at', 'desc')
             ->first();
 
-        if (!$attempt) {
-            return 0;
+        if ($attempt && isset($attempt->progress_percentage)) {
+            return (float) $attempt->progress_percentage;
         }
 
-        $progress = 0;
-
-        // 30% for description read
-        if ($attempt->description_read) {
-            $progress += 30;
-        }
-
-        // 70% when finished
-        if ($attempt->status === 'finished') {
-            $progress += 70;
-        }
-
-        return min(round($progress, 2), 100);
+        return 0;
     }
 
     /**
@@ -223,6 +241,211 @@ class TrackProgressService
             ->where('order_index', '<', $levelTrack->order_index)
             ->orderBy('order_index', 'desc')
             ->first();
+    }
+
+    /**
+     * Update lesson progress and status in database
+     *
+     * @param Lesson $lesson
+     * @param int $userId
+     * @param float $progressPercentage
+     * @param string $trackStatus
+     * @param bool $isCompleted
+     * @return void
+     */
+    public function updateLessonProgress(Lesson $lesson, int $userId, float $progressPercentage, string $trackStatus, bool $isCompleted): void
+    {
+        // Update or create user_lesson_progress
+        $progress = UserLessonProgress::firstOrNew([
+            'user_id' => $userId,
+            'lesson_id' => $lesson->id,
+        ]);
+
+        $progress->progress_percentage = $progressPercentage;
+        $progress->track_status = $trackStatus;
+        $progress->is_completed = $isCompleted;
+        $progress->status = $isCompleted ? 'completed' : ($progressPercentage > 0 ? 'in_progress' : 'not_started');
+
+        // Set started_at if not set
+        if (!$progress->started_at && $progressPercentage > 0) {
+            $progress->started_at = now();
+        }
+
+        // Set completed_at if completed
+        if ($isCompleted && !$progress->completed_at) {
+            $progress->completed_at = now();
+        }
+
+        $progress->save();
+
+        // Also update latest attempt's progress_percentage
+        $latestAttempt = UserLessonAttempt::where('user_id', $userId)
+            ->where('lesson_id', $lesson->id)
+            ->orderBy('started_at', 'desc')
+            ->first();
+
+        if ($latestAttempt) {
+            $latestAttempt->progress_percentage = $progressPercentage;
+            $latestAttempt->save();
+        }
+    }
+
+    /**
+     * Update scenario progress and status in database
+     *
+     * @param Scenario $scenario
+     * @param int $userId
+     * @param float $progressPercentage
+     * @param string $trackStatus
+     * @param bool $isCompleted
+     * @return void
+     */
+    public function updateScenarioProgress(Scenario $scenario, int $userId, float $progressPercentage, string $trackStatus, bool $isCompleted): void
+    {
+        // Update latest attempt
+        $latestAttempt = UserScenarioAttempt::where('user_id', $userId)
+            ->where('scenario_id', $scenario->id)
+            ->orderBy('started_at', 'desc')
+            ->first();
+
+        if ($latestAttempt) {
+            $latestAttempt->progress_percentage = $progressPercentage;
+            $latestAttempt->track_status = $trackStatus;
+            $latestAttempt->is_completed = $isCompleted;
+            $latestAttempt->save();
+        }
+    }
+
+    /**
+     * Calculate and update lesson progress percentage
+     *
+     * @param Lesson $lesson
+     * @param int $userId
+     * @param UserLessonAttempt|null $attempt
+     * @return float
+     */
+    public function calculateAndUpdateLessonProgress(Lesson $lesson, int $userId, ?UserLessonAttempt $attempt = null): float
+    {
+        if (!$attempt) {
+            $attempt = UserLessonAttempt::where('user_id', $userId)
+                ->where('lesson_id', $lesson->id)
+                ->orderBy('started_at', 'desc')
+                ->first();
+        }
+
+        if (!$attempt) {
+            $progressPercentage = 0;
+        } else {
+            $progress = 0;
+
+            // 30% for video watched
+            if ($attempt->video_watched) {
+                $progress += 30;
+            }
+
+            // 70% for answered questions
+            $totalQuestions = $lesson->lessonQuestions()->count();
+            if ($totalQuestions > 0) {
+                $answeredCount = UserLessonQuestionAnswer::where('attempt_id', $attempt->id)
+                    ->count();
+                $questionsProgress = ($answeredCount / $totalQuestions) * 70;
+                $progress += $questionsProgress;
+            } else {
+                // If no questions, video watching is 100% of progress
+                $progress = $attempt->video_watched ? 100 : 0;
+            }
+
+            // If attempt is finished, it's 100%
+            if ($attempt->status === 'finished') {
+                $progress = 100;
+            }
+
+            $progressPercentage = min(round($progress, 2), 100);
+        }
+
+        // Determine track status
+        $canAccess = true;
+        $levelTrack = LevelTrack::where('trackable_id', $lesson->id)
+            ->where('trackable_type', Lesson::class)
+            ->first();
+
+        if ($levelTrack) {
+            $canAccess = $this->canAccessTrack($levelTrack, $userId);
+        }
+
+        $trackStatus = 'open';
+        if (!$canAccess) {
+            $trackStatus = 'locked';
+        } elseif ($progressPercentage >= 100) {
+            $trackStatus = 'completed';
+        }
+
+        $isCompleted = $progressPercentage >= 100;
+
+        // Update stored values
+        $this->updateLessonProgress($lesson, $userId, $progressPercentage, $trackStatus, $isCompleted);
+
+        return $progressPercentage;
+    }
+
+    /**
+     * Calculate and update scenario progress percentage
+     *
+     * @param Scenario $scenario
+     * @param int $userId
+     * @param UserScenarioAttempt|null $attempt
+     * @return float
+     */
+    public function calculateAndUpdateScenarioProgress(Scenario $scenario, int $userId, ?UserScenarioAttempt $attempt = null): float
+    {
+        if (!$attempt) {
+            $attempt = UserScenarioAttempt::where('user_id', $userId)
+                ->where('scenario_id', $scenario->id)
+                ->orderBy('started_at', 'desc')
+                ->first();
+        }
+
+        if (!$attempt) {
+            $progressPercentage = 0;
+        } else {
+            $progress = 0;
+
+            // 30% for description read
+            if ($attempt->description_read) {
+                $progress += 30;
+            }
+
+            // 70% when finished
+            if ($attempt->status === 'finished') {
+                $progress += 70;
+            }
+
+            $progressPercentage = min(round($progress, 2), 100);
+        }
+
+        // Determine track status
+        $canAccess = true;
+        $levelTrack = LevelTrack::where('trackable_id', $scenario->id)
+            ->where('trackable_type', Scenario::class)
+            ->first();
+
+        if ($levelTrack) {
+            $canAccess = $this->canAccessTrack($levelTrack, $userId);
+        }
+
+        $trackStatus = 'open';
+        if (!$canAccess) {
+            $trackStatus = 'locked';
+        } elseif ($progressPercentage >= 100) {
+            $trackStatus = 'completed';
+        }
+
+        $isCompleted = $progressPercentage >= 100;
+
+        // Update stored values
+        $this->updateScenarioProgress($scenario, $userId, $progressPercentage, $trackStatus, $isCompleted);
+
+        return $progressPercentage;
     }
 }
 
