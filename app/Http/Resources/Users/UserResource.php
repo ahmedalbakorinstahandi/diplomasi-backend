@@ -34,6 +34,7 @@ class UserResource extends JsonResource
             'avatar' => MediaUrlService::toUrl($this->avatar),
             'email' => $this->email,
             'phone' => $this->phone,
+            'address' => $this->address,
             'language' => $this->language,
             'status' => $this->status,
             'created_at' => $this->created_at,

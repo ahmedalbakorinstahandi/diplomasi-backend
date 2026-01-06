@@ -17,6 +17,7 @@ class UpdateUserRequest extends BaseFormRequest
             'email' => 'sometimes|required|email',
             // 'email' => ['sometimes', 'required', 'email', Rule::unique('users', 'email')->ignore($userId)],
             'phone' => 'sometimes|required|string|max:20',
+            'address' => 'sometimes|nullable|string|max:255',
             'password' => 'sometimes|nullable|string|min:6|max:255',
             'status' => 'sometimes|nullable|in:active,banned',
         ];
