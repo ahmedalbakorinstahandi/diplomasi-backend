@@ -173,4 +173,19 @@ class ScenarioController extends Controller
             'status' => 200,
         ]);
     }
+
+    /**
+     * Mark description as read for a scenario attempt
+     */
+    public function markDescriptionRead(int $id, int $attemptId)
+    {
+        $attempt = $this->scenarioService->markDescriptionRead($attemptId, \App\Models\Users\User::auth()->id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $attempt,
+            'message' => 'messages.description.marked_read',
+            'status' => 200,
+        ]);
+    }
 }

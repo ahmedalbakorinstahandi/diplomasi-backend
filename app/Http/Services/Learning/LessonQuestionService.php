@@ -5,12 +5,14 @@ namespace App\Http\Services\Learning;
 use App\Models\Learning\Lesson;
 use App\Models\Learning\LessonQuestion;
 use App\Models\Learning\LessonQuestionOption;
+use App\Models\Learning\LevelTrack;
 use App\Models\Progress\UserLessonAttempt;
 use App\Models\Progress\UserLessonQuestionAnswer;
 use App\Models\Progress\UserLessonAnswerOption;
 use App\Models\Progress\UserLessonAnswerMatch;
 use App\Models\Users\User;
 use App\Services\MessageService;
+use App\Services\TrackProgressService;
 use Illuminate\Support\Facades\DB;
 
 class LessonQuestionService
@@ -23,6 +25,18 @@ class LessonQuestionService
         $lesson = Lesson::find($lessonId);
         if (!$lesson) {
             MessageService::abort(404, 'messages.lesson.not_found');
+        }
+
+        // Check if lesson is accessible (previous track is completed)
+        $levelTrack = LevelTrack::where('trackable_id', $lessonId)
+            ->where('trackable_type', Lesson::class)
+            ->first();
+
+        if ($levelTrack) {
+            $trackProgressService = app(TrackProgressService::class);
+            if (!$trackProgressService->canAccessTrack($levelTrack, $userId)) {
+                MessageService::abort(403, 'messages.lesson.locked');
+            }
         }
 
         // البحث عن محاولة قائمة
@@ -517,6 +531,35 @@ class LessonQuestionService
             'correct_answers' => $correctAnswers,
             'finished_at' => $attempt->finished_at,
         ];
+    }
+
+    /**
+     * Mark video as watched for a lesson attempt
+     *
+     * @param int $attemptId
+     * @param int $userId
+     * @return UserLessonAttempt
+     */
+    public function markVideoWatched($attemptId, $userId)
+    {
+        $attempt = UserLessonAttempt::find($attemptId);
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+
+        if ($attempt->user_id != $userId) {
+            MessageService::abort(403, 'messages.attempt.unauthorized');
+        }
+
+        if ($attempt->video_watched) {
+            return $attempt; // Already watched
+        }
+
+        $attempt->video_watched = true;
+        $attempt->video_watched_at = now();
+        $attempt->save();
+
+        return $attempt;
     }
 }
 

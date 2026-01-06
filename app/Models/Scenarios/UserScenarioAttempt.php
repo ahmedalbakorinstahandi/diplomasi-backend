@@ -32,6 +32,8 @@ class UserScenarioAttempt extends Model
         'status',
         'started_at',
         'finished_at',
+        'description_read',
+        'description_read_at',
     ];
 
     /**
@@ -44,6 +46,8 @@ class UserScenarioAttempt extends Model
         return [
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'description_read' => 'boolean',
+            'description_read_at' => 'datetime',
         ];
     }
 

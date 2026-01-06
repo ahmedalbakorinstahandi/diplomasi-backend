@@ -240,4 +240,29 @@ class LessonController extends Controller
             'status' => 200,
         ]);
     }
+
+    /**
+     * Mark video as watched for a lesson attempt
+     */
+    public function markVideoWatched(int $lessonId, int $attemptId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'messages.unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $attempt = $this->lessonQuestionService->markVideoWatched($attemptId, $user->id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $attempt,
+            'message' => 'messages.video.marked_watched',
+            'status' => 200,
+            'resource' => UserLessonAttemptResource::class,
+        ]);
+    }
 }

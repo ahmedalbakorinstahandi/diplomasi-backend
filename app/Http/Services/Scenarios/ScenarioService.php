@@ -13,6 +13,7 @@ use App\Models\Scenarios\UserScenarioAnswerOption;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\OrderHelper;
+use App\Services\TrackProgressService;
 use App\Models\Users\User;
 
 class ScenarioService
@@ -139,6 +140,18 @@ class ScenarioService
         $user = User::auth();
         if (!$user) {
             MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        // Check if scenario is accessible (previous track is completed)
+        $levelTrack = LevelTrack::where('trackable_id', $scenario->id)
+            ->where('trackable_type', Scenario::class)
+            ->first();
+
+        if ($levelTrack) {
+            $trackProgressService = app(TrackProgressService::class);
+            if (!$trackProgressService->canAccessTrack($levelTrack, $user->id)) {
+                MessageService::abort(403, 'messages.scenario.locked');
+            }
         }
 
         // Check if there's an existing in-progress attempt
@@ -401,6 +414,35 @@ class ScenarioService
         if ($levelTrack->wasRecentlyCreated || $levelTrack->order_index === null) {
             OrderHelper::assign($levelTrack, 'order_index');
         }
+    }
+
+    /**
+     * Mark description as read for a scenario attempt
+     *
+     * @param int $attemptId
+     * @param int $userId
+     * @return UserScenarioAttempt
+     */
+    public function markDescriptionRead($attemptId, $userId)
+    {
+        $attempt = UserScenarioAttempt::find($attemptId);
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+
+        if ($attempt->user_id != $userId) {
+            MessageService::abort(403, 'messages.attempt.unauthorized');
+        }
+
+        if ($attempt->description_read) {
+            return $attempt; // Already read
+        }
+
+        $attempt->description_read = true;
+        $attempt->description_read_at = now();
+        $attempt->save();
+
+        return $attempt;
     }
 }
 

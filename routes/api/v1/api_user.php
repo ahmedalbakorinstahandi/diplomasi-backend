@@ -67,12 +67,14 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('lessons/{lessonId}/attempts/{attemptId}/current-question', [LessonController::class, 'getCurrentQuestion']);
         Route::post('lessons/{lessonId}/attempts/{attemptId}/submit-answer', [LessonController::class, 'submitAnswer']);
         Route::post('lessons/{lessonId}/attempts/{attemptId}/finish', [LessonController::class, 'finishAttempt']);
+        Route::post('lessons/{lessonId}/attempts/{attemptId}/mark-video-watched', [LessonController::class, 'markVideoWatched']);
 
         // Scenarios - User actions
         Route::post('scenarios/{id}/start-attempt', [ScenarioController::class, 'startAttempt']);
         Route::get('scenarios/{id}/attempts/{attemptId}/current-question', [ScenarioController::class, 'getCurrentQuestion']);
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
         Route::post('scenarios/{id}/attempts/{attemptId}/finish', [ScenarioController::class, 'finishAttempt']);
+        Route::post('scenarios/{id}/attempts/{attemptId}/mark-description-read', [ScenarioController::class, 'markDescriptionRead']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);

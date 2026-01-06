@@ -26,6 +26,8 @@ class UserLessonAttempt extends Model
         'started_at',
         'finished_at',
         'total_time',
+        'video_watched',
+        'video_watched_at',
     ];
 
     /**
@@ -39,6 +41,8 @@ class UserLessonAttempt extends Model
             'score' => 'decimal:2',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'video_watched' => 'boolean',
+            'video_watched_at' => 'datetime',
         ];
     }
 
