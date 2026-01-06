@@ -14,8 +14,8 @@ class UpdateProfileRequest extends BaseFormRequest
             'email' => 'sometimes|required|email',
             'phone' => 'sometimes|required|string|max:20',
             'address' => 'sometimes|nullable|string|max:255',
-            'password' => 'sometimes|nullable|string|min:6|max:255',
             'current_password' => 'required_with:password|string',
+            'new_password' => 'sometimes|nullable|string|min:6|max:255',
         ];
     }
 }

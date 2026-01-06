@@ -112,11 +112,13 @@ class ScenarioController extends Controller
         return $this->index(request(), 'messages.scenario.reordered');
     }
 
-    public function startAttempt(StartScenarioAttemptRequest $request)
+    public function startAttempt($id)
     {
         ScenarioPermission::canStartAttempt();
 
-        $attempt = $this->scenarioService->startAttempt($request->validated()['scenario_id']);
+        $scenario = $this->scenarioService->show($id);
+
+        $attempt = $this->scenarioService->startAttempt($scenario);
 
         return ResponseService::response([
             'success' => true,
@@ -145,4 +147,3 @@ class ScenarioController extends Controller
         ]);
     }
 }
-

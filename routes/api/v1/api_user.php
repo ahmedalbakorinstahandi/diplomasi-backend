@@ -69,7 +69,7 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('lessons/{lessonId}/attempts/{attemptId}/finish', [LessonController::class, 'finishAttempt']);
 
         // Scenarios - User actions
-        Route::post('scenarios/start-attempt', [ScenarioController::class, 'startAttempt']);
+        Route::post('scenarios/{id}/start-attempt', [ScenarioController::class, 'startAttempt']);
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
 
         // Notifications

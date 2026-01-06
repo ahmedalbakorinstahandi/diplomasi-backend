@@ -131,14 +131,12 @@ class ScenarioService
         return $this->show($scenario->id);
     }
 
-    public function startAttempt($scenarioId)
+    public function startAttempt($scenario)
     {
         $user = User::auth();
         if (!$user) {
             MessageService::abort(401, 'messages.unauthorized');
         }
-
-        $scenario = $this->show($scenarioId);
 
         $attempt = UserScenarioAttempt::create([
             'user_id' => $user->id,
