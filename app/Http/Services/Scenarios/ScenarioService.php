@@ -5,8 +5,11 @@ namespace App\Http\Services\Scenarios;
 use App\Http\Permissions\Scenarios\ScenarioPermission;
 use App\Models\Learning\LevelTrack;
 use App\Models\Scenarios\Scenario;
+use App\Models\Scenarios\ScenarioQuestion;
+use App\Models\Scenarios\ScenarioQuestionOption;
 use App\Models\Scenarios\UserScenarioAttempt;
 use App\Models\Scenarios\UserScenarioQuestionAnswer;
+use App\Models\Scenarios\UserScenarioAnswerOption;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\OrderHelper;
@@ -138,6 +141,21 @@ class ScenarioService
             MessageService::abort(401, 'messages.unauthorized');
         }
 
+        // Check if there's an existing in-progress attempt
+        $existingAttempt = UserScenarioAttempt::where('user_id', $user->id)
+            ->where('scenario_id', $scenario->id)
+            ->where('status', 'in_progress')
+            ->first();
+
+        if ($existingAttempt) {
+            return $existingAttempt;
+        }
+
+        // Validate that scenario has a start question
+        if (!$scenario->start_question_id) {
+            MessageService::abort(400, 'messages.scenario.no_start_question');
+        }
+
         $attempt = UserScenarioAttempt::create([
             'user_id' => $user->id,
             'scenario_id' => $scenario->id,
@@ -145,7 +163,91 @@ class ScenarioService
             'started_at' => now(),
         ]);
 
+        $attempt->load(['scenario']);
+
         return $attempt;
+    }
+
+    /**
+     * Get the current question for an attempt
+     */
+    public function getCurrentQuestion($attemptId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $attempt = UserScenarioAttempt::where('id', $attemptId)
+            ->where('user_id', $user->id)
+            ->with(['scenario'])
+            ->first();
+
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+
+        if ($attempt->status === 'finished') {
+            MessageService::abort(400, 'messages.attempt.already_finished');
+        }
+
+        // Get the last answered question to determine the next question
+        $lastAnswer = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
+            ->orderBy('step_index', 'desc')
+            ->with(['userScenarioAnswerOptions.scenarioQuestionOption.nextQuestion'])
+            ->first();
+
+        $currentQuestion = null;
+
+        if (!$lastAnswer) {
+            // No answers yet, start with the scenario's start question
+            $currentQuestion = ScenarioQuestion::where('id', $attempt->scenario->start_question_id)
+                ->with(['scenarioQuestionOptions.nextQuestion'])
+                ->first();
+        } else {
+            // Get the next question from the last answer's selected option
+            $lastAnswerOption = $lastAnswer->userScenarioAnswerOptions->first();
+            if ($lastAnswerOption && $lastAnswerOption->scenarioQuestionOption) {
+                $nextQuestionId = $lastAnswerOption->scenarioQuestionOption->next_question_id;
+                if ($nextQuestionId) {
+                    $currentQuestion = ScenarioQuestion::where('id', $nextQuestionId)
+                        ->with(['scenarioQuestionOptions.nextQuestion'])
+                        ->first();
+                }
+            }
+        }
+
+        if (!$currentQuestion) {
+            // No more questions, scenario is finished
+            $attempt->status = 'finished';
+            $attempt->finished_at = now();
+            $attempt->save();
+
+            return [
+                'finished' => true,
+                'message' => 'messages.scenario.finished',
+            ];
+        }
+
+        // Check if this question was already answered
+        $existingAnswer = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
+            ->where('question_id', $currentQuestion->id)
+            ->first();
+
+        if ($existingAnswer) {
+            // Question already answered, return it with answer details
+            $existingAnswer->load(['userScenarioAnswerOptions.scenarioQuestionOption.nextQuestion']);
+            return [
+                'question' => $currentQuestion,
+                'answered' => true,
+                'answer' => $existingAnswer,
+            ];
+        }
+
+        return [
+            'question' => $currentQuestion,
+            'answered' => false,
+        ];
     }
 
     public function submitAnswer($attemptId, $questionId, $optionId = null, $answerText = null)
@@ -163,14 +265,121 @@ class ScenarioService
             MessageService::abort(404, 'messages.attempt.not_found');
         }
 
+        if ($attempt->status === 'finished') {
+            MessageService::abort(400, 'messages.attempt.already_finished');
+        }
+
+        // Validate question exists and belongs to the scenario
+        $question = ScenarioQuestion::where('id', $questionId)
+            ->where('scenario_id', $attempt->scenario_id)
+            ->with(['scenarioQuestionOptions'])
+            ->first();
+
+        if (!$question) {
+            MessageService::abort(404, 'messages.question.not_found');
+        }
+
+        // Check if question was already answered
+        $existingAnswer = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
+            ->where('question_id', $questionId)
+            ->first();
+
+        if ($existingAnswer) {
+            MessageService::abort(400, 'messages.question.already_answered');
+        }
+
+        // Validate answer based on question type
+        if ($question->type === 'single_choice' || $question->type === 'true_false') {
+            if (!$optionId) {
+                MessageService::abort(400, 'messages.answer.option_id_required');
+            }
+
+            $option = ScenarioQuestionOption::where('id', $optionId)
+                ->where('question_id', $questionId)
+                ->first();
+
+            if (!$option) {
+                MessageService::abort(400, 'messages.answer.invalid_option');
+            }
+        }
+
+        // Calculate step_index (number of previous answers + 1)
+        $stepIndex = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
+            ->max('step_index') ?? 0;
+        $stepIndex += 1;
+
+        // Create the answer record
         $answer = UserScenarioQuestionAnswer::create([
             'attempt_id' => $attempt->id,
             'question_id' => $questionId,
-            'option_id' => $optionId,
-            'answer_text' => $answerText,
+            'step_index' => $stepIndex,
+            'answered_at' => now(),
+            'time_spent' => null, // Can be calculated on frontend and sent
         ]);
 
-        return $answer;
+        // Save the selected option if provided
+        if ($optionId) {
+            UserScenarioAnswerOption::create([
+                'user_answer_id' => $answer->id,
+                'option_id' => $optionId,
+            ]);
+        }
+
+        // Get the next question based on the selected option
+        $nextQuestionId = null;
+        if ($optionId) {
+            $selectedOption = ScenarioQuestionOption::where('id', $optionId)->first();
+            if ($selectedOption) {
+                $nextQuestionId = $selectedOption->next_question_id;
+            }
+        }
+
+        // If no next question, finish the attempt
+        $isFinished = false;
+        if (!$nextQuestionId) {
+            $attempt->status = 'finished';
+            $attempt->finished_at = now();
+            $attempt->save();
+            $isFinished = true;
+        }
+
+        $answer->load(['userScenarioAnswerOptions.scenarioQuestionOption']);
+
+        return [
+            'answer' => $answer,
+            'next_question_id' => $nextQuestionId,
+            'finished' => $isFinished,
+            'explanation' => $question->explanation,
+        ];
+    }
+
+    /**
+     * Finish a scenario attempt
+     */
+    public function finishAttempt($attemptId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $attempt = UserScenarioAttempt::where('id', $attemptId)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+
+        if ($attempt->status === 'finished') {
+            MessageService::abort(400, 'messages.attempt.already_finished');
+        }
+
+        $attempt->status = 'finished';
+        $attempt->finished_at = now();
+        $attempt->save();
+
+        return $attempt;
     }
 
     /**

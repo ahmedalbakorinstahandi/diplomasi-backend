@@ -128,11 +128,24 @@ class ScenarioController extends Controller
         ]);
     }
 
+    public function getCurrentQuestion(int $id, int $attemptId)
+    {
+        ScenarioPermission::canStartAttempt();
+
+        $result = $this->scenarioService->getCurrentQuestion($attemptId);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $result,
+            'status' => 200,
+        ]);
+    }
+
     public function submitAnswer(SubmitScenarioAnswerRequest $request)
     {
         ScenarioPermission::canSubmitAnswer();
 
-        $answer = $this->scenarioService->submitAnswer(
+        $result = $this->scenarioService->submitAnswer(
             $request->validated()['attempt_id'],
             $request->validated()['question_id'],
             $request->validated()['option_id'] ?? null,
@@ -141,9 +154,23 @@ class ScenarioController extends Controller
 
         return ResponseService::response([
             'success' => true,
-            'data' => $answer,
-            'message' => 'messages.scenario.answer_submitted',
+            'data' => $result,
+            'message' => $result['finished'] ? 'messages.scenario.finished' : 'messages.scenario.answer_submitted',
             'status' => 201,
+        ]);
+    }
+
+    public function finishAttempt(int $id, int $attemptId)
+    {
+        ScenarioPermission::canSubmitAnswer();
+
+        $attempt = $this->scenarioService->finishAttempt($attemptId);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $attempt,
+            'message' => 'messages.scenario.attempt_finished',
+            'status' => 200,
         ]);
     }
 }

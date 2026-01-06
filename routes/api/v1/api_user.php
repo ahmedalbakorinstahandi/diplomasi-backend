@@ -70,7 +70,9 @@ Route::group(['prefix' => 'user'], function () {
 
         // Scenarios - User actions
         Route::post('scenarios/{id}/start-attempt', [ScenarioController::class, 'startAttempt']);
+        Route::get('scenarios/{id}/attempts/{attemptId}/current-question', [ScenarioController::class, 'getCurrentQuestion']);
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
+        Route::post('scenarios/{id}/attempts/{attemptId}/finish', [ScenarioController::class, 'finishAttempt']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);
