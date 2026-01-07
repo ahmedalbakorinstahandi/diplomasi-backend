@@ -25,12 +25,27 @@ class LevelTrackController extends Controller
     {
         LevelTrackPermission::canView();
 
-        $levelTracks = $this->levelTrackService->index($request->all());
+        $query = $this->levelTrackService->index($request->all());
+        
+        // Get paginated results
+        $perPage = $request->input('per_page', 20);
+        $levelTracksPaginated = $query->paginate($perPage);
+        $levelTracks = $levelTracksPaginated->items();
+        
+        // Load progress data in batch if user is authenticated
+        $user = \App\Models\Users\User::auth();
+        if ($user && !empty($levelTracks)) {
+            $trackProgressService = app(\App\Services\TrackProgressService::class);
+            $progressData = $trackProgressService->loadProgressDataForTracks(collect($levelTracks), $user->id);
+            
+            // Set cache for Resource to use
+            LevelTrackResource::setProgressDataCache($progressData);
+        }
 
         return ResponseService::response([
             'success' => true,
             'message' => $message,
-            'data' => $levelTracks,
+            'data' => $levelTracksPaginated,
             'meta' => true,
             'resource' => LevelTrackResource::class,
             'status' => 200,

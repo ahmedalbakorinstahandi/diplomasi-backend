@@ -10,12 +10,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class LevelTrackResource extends JsonResource
 {
-    protected $trackProgressService;
+    protected static $progressDataCache = null;
 
-    public function __construct($resource)
+    /**
+     * Set progress data cache (loaded in batch)
+     *
+     * @param array $progressData
+     * @return void
+     */
+    public static function setProgressDataCache(array $progressData): void
     {
-        parent::__construct($resource);
-        $this->trackProgressService = app(TrackProgressService::class);
+        self::$progressDataCache = $progressData;
+    }
+
+    /**
+     * Clear progress data cache
+     *
+     * @return void
+     */
+    public static function clearProgressDataCache(): void
+    {
+        self::$progressDataCache = null;
     }
 
     /**
@@ -33,9 +48,19 @@ class LevelTrackResource extends JsonResource
         $isAccessible = false;
 
         if ($userId) {
-            $status = $this->trackProgressService->getTrackStatus($this->resource, $userId);
-            $progressPercentage = $this->trackProgressService->getProgressPercentage($this->trackable, $userId);
-            $isAccessible = $this->trackProgressService->canAccessTrack($this->resource, $userId);
+            // Use cached progress data if available (loaded in batch)
+            if (self::$progressDataCache !== null && isset(self::$progressDataCache[$this->id])) {
+                $progressData = self::$progressDataCache[$this->id];
+                $status = $progressData['status'];
+                $progressPercentage = $progressData['progress_percentage'];
+                $isAccessible = $progressData['is_accessible'];
+            } else {
+                // Fallback: load individually (slower but works)
+                $trackProgressService = app(TrackProgressService::class);
+                $status = $trackProgressService->getTrackStatus($this->resource, $userId);
+                $progressPercentage = $trackProgressService->getProgressPercentage($this->trackable, $userId);
+                $isAccessible = $trackProgressService->canAccessTrack($this->resource, $userId);
+            }
         }
 
         return [

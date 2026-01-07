@@ -447,5 +447,190 @@ class TrackProgressService
 
         return $progressPercentage;
     }
+
+    /**
+     * Load all progress data for level tracks in batch (optimized for collections)
+     *
+     * @param \Illuminate\Database\Eloquent\Collection $levelTracks
+     * @param int $userId
+     * @return array
+     */
+    public function loadProgressDataForTracks($levelTracks, int $userId): array
+    {
+        // Convert to collection if array
+        if (is_array($levelTracks)) {
+            $levelTracks = collect($levelTracks);
+        }
+
+        if ($levelTracks->isEmpty()) {
+            return [];
+        }
+
+        $levelIds = $levelTracks->pluck('level_id')->unique()->toArray();
+        $lessonIds = [];
+        $scenarioIds = [];
+
+        foreach ($levelTracks as $track) {
+            if ($track->trackable_type === Lesson::class) {
+                $lessonIds[] = $track->trackable_id;
+            } elseif ($track->trackable_type === Scenario::class) {
+                $scenarioIds[] = $track->trackable_id;
+            }
+        }
+
+        // Load all lesson progress data in one query
+        $lessonProgressMap = [];
+        if (!empty($lessonIds)) {
+            $lessonProgresses = UserLessonProgress::where('user_id', $userId)
+                ->whereIn('lesson_id', $lessonIds)
+                ->get()
+                ->keyBy('lesson_id');
+
+            foreach ($lessonProgresses as $progress) {
+                $lessonProgressMap[$progress->lesson_id] = [
+                    'progress_percentage' => (float) ($progress->progress_percentage ?? 0),
+                    'track_status' => $progress->track_status ?? 'open',
+                    'is_completed' => (bool) ($progress->is_completed ?? false),
+                ];
+            }
+        }
+
+        // Load all scenario progress data in one query
+        $scenarioProgressMap = [];
+        if (!empty($scenarioIds)) {
+            // Get latest attempts for each scenario
+            $scenarioAttempts = UserScenarioAttempt::where('user_id', $userId)
+                ->whereIn('scenario_id', $scenarioIds)
+                ->orderBy('scenario_id')
+                ->orderBy('started_at', 'desc')
+                ->get()
+                ->groupBy('scenario_id')
+                ->map(function ($attempts) {
+                    return $attempts->first();
+                });
+
+            foreach ($scenarioAttempts as $attempt) {
+                $scenarioProgressMap[$attempt->scenario_id] = [
+                    'progress_percentage' => (float) ($attempt->progress_percentage ?? 0),
+                    'track_status' => $attempt->track_status ?? 'open',
+                    'is_completed' => (bool) ($attempt->is_completed ?? false),
+                ];
+            }
+        }
+
+        // Load completion status for all previous tracks (for canAccess calculation)
+        // Load all tracks in batch to find previous ones
+        $allTracksInLevels = LevelTrack::whereIn('level_id', $levelIds)
+            ->orderBy('level_id')
+            ->orderBy('order_index')
+            ->get()
+            ->groupBy('level_id');
+
+        $previousTrackCompletionMap = [];
+        foreach ($levelTracks as $track) {
+            $tracksInLevel = $allTracksInLevels->get($track->level_id);
+            if ($tracksInLevel) {
+                $previousTrack = $tracksInLevel
+                    ->where('order_index', '<', $track->order_index)
+                    ->sortByDesc('order_index')
+                    ->first();
+
+                if ($previousTrack) {
+                    $previousTrackCompletionMap[$track->id] = $previousTrack;
+                }
+            }
+        }
+
+        // Get completion status for all previous tracks in batch
+        $previousTrackIds = collect($previousTrackCompletionMap)->map(function ($track) {
+            return $track->trackable_id;
+        })->toArray();
+        $previousTrackTypes = collect($previousTrackCompletionMap)->map(function ($track) {
+            return $track->trackable_type;
+        })->toArray();
+
+        $previousLessonIds = [];
+        $previousScenarioIds = [];
+        foreach ($previousTrackCompletionMap as $currentTrackId => $prevTrack) {
+            if ($prevTrack->trackable_type === Lesson::class) {
+                $previousLessonIds[$currentTrackId] = $prevTrack->trackable_id;
+            } elseif ($prevTrack->trackable_type === Scenario::class) {
+                $previousScenarioIds[$currentTrackId] = $prevTrack->trackable_id;
+            }
+        }
+
+        $previousCompletionMap = [];
+        if (!empty($previousLessonIds)) {
+            $previousLessonProgresses = UserLessonProgress::where('user_id', $userId)
+                ->whereIn('lesson_id', array_values($previousLessonIds))
+                ->get()
+                ->keyBy('lesson_id');
+
+            foreach ($previousLessonIds as $currentTrackId => $lessonId) {
+                $progress = $previousLessonProgresses->get($lessonId);
+                $previousCompletionMap[$currentTrackId] = $progress && ($progress->is_completed ?? false);
+            }
+        }
+
+        if (!empty($previousScenarioIds)) {
+            $previousScenarioAttempts = UserScenarioAttempt::where('user_id', $userId)
+                ->whereIn('scenario_id', array_values($previousScenarioIds))
+                ->orderBy('scenario_id')
+                ->orderBy('started_at', 'desc')
+                ->get()
+                ->groupBy('scenario_id')
+                ->map(function ($attempts) {
+                    return $attempts->first();
+                });
+
+            foreach ($previousScenarioIds as $currentTrackId => $scenarioId) {
+                $attempt = $previousScenarioAttempts->get($scenarioId);
+                $previousCompletionMap[$currentTrackId] = $attempt && ($attempt->is_completed ?? false);
+            }
+        }
+
+        // Build result map
+        $result = [];
+        foreach ($levelTracks as $track) {
+            $trackableId = $track->trackable_id;
+            
+            // Get progress data
+            if ($track->trackable_type === Lesson::class) {
+                $progressData = $lessonProgressMap[$trackableId] ?? [
+                    'progress_percentage' => 0,
+                    'track_status' => 'open',
+                    'is_completed' => false,
+                ];
+            } else {
+                $progressData = $scenarioProgressMap[$trackableId] ?? [
+                    'progress_percentage' => 0,
+                    'track_status' => 'open',
+                    'is_completed' => false,
+                ];
+            }
+
+            // Check if accessible (previous track completed)
+            $isAccessible = true;
+            if (isset($previousTrackCompletionMap[$track->id])) {
+                $isAccessible = $previousCompletionMap[$track->id] ?? false;
+            }
+
+            // Determine final status
+            $status = $progressData['track_status'];
+            if (!$isAccessible) {
+                $status = 'locked';
+            } elseif ($progressData['is_completed']) {
+                $status = 'completed';
+            }
+
+            $result[$track->id] = [
+                'status' => $status,
+                'progress_percentage' => $progressData['progress_percentage'],
+                'is_accessible' => $isAccessible,
+            ];
+        }
+
+        return $result;
+    }
 }
 

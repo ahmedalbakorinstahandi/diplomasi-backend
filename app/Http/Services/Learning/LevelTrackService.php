@@ -6,9 +6,11 @@ use App\Http\Permissions\Learning\LevelTrackPermission;
 use App\Models\Learning\LevelTrack;
 use App\Models\Learning\Lesson;
 use App\Models\Scenarios\Scenario;
+use App\Models\Users\User;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\OrderHelper;
+use App\Services\TrackProgressService;
 
 class LevelTrackService
 {
@@ -40,6 +42,13 @@ class LevelTrackService
             $exactMatchFields,
             $inFields
         );
+
+        // Load progress data in batch if user is authenticated
+        $user = User::auth();
+        if ($user) {
+            // We'll load progress data after getting the results
+            // This is handled in the Resource
+        }
 
         return $query;
     }
