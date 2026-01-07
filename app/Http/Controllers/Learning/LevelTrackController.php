@@ -29,7 +29,11 @@ class LevelTrackController extends Controller
         
         // Get paginated results
         $perPage = $request->input('per_page', 20);
-        $levelTracksPaginated = $query->paginate($perPage);
+        if ($query instanceof \Illuminate\Contracts\Pagination\Paginator) {
+            $levelTracksPaginated = $query;
+        } else {
+            $levelTracksPaginated = $query->paginate($perPage);
+        }
         
         // Load progress data in batch if user is authenticated
         $user = \App\Models\Users\User::auth();
