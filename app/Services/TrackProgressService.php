@@ -266,6 +266,11 @@ class TrackProgressService
         $progress->is_completed = $isCompleted;
         $progress->status = $isCompleted ? 'completed' : ($progressPercentage > 0 ? 'in_progress' : 'not_started');
 
+        // Set score to 0 if not set (required field)
+        if ($progress->score === null) {
+            $progress->score = 0;
+        }
+
         // Set started_at if not set
         if (!$progress->started_at && $progressPercentage > 0) {
             $progress->started_at = now();

@@ -28,7 +28,7 @@ class LevelTrackController extends Controller
         $query = $this->levelTrackService->index($request->all());
         
         // Get paginated results
-        $perPage = $request->input('per_page', 20);
+        $perPage = $request->input(key: 'per_page', default: 20);
         if ($query instanceof \Illuminate\Contracts\Pagination\Paginator) {
             $levelTracksPaginated = $query;
         } else {
