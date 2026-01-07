@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class LevelTrackResource extends JsonResource
 {
     protected static $progressDataCache = null;
+    protected static $insideLevelTrackResource = false;
 
     /**
      * Set progress data cache (loaded in batch)
@@ -31,6 +32,16 @@ class LevelTrackResource extends JsonResource
     public static function clearProgressDataCache(): void
     {
         self::$progressDataCache = null;
+    }
+
+    /**
+     * Check if we're inside LevelTrackResource (to prevent recursion)
+     *
+     * @return bool
+     */
+    public static function isInsideLevelTrackResource(): bool
+    {
+        return self::$insideLevelTrackResource;
     }
 
     /**
@@ -79,13 +90,28 @@ class LevelTrackResource extends JsonResource
             
             // Relationships
             'level' => new LevelResource($this->whenLoaded('level')),
-            'trackable' => $this->when($this->relationLoaded('trackable'), function () use ($userId) {
-                if ($this->trackable_type === 'App\\Models\\Learning\\Lesson') {
-                    return new LessonResource($this->trackable);
-                } elseif ($this->trackable_type === 'App\\Models\\Scenarios\\Scenario') {
-                    return new ScenarioResource($this->trackable);
+            'trackable' => $this->when($this->relationLoaded('trackable'), function () {
+                // Prevent recursion by setting flag
+                self::$insideLevelTrackResource = true;
+                
+                $trackable = $this->trackable;
+                if (!$trackable) {
+                    self::$insideLevelTrackResource = false;
+                    return null;
                 }
-                return null;
+                
+                // Don't load levelTrack to prevent recursion
+                $trackable->unsetRelation('levelTrack');
+                
+                $result = null;
+                if ($this->trackable_type === 'App\\Models\\Learning\\Lesson') {
+                    $result = new LessonResource($trackable);
+                } elseif ($this->trackable_type === 'App\\Models\\Scenarios\\Scenario') {
+                    $result = new ScenarioResource($trackable);
+                }
+                
+                self::$insideLevelTrackResource = false;
+                return $result;
             }),
         ];
     }

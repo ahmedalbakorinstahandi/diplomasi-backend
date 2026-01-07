@@ -30,16 +30,19 @@ class LevelTrackController extends Controller
         // Get paginated results
         $perPage = $request->input('per_page', 20);
         $levelTracksPaginated = $query->paginate($perPage);
-        $levelTracks = $levelTracksPaginated->items();
         
         // Load progress data in batch if user is authenticated
         $user = \App\Models\Users\User::auth();
-        if ($user && !empty($levelTracks)) {
+        if ($user && $levelTracksPaginated->count() > 0) {
+            $levelTracks = $levelTracksPaginated->items();
             $trackProgressService = app(\App\Services\TrackProgressService::class);
             $progressData = $trackProgressService->loadProgressDataForTracks(collect($levelTracks), $user->id);
             
             // Set cache for Resource to use
             LevelTrackResource::setProgressDataCache($progressData);
+        } else {
+            // Clear cache if no user
+            LevelTrackResource::clearProgressDataCache();
         }
 
         return ResponseService::response([
@@ -129,11 +132,26 @@ class LevelTrackController extends Controller
     {
         LevelTrackPermission::canUpdate();
 
-        $levelTracks = $this->levelTrackService->syncForLevel($levelId);
+        $query = $this->levelTrackService->syncForLevel($levelId);
+        
+        // Get all results (syncForLevel returns query)
+        $levelTracks = $query->get();
+        
+        // Load progress data in batch if user is authenticated
+        $user = \App\Models\Users\User::auth();
+        if ($user && $levelTracks->isNotEmpty()) {
+            $trackProgressService = app(\App\Services\TrackProgressService::class);
+            $progressData = $trackProgressService->loadProgressDataForTracks($levelTracks, $user->id);
+            
+            // Set cache for Resource to use
+            LevelTrackResource::setProgressDataCache($progressData);
+        } else {
+            LevelTrackResource::clearProgressDataCache();
+        }
 
         return ResponseService::response([
             'success' => true,
-            'data' => $levelTracks,
+            'data' => $query,
             'message' => 'messages.level_track.synced',
             'status' => 200,
             'meta' => true,

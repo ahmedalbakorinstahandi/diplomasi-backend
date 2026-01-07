@@ -33,19 +33,21 @@ class ScenarioResource extends JsonResource
         $progressPercentage = 0;
 
         if ($userId) {
-            // Load levelTrack if not already loaded
-            if (!$this->relationLoaded('levelTrack')) {
-                $this->resource->load('levelTrack');
-            }
-
-            if ($this->levelTrack) {
-                $status = $this->trackProgressService->getTrackStatus($this->levelTrack, $userId);
+            // Use stored data directly (faster, no recursion)
+            $progressPercentage = $this->trackProgressService->getProgressPercentage($this->resource, $userId);
+            
+            // Check status from stored data
+            $attempt = \App\Models\Scenarios\UserScenarioAttempt::where('user_id', $userId)
+                ->where('scenario_id', $this->id)
+                ->orderBy('started_at', 'desc')
+                ->first();
+            
+            if ($attempt && $attempt->track_status) {
+                $status = $attempt->track_status;
             } else {
-                // If no levelTrack, check if completed directly
+                // Fallback: check if completed
                 $status = $this->trackProgressService->isTrackCompleted($this->resource, $userId) ? 'completed' : 'open';
             }
-            
-            $progressPercentage = $this->trackProgressService->getProgressPercentage($this->resource, $userId);
         }
 
         return [
@@ -69,7 +71,13 @@ class ScenarioResource extends JsonResource
             'start_question' => new ScenarioQuestionResource($this->whenLoaded('startQuestion')),
             'scenario_questions' => ScenarioQuestionResource::collection($this->whenLoaded('scenarioQuestions')),
             'user_scenario_attempts' => UserScenarioAttemptResource::collection($this->whenLoaded('userScenarioAttempts')),
-            'level_track' => new LevelTrackResource($this->whenLoaded('levelTrack')),
+            // level_track is excluded when used inside LevelTrackResource to prevent recursion
+            'level_track' => $this->when(
+                $this->relationLoaded('levelTrack') && !\App\Http\Resources\Learning\LevelTrackResource::isInsideLevelTrackResource(),
+                function () {
+                    return new \App\Http\Resources\Learning\LevelTrackResource($this->levelTrack);
+                }
+            ),
         ];
     }
 }
