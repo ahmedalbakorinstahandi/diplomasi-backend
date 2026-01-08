@@ -615,17 +615,40 @@ class TrackProgressService
             }
 
             // Check if accessible (previous track completed)
+            // First track in level is always accessible
             $isAccessible = true;
-            if (isset($previousTrackCompletionMap[$track->id])) {
-                $isAccessible = $previousCompletionMap[$track->id] ?? false;
+            $hasPreviousTrack = isset($previousTrackCompletionMap[$track->id]);
+            
+            if ($hasPreviousTrack) {
+                // There is a previous track, check if it's completed
+                $previousIsCompleted = $previousCompletionMap[$track->id] ?? false;
+                
+                // If previous completion status is not found, check directly
+                if ($previousIsCompleted === false && isset($previousTrackCompletionMap[$track->id])) {
+                    $previousTrack = $previousTrackCompletionMap[$track->id];
+                    $previousIsCompleted = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    $previousCompletionMap[$track->id] = $previousIsCompleted; // Cache it
+                }
+                
+                $isAccessible = $previousIsCompleted;
             }
+            // If no previous track (first in level), isAccessible remains true
 
             // Determine final status
-            $status = $progressData['track_status'];
+            // Override stored status if not accessible
             if (!$isAccessible) {
                 $status = 'locked';
             } elseif ($progressData['is_completed']) {
                 $status = 'completed';
+            } elseif (!$hasPreviousTrack) {
+                // First track in level is always open (unless completed)
+                $status = 'open';
+            } elseif (isset($progressData['track_status']) && $progressData['track_status']) {
+                // Use stored status if available and accessible
+                $status = $progressData['track_status'];
+            } else {
+                // Default to open if accessible and not completed
+                $status = 'open';
             }
 
             $result[$track->id] = [

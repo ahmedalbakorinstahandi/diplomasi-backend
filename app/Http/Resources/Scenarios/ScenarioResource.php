@@ -4,6 +4,7 @@ namespace App\Http\Resources\Scenarios;
 
 use App\Http\Resources\Learning\LevelResource;
 use App\Http\Resources\Learning\LevelTrackResource;
+use App\Models\Scenarios\UserScenarioAttempt;
 use App\Models\Users\User;
 use App\Services\TrackProgressService;
 use Illuminate\Http\Request;
@@ -35,13 +36,13 @@ class ScenarioResource extends JsonResource
         if ($userId) {
             // Use stored data directly (faster, no recursion)
             $progressPercentage = $this->trackProgressService->getProgressPercentage($this->resource, $userId);
-            
+
             // Check status from stored data
-            $attempt = \App\Models\Scenarios\UserScenarioAttempt::where('user_id', $userId)
+            $attempt =  UserScenarioAttempt::where('user_id', $userId)
                 ->where('scenario_id', $this->id)
                 ->orderBy('started_at', 'desc')
                 ->first();
-            
+
             if ($attempt && $attempt->track_status) {
                 $status = $attempt->track_status;
             } else {
@@ -61,11 +62,11 @@ class ScenarioResource extends JsonResource
             'order_index' => $this->order_index,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            
+
             // Progress fields
             'status' => $status, // locked, open, completed
             'progress_percentage' => $progressPercentage, // 0-100
-            
+
             // Relationships
             'level' => new LevelResource($this->whenLoaded('level')),
             'start_question' => new ScenarioQuestionResource($this->whenLoaded('startQuestion')),
@@ -73,12 +74,11 @@ class ScenarioResource extends JsonResource
             'user_scenario_attempts' => UserScenarioAttemptResource::collection($this->whenLoaded('userScenarioAttempts')),
             // level_track is excluded when used inside LevelTrackResource to prevent recursion
             'level_track' => $this->when(
-                $this->relationLoaded('levelTrack') && !\App\Http\Resources\Learning\LevelTrackResource::isInsideLevelTrackResource(),
+                $this->relationLoaded('levelTrack') && !LevelTrackResource::isInsideLevelTrackResource(),
                 function () {
-                    return new \App\Http\Resources\Learning\LevelTrackResource($this->levelTrack);
+                    return new LevelTrackResource($this->levelTrack);
                 }
             ),
         ];
     }
 }
-
