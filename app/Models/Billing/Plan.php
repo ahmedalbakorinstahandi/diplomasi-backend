@@ -2,6 +2,7 @@
 
 namespace App\Models\Billing;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -23,6 +24,7 @@ class Plan extends Model
         'price',
         'interval',
         'description',
+        'features',
         'icon_url',
     ];
 
@@ -34,6 +36,7 @@ class Plan extends Model
     protected function casts(): array
     {
         return [
+            'features' => 'json',
             'price' => 'decimal:2',
         ];
     }
@@ -53,5 +56,12 @@ class Plan extends Model
     {
         return $this->hasMany(SubscriptionEvent::class);
     }
-}
 
+    public function features(): Attribute
+    {
+        return Attribute::make(
+            get: fn(?string $value) => $value ? json_decode($value, true) : null,
+            set: fn($value) => $value ? json_encode($value) : null,
+        );
+    }
+}

@@ -23,13 +23,13 @@ class PlanResource extends JsonResource
             'interval' => $this->interval,
             'description' => $this->description,
             'icon_url' => MediaUrlService::toUrl($this->icon_url),
+            'features' => $this->features,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            
+
             // Relationships
             'subscriptions' => SubscriptionResource::collection($this->whenLoaded('subscriptions')),
             'subscription_events' => SubscriptionEventResource::collection($this->whenLoaded('subscriptionEvents')),
         ];
     }
 }
-
