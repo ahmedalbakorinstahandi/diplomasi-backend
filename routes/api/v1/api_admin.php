@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
@@ -88,6 +89,14 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('articles/{id}', [ArticleController::class, 'update']);
         Route::delete('articles/{id}', [ArticleController::class, 'delete']);
         Route::put('articles/{id}/reorder', [ArticleController::class, 'reorder']);
+
+        // Plans
+        Route::get('plans', [PlanController::class, 'index']);
+        Route::get('plans/{id}', [PlanController::class, 'show']);
+        Route::post('plans', [PlanController::class, 'create']);
+        Route::put('plans/{id}', [PlanController::class, 'update']);
+        Route::delete('plans/{id}', [PlanController::class, 'delete']);
+        Route::put('plans/{id}/reorder', [PlanController::class, 'reorder']);
 
         // Subscriptions
         Route::get('subscriptions', [SubscriptionController::class, 'index']);

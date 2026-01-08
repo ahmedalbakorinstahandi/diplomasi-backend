@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
@@ -42,6 +43,10 @@ Route::group(['prefix' => 'user'], function () {
     // Public glossary terms
     Route::get('glossary-terms', [GlossaryTermController::class, 'index']);
     Route::get('glossary-terms/{id}', [GlossaryTermController::class, 'show']);
+
+    // Public plans
+    Route::get('plans', [PlanController::class, 'index']);
+    Route::get('plans/{id}', [PlanController::class, 'show']);
 
     // Public settings
     Route::get('settings/public', [SettingController::class, 'index']);
