@@ -526,6 +526,7 @@ class TrackProgressService
         // Load completion status for all previous tracks (for canAccess calculation)
         // Load all tracks in batch to find previous ones
         $allTracksInLevels = LevelTrack::whereIn('level_id', $levelIds)
+            ->with('trackable') // Load trackable relationship
             ->orderBy('level_id')
             ->orderBy('order_index')
             ->get()
@@ -621,16 +622,16 @@ class TrackProgressService
             
             if ($hasPreviousTrack) {
                 // There is a previous track, check if it's completed
-                $previousIsCompleted = $previousCompletionMap[$track->id] ?? false;
-                
-                // If previous completion status is not found, check directly
-                if ($previousIsCompleted === false && isset($previousTrackCompletionMap[$track->id])) {
+                if (isset($previousCompletionMap[$track->id])) {
+                    // Use cached completion status
+                    $isAccessible = $previousCompletionMap[$track->id];
+                } else {
+                    // Completion status not in cache, check directly
                     $previousTrack = $previousTrackCompletionMap[$track->id];
-                    $previousIsCompleted = $this->isTrackCompleted($previousTrack->trackable, $userId);
-                    $previousCompletionMap[$track->id] = $previousIsCompleted; // Cache it
+                    $isAccessible = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    // Cache it for future use
+                    $previousCompletionMap[$track->id] = $isAccessible;
                 }
-                
-                $isAccessible = $previousIsCompleted;
             }
             // If no previous track (first in level), isAccessible remains true
 
