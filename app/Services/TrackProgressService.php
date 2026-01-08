@@ -58,6 +58,7 @@ class TrackProgressService
     /**
      * Check if user can access a track (previous track is completed)
      * Uses stored is_completed flag for better performance
+     * Skips unpublished tracks when finding the previous track
      *
      * @param LevelTrack $levelTrack
      * @param int $userId
@@ -65,18 +66,53 @@ class TrackProgressService
      */
     public function canAccessTrack(LevelTrack $levelTrack, int $userId): bool
     {
-        // First track in level is always accessible
-        $previousTrack = LevelTrack::where('level_id', $levelTrack->level_id)
-            ->where('order_index', '<', $levelTrack->order_index)
+        // Load all tracks in the level to find the previous published track
+        $allTracks = LevelTrack::where('level_id', $levelTrack->level_id)
+            ->with('trackable')
             ->orderBy('order_index', 'desc')
-            ->first();
+            ->get();
+
+        // Find the first published track before the current one
+        $previousTrack = null;
+        foreach ($allTracks as $track) {
+            if ($track->order_index >= $levelTrack->order_index) {
+                continue; // Skip current track and tracks after it
+            }
+
+            // Ensure trackable is loaded
+            if (!$track->relationLoaded('trackable')) {
+                $track->load('trackable');
+            }
+
+            // Skip unpublished tracks
+            if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
+                $previousTrack = $track;
+                break;
+            }
+        }
 
         if (!$previousTrack) {
-            return true; // This is the first track
+            return true; // This is the first published track (or no previous published track)
         }
 
         // Check if previous track is completed using stored data
         return $this->isTrackCompleted($previousTrack->trackable, $userId);
+    }
+
+    /**
+     * Check if a trackable (lesson or scenario) is published
+     *
+     * @param mixed $trackable (Lesson or Scenario)
+     * @return bool
+     */
+    private function isTrackablePublished($trackable): bool
+    {
+        if ($trackable instanceof Lesson) {
+            return $trackable->is_published ?? false;
+        } elseif ($trackable instanceof Scenario) {
+            return $trackable->is_published ?? false;
+        }
+        return false;
     }
 
     /**
@@ -230,17 +266,38 @@ class TrackProgressService
     }
 
     /**
-     * Get previous track for a given level track
+     * Get previous published track for a given level track
+     * Skips unpublished tracks
      *
      * @param LevelTrack $levelTrack
      * @return LevelTrack|null
      */
     public function getPreviousTrack(LevelTrack $levelTrack): ?LevelTrack
     {
-        return LevelTrack::where('level_id', $levelTrack->level_id)
-            ->where('order_index', '<', $levelTrack->order_index)
+        // Load all tracks in the level to find the previous published track
+        $allTracks = LevelTrack::where('level_id', $levelTrack->level_id)
+            ->with('trackable')
             ->orderBy('order_index', 'desc')
-            ->first();
+            ->get();
+
+        // Find the first published track before the current one
+        foreach ($allTracks as $track) {
+            if ($track->order_index >= $levelTrack->order_index) {
+                continue; // Skip current track and tracks after it
+            }
+
+            // Ensure trackable is loaded
+            if (!$track->relationLoaded('trackable')) {
+                $track->load('trackable');
+            }
+
+            // Skip unpublished tracks
+            if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
+                return $track;
+            }
+        }
+
+        return null; // No previous published track found
     }
 
     /**
@@ -536,10 +593,24 @@ class TrackProgressService
         foreach ($levelTracks as $track) {
             $tracksInLevel = $allTracksInLevels->get($track->level_id);
             if ($tracksInLevel) {
-                $previousTrack = $tracksInLevel
-                    ->where('order_index', '<', $track->order_index)
-                    ->sortByDesc('order_index')
-                    ->first();
+                // Find the first published track before the current one
+                $previousTrack = null;
+                foreach ($tracksInLevel as $potentialPrevious) {
+                    if ($potentialPrevious->order_index >= $track->order_index) {
+                        continue; // Skip current track and tracks after it
+                    }
+
+                    // Ensure trackable is loaded
+                    if (!$potentialPrevious->relationLoaded('trackable')) {
+                        $potentialPrevious->load('trackable');
+                    }
+
+                    // Skip unpublished tracks
+                    if ($potentialPrevious->trackable && $this->isTrackablePublished($potentialPrevious->trackable)) {
+                        $previousTrack = $potentialPrevious;
+                        break; // Found the first published track before current
+                    }
+                }
 
                 if ($previousTrack) {
                     $previousTrackCompletionMap[$track->id] = $previousTrack;
@@ -582,8 +653,18 @@ class TrackProgressService
                     // Progress not found, check directly (lesson might not have been started)
                     // Load the lesson and check if it's completed
                     $previousTrack = $previousTrackCompletionMap[$currentTrackId] ?? null;
-                    if ($previousTrack && $previousTrack->trackable instanceof Lesson) {
-                        $previousCompletionMap[$currentTrackId] = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    if ($previousTrack) {
+                        // Ensure trackable is loaded
+                        if (!$previousTrack->relationLoaded('trackable')) {
+                            $previousTrack->load('trackable');
+                        }
+                        
+                        if ($previousTrack->trackable) {
+                            $previousCompletionMap[$currentTrackId] = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                        } else {
+                            // If trackable is null, assume not completed
+                            $previousCompletionMap[$currentTrackId] = false;
+                        }
                     } else {
                         // If we can't determine, assume not completed
                         $previousCompletionMap[$currentTrackId] = false;
@@ -665,11 +746,15 @@ class TrackProgressService
             // If no previous track (first in level), isAccessible remains true
 
             // Determine final status
-            // Override stored status if not accessible
-            if (!$isAccessible) {
-                $status = 'locked';
-            } elseif ($progressData['is_completed']) {
+            // Completed tracks and in-progress tracks remain accessible even if previous track is not completed
+            // (This handles the case where an unpublished track becomes published after user completed later tracks)
+            if ($progressData['is_completed']) {
+                // Completed tracks always remain completed and accessible
                 $status = 'completed';
+                $isAccessible = true; // Override accessibility for completed tracks
+            } elseif (!$isAccessible) {
+                // Not accessible and not completed = locked
+                $status = 'locked';
             } elseif (!$hasPreviousTrack) {
                 // First track in level is always open (unless completed)
                 $status = 'open';
@@ -679,6 +764,15 @@ class TrackProgressService
             } else {
                 // Default to open if accessible and not completed
                 $status = 'open';
+            }
+            
+            // If track is in progress (has progress but not completed), allow access even if previous is not completed
+            if ($progressData['progress_percentage'] > 0 && !$progressData['is_completed']) {
+                // In-progress tracks remain accessible
+                $isAccessible = true;
+                if ($status === 'locked') {
+                    $status = 'open';
+                }
             }
 
             $result[$track->id] = [
