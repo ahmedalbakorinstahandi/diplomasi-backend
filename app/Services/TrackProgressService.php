@@ -574,7 +574,21 @@ class TrackProgressService
 
             foreach ($previousLessonIds as $currentTrackId => $lessonId) {
                 $progress = $previousLessonProgresses->get($lessonId);
-                $previousCompletionMap[$currentTrackId] = $progress && ($progress->is_completed ?? false);
+                // If progress exists, use is_completed flag
+                // If progress doesn't exist, check directly using isTrackCompleted
+                if ($progress) {
+                    $previousCompletionMap[$currentTrackId] = (bool) ($progress->is_completed ?? false);
+                } else {
+                    // Progress not found, check directly (lesson might not have been started)
+                    // Load the lesson and check if it's completed
+                    $previousTrack = $previousTrackCompletionMap[$currentTrackId] ?? null;
+                    if ($previousTrack && $previousTrack->trackable instanceof Lesson) {
+                        $previousCompletionMap[$currentTrackId] = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    } else {
+                        // If we can't determine, assume not completed
+                        $previousCompletionMap[$currentTrackId] = false;
+                    }
+                }
             }
         }
 
@@ -628,10 +642,25 @@ class TrackProgressService
                 } else {
                     // Completion status not in cache, check directly
                     $previousTrack = $previousTrackCompletionMap[$track->id];
-                    $isAccessible = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    
+                    // Ensure trackable is loaded
+                    if (!$previousTrack->relationLoaded('trackable')) {
+                        $previousTrack->load('trackable');
+                    }
+                    
+                    if ($previousTrack->trackable) {
+                        $isAccessible = $this->isTrackCompleted($previousTrack->trackable, $userId);
+                    } else {
+                        // If trackable is null, assume not completed
+                        $isAccessible = false;
+                    }
+                    
                     // Cache it for future use
                     $previousCompletionMap[$track->id] = $isAccessible;
                 }
+            } else {
+                // No previous track - this is the first track in level, always accessible
+                $isAccessible = true;
             }
             // If no previous track (first in level), isAccessible remains true
 
