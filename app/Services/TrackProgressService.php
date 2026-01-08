@@ -594,8 +594,11 @@ class TrackProgressService
             $tracksInLevel = $allTracksInLevels->get($track->level_id);
             if ($tracksInLevel) {
                 // Find the first published track before the current one
+                // Sort by order_index descending to find the closest previous track first
                 $previousTrack = null;
-                foreach ($tracksInLevel as $potentialPrevious) {
+                $sortedTracks = $tracksInLevel->sortByDesc('order_index');
+                
+                foreach ($sortedTracks as $potentialPrevious) {
                     if ($potentialPrevious->order_index >= $track->order_index) {
                         continue; // Skip current track and tracks after it
                     }
@@ -710,13 +713,42 @@ class TrackProgressService
                 ];
             }
 
-            // Check if accessible (previous track completed)
-            // First track in level is always accessible
-            $isAccessible = true;
+            // Check if accessible (previous published track completed)
             $hasPreviousTrack = isset($previousTrackCompletionMap[$track->id]);
             
+            // If no previous track in map, check if there's actually a previous published track
+            if (!$hasPreviousTrack) {
+                $tracksInLevel = $allTracksInLevels->get($track->level_id);
+                if ($tracksInLevel) {
+                    // Check if there's any published track before this one
+                    // Sort by order_index descending to find the closest previous track first
+                    $sortedTracks = $tracksInLevel->sortByDesc('order_index');
+                    foreach ($sortedTracks as $potentialPrevious) {
+                        if ($potentialPrevious->order_index >= $track->order_index) {
+                            continue; // Skip current track and tracks after it
+                        }
+
+                        // Ensure trackable is loaded
+                        if (!$potentialPrevious->relationLoaded('trackable')) {
+                            $potentialPrevious->load('trackable');
+                        }
+
+                        // If we find a published track before this one, it means we should have found it earlier
+                        // This shouldn't happen, but if it does, treat it as having a previous track
+                        if ($potentialPrevious->trackable && $this->isTrackablePublished($potentialPrevious->trackable)) {
+                            $hasPreviousTrack = true;
+                            // Add it to the map and check completion
+                            $previousTrackCompletionMap[$track->id] = $potentialPrevious;
+                            $isAccessible = $this->isTrackCompleted($potentialPrevious->trackable, $userId);
+                            $previousCompletionMap[$track->id] = $isAccessible;
+                            break;
+                        }
+                    }
+                }
+            }
+            
             if ($hasPreviousTrack) {
-                // There is a previous track, check if it's completed
+                // There is a previous published track, check if it's completed
                 if (isset($previousCompletionMap[$track->id])) {
                     // Use cached completion status
                     $isAccessible = $previousCompletionMap[$track->id];
@@ -740,13 +772,12 @@ class TrackProgressService
                     $previousCompletionMap[$track->id] = $isAccessible;
                 }
             } else {
-                // No previous track - this is the first track in level, always accessible
+                // No previous published track - this is the first published track in level, always accessible
                 $isAccessible = true;
             }
-            // If no previous track (first in level), isAccessible remains true
 
             // Determine final status
-            // Completed tracks and in-progress tracks remain accessible even if previous track is not completed
+            // Completed tracks remain accessible even if previous track is not completed
             // (This handles the case where an unpublished track becomes published after user completed later tracks)
             if ($progressData['is_completed']) {
                 // Completed tracks always remain completed and accessible
@@ -756,7 +787,7 @@ class TrackProgressService
                 // Not accessible and not completed = locked
                 $status = 'locked';
             } elseif (!$hasPreviousTrack) {
-                // First track in level is always open (unless completed)
+                // First published track in level is always open (unless completed)
                 $status = 'open';
             } elseif (isset($progressData['track_status']) && $progressData['track_status']) {
                 // Use stored status if available and accessible
@@ -767,8 +798,9 @@ class TrackProgressService
             }
             
             // If track is in progress (has progress but not completed), allow access even if previous is not completed
-            if ($progressData['progress_percentage'] > 0 && !$progressData['is_completed']) {
-                // In-progress tracks remain accessible
+            // This only applies if the user has actually started the track (progress > 0)
+            if ($progressData['progress_percentage'] > 0 && !$progressData['is_completed'] && !$isAccessible) {
+                // In-progress tracks remain accessible (user has started it, so they can continue)
                 $isAccessible = true;
                 if ($status === 'locked') {
                     $status = 'open';
