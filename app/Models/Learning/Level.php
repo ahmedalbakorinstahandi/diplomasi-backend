@@ -71,7 +71,7 @@ class Level extends Model
      */
     public function levelTracks()
     {
-        return $this->hasMany(LevelTrack::class);
+        return $this->hasMany(LevelTrack::class)->orderBy('order_index');
     }
 
     /**
