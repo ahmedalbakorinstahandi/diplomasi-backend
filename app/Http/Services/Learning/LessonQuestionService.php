@@ -149,15 +149,36 @@ class LessonQuestionService
      */
     public function getCurrentQuestion($attemptId)
     {
-        $attempt = UserLessonAttempt::with(['currentQuestion.lessonQuestionOptions'])
+        $attempt = UserLessonAttempt::with(['currentQuestion.lessonQuestionOptions', 'lesson'])
             ->find($attemptId);
 
         if (!$attempt) {
             MessageService::abort(404, 'messages.attempt.not_found');
         }
 
+        // إذا انتهت المحاولة، إرجاع ملخص النتائج بدلاً من خطأ
         if ($attempt->status === 'finished') {
-            MessageService::abort(400, 'messages.attempt.already_finished');
+            $answers = UserLessonQuestionAnswer::where('attempt_id', $attemptId)
+                ->with(['userLessonAnswerOptions.lessonQuestionOption', 'userLessonAnswerMatches.leftOption', 'userLessonAnswerMatches.rightOption'])
+                ->get();
+            
+            $correctAnswers = $answers->where('is_correct', true)->count();
+            $totalQuestions = LessonQuestion::where('lesson_id', $attempt->lesson_id)->count();
+
+            return [
+                'attempt_finished' => true,
+                'summary' => [
+                    'final_score' => $attempt->score,
+                    'total_questions' => $totalQuestions,
+                    'correct_answers' => $correctAnswers,
+                    'wrong_answers' => $totalQuestions - $correctAnswers,
+                    'finished_at' => $attempt->finished_at,
+                    'started_at' => $attempt->started_at,
+                    'total_time' => $attempt->finished_at && $attempt->started_at 
+                        ? $attempt->finished_at->diffInSeconds($attempt->started_at) 
+                        : null,
+                ],
+            ];
         }
 
         $question = $attempt->currentQuestion;
@@ -386,17 +407,49 @@ class LessonQuestionService
                     }
                 }
 
+                // في أسئلة Match:
+                // - الخيارات اليمينية (المصطلحات) لديها pair_key مثل "L1", "L2"
+                // - الخيارات اليسارية (التعريفات) ليس لديها pair_key (null)
+                // - يجب أن يكون التعريف الأول (order_index أصغر) يطابق المصطلح الأول (pair_key "L1")
+                // - والتعريف الثاني يطابق المصطلح الثاني (pair_key "L2") وهكذا
+                
+                // الحصول على جميع الخيارات اليمينية (المصطلحات) مرتبة حسب order_index
+                $rightOptionsWithKeys = $options->whereNotNull('pair_key')
+                    ->sortBy('order_index')
+                    ->values();
+                
+                // الحصول على جميع الخيارات اليسارية (التعريفات) مرتبة حسب order_index
+                $leftOptionsWithoutKeys = $options->whereNull('pair_key')
+                    ->sortBy('order_index')
+                    ->values();
+
                 // التحقق من صحة كل match
-                // في match، الخيارات اليسارية لها pair_key (مثل L1, L2)
-                // والخيارات اليمينية يجب أن يكون لها نفس pair_key
                 foreach ($matches as $match) {
                     $leftOption = $options->find($match['left_option_id']);
                     $rightOption = $options->find($match['right_option_id']);
 
-                    // التحقق من أن pair_key للخيار الأيسر يطابق pair_key للخيار الأيمن
-                    if ($leftOption && $rightOption && 
-                        $leftOption->pair_key && $rightOption->pair_key &&
-                        $leftOption->pair_key === $rightOption->pair_key) {
+                    if (!$leftOption || !$rightOption) {
+                        $allCorrect = false;
+                        continue;
+                    }
+
+                    // البحث عن موضع الخيار الأيمن في قائمة المصطلحات
+                    $rightIndex = $rightOptionsWithKeys->search(function($item) use ($rightOption) {
+                        return $item->id === $rightOption->id;
+                    });
+
+                    // البحث عن موضع الخيار الأيسر في قائمة التعريفات
+                    $leftIndex = $leftOptionsWithoutKeys->search(function($item) use ($leftOption) {
+                        return $item->id === $leftOption->id;
+                    });
+
+                    // التحقق من أن الخيار الأيمن له pair_key والخيار الأيسر ليس له pair_key
+                    // وأن موضعهما متطابق
+                    if ($rightOption->pair_key !== null && 
+                        $leftOption->pair_key === null &&
+                        $rightIndex !== false && 
+                        $leftIndex !== false &&
+                        $rightIndex === $leftIndex) {
                         $correctCount++;
                     } else {
                         $allCorrect = false;
@@ -455,16 +508,41 @@ class LessonQuestionService
 
             case 'match':
                 if (isset($answerData['matches']) && is_array($answerData['matches'])) {
+                    // الحصول على جميع الخيارات اليمينية (المصطلحات) مرتبة حسب order_index
+                    $rightOptionsWithKeys = $question->lessonQuestionOptions->whereNotNull('pair_key')
+                        ->sortBy('order_index')
+                        ->values();
+                    
+                    // الحصول على جميع الخيارات اليسارية (التعريفات) مرتبة حسب order_index
+                    $leftOptionsWithoutKeys = $question->lessonQuestionOptions->whereNull('pair_key')
+                        ->sortBy('order_index')
+                        ->values();
+
                     foreach ($answerData['matches'] as $match) {
                         $leftOption = $question->lessonQuestionOptions->find($match['left_option_id']);
                         $rightOption = $question->lessonQuestionOptions->find($match['right_option_id']);
 
                         $isMatchCorrect = false;
-                        // التحقق من أن pair_key للخيار الأيسر يطابق pair_key للخيار الأيمن
-                        if ($leftOption && $rightOption && 
-                            $leftOption->pair_key && $rightOption->pair_key &&
-                            $leftOption->pair_key === $rightOption->pair_key) {
-                            $isMatchCorrect = true;
+                        if ($leftOption && $rightOption) {
+                            // البحث عن موضع الخيار الأيمن في قائمة المصطلحات
+                            $rightIndex = $rightOptionsWithKeys->search(function($item) use ($rightOption) {
+                                return $item->id === $rightOption->id;
+                            });
+
+                            // البحث عن موضع الخيار الأيسر في قائمة التعريفات
+                            $leftIndex = $leftOptionsWithoutKeys->search(function($item) use ($leftOption) {
+                                return $item->id === $leftOption->id;
+                            });
+
+                            // التحقق من أن الخيار الأيمن له pair_key والخيار الأيسر ليس له pair_key
+                            // وأن موضعهما متطابق
+                            if ($rightOption->pair_key !== null && 
+                                $leftOption->pair_key === null &&
+                                $rightIndex !== false && 
+                                $leftIndex !== false &&
+                                $rightIndex === $leftIndex) {
+                                $isMatchCorrect = true;
+                            }
                         }
 
                         UserLessonAnswerMatch::create([
