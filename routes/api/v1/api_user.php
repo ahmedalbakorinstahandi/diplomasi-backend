@@ -48,8 +48,7 @@ Route::group(['prefix' => 'user'], function () {
     Route::get('plans', [PlanController::class, 'index']);
     Route::get('plans/{id}', [PlanController::class, 'show']);
 
-    // Public settings
-    Route::get('settings/public', [SettingController::class, 'index']);
+   
 
     // Sanctum routes
     Route::group(['middleware' => 'auth:sanctum'], function () {
