@@ -22,16 +22,16 @@ class SettingPermission
 
     public static function canView(): void
     {
-        // if (RequestContext::isDashboard()) {
-        //     AuthorizationService::authorize('setting.view');
-        // }
+        if (RequestContext::isDashboard()) {
+            AuthorizationService::authorize('setting.view');
+        }
     }
 
     public static function canShow($setting): void
     {
         self::canView();
 
-        if (RequestContext::isApp() && !$setting->is_settings) {
+        if (!$setting->is_settings) {
             MessageService::abort(404, 'messages.setting.not_found');
         }
     }
@@ -76,4 +76,3 @@ class SettingPermission
         MessageService::abort(403, 'messages.permission.error');
     }
 }
-
