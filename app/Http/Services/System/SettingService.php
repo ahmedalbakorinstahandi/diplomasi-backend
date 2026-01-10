@@ -40,7 +40,13 @@ class SettingService
 
     public function show($idOrKey)
     {
-        $setting = Setting::where('id', $idOrKey)->orWhere('key_name', $idOrKey)->first();
+        $setting = is_numeric($idOrKey)
+            ? Setting::where('id', $idOrKey)->first()
+            : Setting::where('key', $idOrKey)->first();
+
+        if (!$setting) {
+            MessageService::abort(404, 'messages.setting.not_found');
+        }
 
         if (!$setting) {
             MessageService::abort(404, 'messages.setting.not_found');
