@@ -112,7 +112,7 @@ class TrackProgressService
      * @param mixed $trackable (Lesson or Scenario)
      * @return bool
      */
-    private function isTrackablePublished($trackable): bool
+    public function isTrackablePublished($trackable): bool
     {
         if ($trackable instanceof Lesson) {
             return $trackable->is_published ?? false;
@@ -142,8 +142,8 @@ class TrackProgressService
     }
 
     /**
-     * Check if lesson is completed (first attempt is finished)
-     * Uses stored is_completed flag
+     * Check if lesson is completed
+     * يتحقق من عدة مصادر: is_completed, status, progress_percentage, finished attempts
      *
      * @param Lesson $lesson
      * @param int $userId
@@ -155,8 +155,26 @@ class TrackProgressService
             ->where('lesson_id', $lesson->id)
             ->first();
 
-        if ($progress && isset($progress->is_completed)) {
-            return $progress->is_completed;
+        if ($progress) {
+            // 1. التحقق من is_completed flag
+            if (isset($progress->is_completed) && $progress->is_completed === true) {
+                return true;
+            }
+            
+            // 2. التحقق من status = 'completed'
+            if (isset($progress->status) && $progress->status === 'completed') {
+                return true;
+            }
+            
+            // 3. التحقق من progress_percentage >= 100
+            if (isset($progress->progress_percentage) && (float)$progress->progress_percentage >= 100) {
+                return true;
+            }
+            
+            // 4. التحقق من track_status = 'completed'
+            if (isset($progress->track_status) && $progress->track_status === 'completed') {
+                return true;
+            }
         }
 
         // Fallback: check first finished attempt
@@ -170,8 +188,8 @@ class TrackProgressService
     }
 
     /**
-     * Check if scenario is completed (first attempt is finished)
-     * Uses stored is_completed flag
+     * Check if scenario is completed
+     * يتحقق من عدة مصادر: is_completed, progress_percentage, status, finished attempts
      *
      * @param Scenario $scenario
      * @param int $userId
@@ -179,14 +197,32 @@ class TrackProgressService
      */
     private function isScenarioCompleted(Scenario $scenario, int $userId): bool
     {
-        // Check latest attempt for is_completed flag
+        // Check latest attempt for completion flags
         $attempt = UserScenarioAttempt::where('user_id', $userId)
             ->where('scenario_id', $scenario->id)
             ->orderBy('started_at', 'desc')
             ->first();
 
-        if ($attempt && isset($attempt->is_completed)) {
-            return $attempt->is_completed;
+        if ($attempt) {
+            // 1. التحقق من is_completed flag
+            if (isset($attempt->is_completed) && $attempt->is_completed === true) {
+                return true;
+            }
+            
+            // 2. التحقق من progress_percentage >= 100
+            if (isset($attempt->progress_percentage) && (float)$attempt->progress_percentage >= 100) {
+                return true;
+            }
+            
+            // 3. التحقق من status = 'finished'
+            if (isset($attempt->status) && $attempt->status === 'finished') {
+                return true;
+            }
+            
+            // 4. التحقق من track_status = 'completed'
+            if (isset($attempt->track_status) && $attempt->track_status === 'completed') {
+                return true;
+            }
         }
 
         // Fallback: check first finished attempt

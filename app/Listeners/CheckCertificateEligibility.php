@@ -49,8 +49,26 @@ class CheckCertificateEligibility
      */
     private function handleLevelCompleted(UserLevelProgress $userLevelProgress): void
     {
+        // تحميل العلاقة بشكل صريح إذا لم تكن محملة
+        if (!$userLevelProgress->relationLoaded('level')) {
+            $userLevelProgress->load('level');
+        }
+        
         $level = $userLevelProgress->level;
-        if (!$level || !$level->has_certificate) {
+        if (!$level) {
+            Log::warning("Level not found for UserLevelProgress", [
+                'user_level_progress_id' => $userLevelProgress->id,
+                'level_id' => $userLevelProgress->level_id,
+            ]);
+            return;
+        }
+        
+        if (!$level->has_certificate) {
+            Log::info("Level does not have certificate", [
+                'level_id' => $level->id,
+                'title' => $level->title,
+                'has_certificate' => $level->has_certificate,
+            ]);
             return; // هذا المستوى لا يحتوي على شهادة
         }
 
