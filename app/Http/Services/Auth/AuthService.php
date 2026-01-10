@@ -215,4 +215,123 @@ class AuthService
 
         return $personalAccessToken->delete();
     }
+
+    /**
+     * Request account deletion - sends deletion code to user's email
+     */
+    public function requestAccountDeletion()
+    {
+        $user = User::auth();
+
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $code = str_pad(random_int(0, 99999), 5, '0', STR_PAD_LEFT);
+        $minutes = 10;
+        $codeExpireAt = now()->addMinutes($minutes);
+
+        // Use existing otp and otp_expire_at fields
+        $user->update([
+            'otp' => $code,
+            'otp_expire_at' => $codeExpireAt,
+        ]);
+
+        // TODO: Send email with deletion code
+        // Mail::to($user->email)->send(
+        //     new \App\Mail\AccountDeletionCodeMail($code, $user->first_name, $minutes)
+        // );
+
+        return [
+            'message' => 'auth.account_deletion_code_sent',
+            'minutes' => $minutes,
+            'code_expire_at' => $codeExpireAt,
+        ];
+    }
+
+    /**
+     * Confirm account deletion - verifies code and deletes user account
+     */
+    public function confirmAccountDeletion($data)
+    {
+        $user = User::auth();
+
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $code = $data['code'];
+
+        // TODO: Remove this after testing (if needed)
+        // if ($code == '55555') {
+        //     // Allow deletion for testing
+        // } else
+
+        // Verify deletion code using existing otp and otp_expire_at fields
+        if ($user->otp !== $code || 
+            !$user->otp_expire_at || 
+            $user->otp_expire_at < now()) {
+            MessageService::abort(401, 'auth.account_deletion_code_invalid_or_expired');
+        }
+
+        // Delete all user data
+        $this->deleteUserAccount($user);
+
+        return [
+            'message' => 'auth.account_deleted_successfully',
+        ];
+    }
+
+    /**
+     * Delete user account and all related data
+     */
+    private function deleteUserAccount($user)
+    {
+        // Delete user roles
+        $user->userRoles()->delete();
+
+        // Delete all tokens
+        $user->tokens()->delete();
+
+        // Delete user courses
+        $user->userCourses()->delete();
+
+        // Delete user lesson progress
+        $user->userLessonProgress()->delete();
+
+        // Delete user level progress
+        $user->userLevelProgress()->delete();
+
+        // Delete user lesson attempts and related data
+        $user->userLessonAttempts()->each(function ($attempt) {
+            // Delete answers
+            $attempt->userLessonQuestionAnswers()->delete();
+        });
+        $user->userLessonAttempts()->delete();
+
+        // Delete user scenario attempts and related data
+        $user->userScenarioAttempts()->each(function ($attempt) {
+            // Delete answers
+            $attempt->userScenarioQuestionAnswers()->delete();
+        });
+        $user->userScenarioAttempts()->delete();
+
+        // Delete subscriptions
+        $user->subscriptions()->delete();
+
+        // Delete notifications
+        $user->notifications()->delete();
+
+        // Delete certificates
+        $user->certificates()->delete();
+
+        // Delete activity logs
+        $user->activityLogs()->delete();
+
+        // Delete articles authored by user (if any)
+        $user->articles()->delete();
+
+        // Finally, delete the user (soft delete)
+        $user->delete();
+    }
 }

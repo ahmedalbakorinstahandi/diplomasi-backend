@@ -33,4 +33,11 @@ return [
     'password_incorrect' => 'كلمة المرور التي أدخلتها غير صحيحة.',
     'email_not_found' => 'البريد الإلكتروني غير موجود.',
 
+    // Account deletion
+    'account_deletion_code_sent' => 'تم إرسال رمز حذف الحساب إلى بريدك الإلكتروني.',
+    'account_deletion_code_subject' => 'رمز حذف حسابك',
+    'account_deletion_code_message' => 'مرحباً :first_name، رمز حذف حسابك هو :code. صالح لمدة :minutes دقيقة.',
+    'account_deletion_code_invalid_or_expired' => 'رمز حذف الحساب غير صحيح أو منتهي الصلاحية.',
+    'account_deleted_successfully' => 'تم حذف حسابك بنجاح.',
+
 ];

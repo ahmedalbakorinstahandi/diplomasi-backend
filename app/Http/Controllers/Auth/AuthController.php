@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ConfirmAccountDeletionRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\RequestAccountDeletionRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\VerifyCodeRequest;
 use App\Http\Resources\Users\UserResource;
@@ -103,6 +105,36 @@ class AuthController extends Controller
         return ResponseService::response([
             'status' => 200,
             'message' => 'auth.user_logged_out_successfully',
+        ]);
+    }
+
+    /**
+     * Request account deletion - sends deletion code to user's email
+     */
+    public function requestAccountDeletion(RequestAccountDeletionRequest $request)
+    {
+        $data = $this->authService->requestAccountDeletion();
+
+        return ResponseService::response([
+            'status' => 200,
+            'message' => $data['message'],
+            'info' => [
+                'code_duration' => $data['minutes'],
+                'code_expire_at' => $data['code_expire_at'],
+            ],
+        ]);
+    }
+
+    /**
+     * Confirm account deletion - verifies code and deletes user account
+     */
+    public function confirmAccountDeletion(ConfirmAccountDeletionRequest $request)
+    {
+        $data = $this->authService->confirmAccountDeletion($request->validated());
+
+        return ResponseService::response([
+            'status' => 200,
+            'message' => $data['message'],
         ]);
     }
 }
