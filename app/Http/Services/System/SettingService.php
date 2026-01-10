@@ -42,11 +42,7 @@ class SettingService
     {
         $setting = is_numeric($idOrKey)
             ? Setting::where('id', $idOrKey)->first()
-            : Setting::where('key', $idOrKey)->first();
-
-        if (!$setting) {
-            MessageService::abort(404, 'messages.setting.not_found');
-        }
+            : Setting::where('key_name', $idOrKey)->first();
 
         if (!$setting) {
             MessageService::abort(404, 'messages.setting.not_found');
