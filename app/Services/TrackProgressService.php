@@ -2,13 +2,20 @@
 
 namespace App\Services;
 
+use App\Events\UserCourseCompleted;
+use App\Events\UserLevelCompleted;
+use App\Models\Learning\Course;
 use App\Models\Learning\Lesson;
+use App\Models\Learning\Level;
 use App\Models\Learning\LevelTrack;
 use App\Models\Progress\UserLessonAttempt;
 use App\Models\Progress\UserLessonProgress;
 use App\Models\Progress\UserLessonQuestionAnswer;
+use App\Models\Progress\UserLevelProgress;
+use App\Models\Progress\UserCourse;
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\UserScenarioAttempt;
+use Illuminate\Support\Facades\Event;
 
 class TrackProgressService
 {
@@ -350,6 +357,11 @@ class TrackProgressService
             $latestAttempt->progress_percentage = $progressPercentage;
             $latestAttempt->save();
         }
+
+        // التحقق من إكمال جميع الدروس في المستوى وتحديث UserLevelProgress
+        if ($isCompleted) {
+            $this->checkAndUpdateLevelCompletion($lesson->level_id, $userId);
+        }
     }
 
     /**
@@ -506,6 +518,14 @@ class TrackProgressService
 
         // Update stored values
         $this->updateScenarioProgress($scenario, $userId, $progressPercentage, $trackStatus, $isCompleted);
+
+        // التحقق من إكمال جميع السيناريوهات/الدروس في المستوى وتحديث UserLevelProgress
+        if ($isCompleted) {
+            $levelId = $scenario->level_id ?? null;
+            if ($levelId) {
+                $this->checkAndUpdateLevelCompletion($levelId, $userId);
+            }
+        }
 
         return $progressPercentage;
     }
@@ -815,6 +835,157 @@ class TrackProgressService
         }
 
         return $result;
+    }
+
+    /**
+     * التحقق من إكمال جميع الدروس في المستوى وتحديث UserLevelProgress
+     * وإطلاق Event عند إكمال المستوى
+     */
+    public function checkAndUpdateLevelCompletion(int $levelId, int $userId): void
+    {
+        $level = Level::find($levelId);
+        if (!$level) {
+            return;
+        }
+
+        // جلب جميع الدروس والسيناريوهات في المستوى
+        $levelTracks = LevelTrack::where('level_id', $levelId)
+            ->with('trackable')
+            ->orderBy('order_index')
+            ->get();
+
+        if ($levelTracks->isEmpty()) {
+            return;
+        }
+
+        // التحقق من أن جميع الدروس والسيناريوهات مكتملة
+        $allCompleted = true;
+        foreach ($levelTracks as $track) {
+            if (!$this->isTrackablePublished($track->trackable)) {
+                continue; // تخطي الدروس غير المنشورة
+            }
+
+            if (!$this->isTrackCompleted($track->trackable, $userId)) {
+                $allCompleted = false;
+                break;
+            }
+        }
+
+        if (!$allCompleted) {
+            return; // بعض الدروس غير مكتملة
+        }
+
+        // تحديث أو إنشاء UserLevelProgress
+        $userLevelProgress = UserLevelProgress::firstOrNew([
+            'user_id' => $userId,
+            'level_id' => $levelId,
+        ]);
+
+        $oldStatus = $userLevelProgress->status;
+
+        // تحديث الحالة إلى completed
+        if ($userLevelProgress->status !== 'completed') {
+            $userLevelProgress->status = 'completed';
+            if (!$userLevelProgress->completed_at) {
+                $userLevelProgress->completed_at = now();
+            }
+            if (!$userLevelProgress->started_at) {
+                $userLevelProgress->started_at = now();
+            }
+
+            // حساب النتيجة (متوسط نتائج الدروس)
+            $lessons = $level->lessons()->get();
+            $totalScore = 0;
+            $completedLessons = 0;
+            
+            foreach ($lessons as $lesson) {
+                $lessonProgress = UserLessonProgress::where('user_id', $userId)
+                    ->where('lesson_id', $lesson->id)
+                    ->first();
+                
+                if ($lessonProgress && $lessonProgress->status === 'completed') {
+                    $totalScore += $lessonProgress->score ?? 0;
+                    $completedLessons++;
+                }
+            }
+
+            if ($completedLessons > 0) {
+                $userLevelProgress->score = round($totalScore / $completedLessons, 2);
+            } else {
+                $userLevelProgress->score = 0;
+            }
+
+            $userLevelProgress->save();
+
+            // إطلاق Event عند إكمال المستوى لأول مرة
+            if ($oldStatus !== 'completed') {
+                Event::dispatch(new UserLevelCompleted($userLevelProgress));
+            }
+
+            // التحقق من إكمال جميع المستويات في الكورس وإطلاق Event
+            $this->checkAndUpdateCourseCompletion($level->course_id, $userId);
+        }
+    }
+
+    /**
+     * التحقق من إكمال جميع المستويات في الكورس وتحديث UserCourse
+     * وإطلاق Event عند إكمال الكورس
+     */
+    public function checkAndUpdateCourseCompletion(int $courseId, int $userId): void
+    {
+        $course = Course::find($courseId);
+        if (!$course) {
+            return;
+        }
+
+        // جلب جميع المستويات في الكورس
+        $levels = $course->levels()->orderBy('level_number')->get();
+        if ($levels->isEmpty()) {
+            return;
+        }
+
+        // التحقق من أن جميع المستويات مكتملة
+        $allLevelsCompleted = true;
+        foreach ($levels as $level) {
+            $userLevelProgress = UserLevelProgress::where('user_id', $userId)
+                ->where('level_id', $level->id)
+                ->first();
+
+            if (!$userLevelProgress || $userLevelProgress->status !== 'completed') {
+                $allLevelsCompleted = false;
+                break;
+            }
+        }
+
+        if (!$allLevelsCompleted) {
+            return; // بعض المستويات غير مكتملة
+        }
+
+        // تحديث أو إنشاء UserCourse
+        $userCourse = UserCourse::firstOrNew([
+            'user_id' => $userId,
+            'course_id' => $courseId,
+        ]);
+
+        $oldStatus = $userCourse->status;
+
+        // تحديث الحالة إلى completed
+        if ($userCourse->status !== 'completed') {
+            $userCourse->status = 'completed';
+            if (!$userCourse->completed_at) {
+                $userCourse->completed_at = now();
+            }
+            if (!$userCourse->started_at) {
+                $userCourse->started_at = now();
+            }
+
+            $userCourse->save();
+
+            // إطلاق Event عند إكمال الكورس لأول مرة
+            if ($oldStatus !== 'completed') {
+                Event::dispatch(new UserCourseCompleted($userCourse));
+            }
+        }
     }
 }
 

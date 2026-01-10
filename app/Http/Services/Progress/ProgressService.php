@@ -2,12 +2,15 @@
 
 namespace App\Http\Services\Progress;
 
+use App\Events\UserCourseCompleted;
+use App\Events\UserLevelCompleted;
 use App\Http\Permissions\Progress\ProgressPermission;
 use App\Models\Progress\UserCourse;
 use App\Models\Progress\UserLessonProgress;
 use App\Models\Progress\UserLevelProgress;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use Illuminate\Support\Facades\Event;
 
 class ProgressService
 {
@@ -93,7 +96,20 @@ class ProgressService
 
     public function update($data, $progress, $type = 'course')
     {
+        $oldStatus = $progress->status;
         $progress->update($data);
+        $progress->refresh();
+
+        // إطلاق Events عند إكمال المستوى أو الكورس
+        if ($type === 'level' && $progress instanceof UserLevelProgress) {
+            if (isset($data['status']) && $data['status'] === 'completed' && $oldStatus !== 'completed') {
+                Event::dispatch(new UserLevelCompleted($progress));
+            }
+        } elseif ($type === 'course' && $progress instanceof UserCourse) {
+            if (isset($data['status']) && $data['status'] === 'completed' && $oldStatus !== 'completed') {
+                Event::dispatch(new UserCourseCompleted($progress));
+            }
+        }
 
         return $this->show($progress->id, $type);
     }

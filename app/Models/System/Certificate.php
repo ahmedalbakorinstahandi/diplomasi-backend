@@ -25,6 +25,8 @@ class Certificate extends Model
         'issued_at',
         'qr_code',
         'pdf_url',
+        'image_url',
+        'template_path',
     ];
 
     /**
@@ -61,6 +63,51 @@ class Certificate extends Model
     public function level()
     {
         return $this->belongsTo(\App\Models\Learning\Level::class)->withTrashed();
+    }
+
+    /**
+     * Scopes
+     */
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeForCourse($query, int $courseId)
+    {
+        return $query->where('course_id', $courseId);
+    }
+
+    public function scopeForLevel($query, int $levelId)
+    {
+        return $query->where('level_id', $levelId);
+    }
+
+    public function scopeIssued($query)
+    {
+        return $query->whereNotNull('issued_at');
+    }
+
+    public function scopeNotRevoked($query)
+    {
+        // TODO: عندما نضيف status field، سنستخدمه هنا
+        return $query;
+    }
+
+    /**
+     * Accessors
+     */
+    public function getVerificationUrlAttribute(): string
+    {
+        return config('app.url') . '/api/v1/general/certificates/verify/' . $this->certificate_code;
+    }
+
+    public function getDownloadUrlAttribute(): ?string
+    {
+        if (!$this->image_url) {
+            return null;
+        }
+        return config('app.url') . '/api/v1/user/certificates/' . $this->id . '/download';
     }
 }
 

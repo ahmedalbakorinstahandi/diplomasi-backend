@@ -71,5 +71,35 @@ class UserCourse extends Model
     {
         return $this->belongsTo(\App\Models\Billing\Subscription::class)->withTrashed();
     }
+
+    /**
+     * Check if the course is completed
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed' && $this->completed_at !== null;
+    }
+
+    /**
+     * Check if user has a certificate for this course
+     */
+    public function hasCertificate(): bool
+    {
+        return \App\Models\System\Certificate::where('user_id', $this->user_id)
+            ->where('course_id', $this->course_id)
+            ->whereNull('level_id')
+            ->exists();
+    }
+
+    /**
+     * Get certificate for this course (if exists)
+     */
+    public function getCertificate(): ?\App\Models\System\Certificate
+    {
+        return \App\Models\System\Certificate::where('user_id', $this->user_id)
+            ->where('course_id', $this->course_id)
+            ->whereNull('level_id')
+            ->first();
+    }
 }
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Scenarios\ScenarioController;
+use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\NotificationController;
 use App\Http\Controllers\System\SettingController;
 use App\Http\Controllers\Users\PermissionsController;
@@ -86,5 +87,10 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
         Route::get('notifications/{id}', [NotificationController::class, 'show']);
         Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+
+        // Certificates
+        Route::get('certificates', [CertificateController::class, 'index']);
+        Route::get('certificates/{id}', [CertificateController::class, 'show']);
+        Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
     });
 });

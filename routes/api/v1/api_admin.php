@@ -9,6 +9,7 @@ use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Scenarios\ScenarioController;
+use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\NotificationController;
 use App\Http\Controllers\System\SettingController;
 use App\Http\Controllers\Users\PermissionListController;
@@ -122,6 +123,12 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('settings', [SettingController::class, 'updateMany']);
         Route::put('settings/{idOrKey}', [SettingController::class, 'update']);
         Route::delete('settings/{idOrKey}', [SettingController::class, 'delete']);
+
+        // Certificates
+        Route::get('certificates', [CertificateController::class, 'index']);
+        Route::get('certificates/{id}', [CertificateController::class, 'show']);
+        Route::post('certificates/issue', [CertificateController::class, 'issue']);
+        Route::post('certificates/{id}/revoke', [CertificateController::class, 'revoke']);
 
         // RBAC
         Route::get('permissions', [PermissionListController::class, 'index']);

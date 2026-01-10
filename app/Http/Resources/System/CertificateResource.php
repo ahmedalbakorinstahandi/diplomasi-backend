@@ -27,6 +27,10 @@ class CertificateResource extends JsonResource
             'issued_at' => $this->issued_at,
             'qr_code' => MediaUrlService::toUrl($this->qr_code),
             'pdf_url' => MediaUrlService::toUrl($this->pdf_url),
+            'image_url' => MediaUrlService::toUrl($this->image_url),
+            'template_path' => MediaUrlService::toUrl($this->template_path),
+            'verification_url' => config('app.url') . '/api/v1/general/certificates/verify/' . $this->certificate_code,
+            'download_url' => $this->image_url ? config('app.url') . '/api/v1/user/certificates/' . $this->id . '/download' : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 

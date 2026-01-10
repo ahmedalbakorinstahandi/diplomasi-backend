@@ -73,5 +73,13 @@ class UserLevelProgress extends Model
     {
         return $this->belongsTo(\App\Models\Learning\Lesson::class, 'current_lesson_id')->withTrashed();
     }
+
+    /**
+     * Check if the level is completed
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed' && $this->completed_at !== null;
+    }
 }
 
