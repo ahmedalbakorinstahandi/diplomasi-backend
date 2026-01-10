@@ -39,7 +39,7 @@ class SettingController extends Controller
 
     public function show($idOrKey)
     {
-        SettingPermission::canView();
+        // SettingPermission::canView();
 
         $setting = $this->settingService->show($idOrKey);
         
