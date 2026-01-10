@@ -12,9 +12,11 @@ use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class CertificateService
 {
@@ -431,10 +433,32 @@ class CertificateService
         if ($certificate->qr_code) {
             $qrCodePath = storage_path('app/public/' . $certificate->qr_code);
             if (file_exists($qrCodePath)) {
-                $qrCodeImage = $manager->read($qrCodePath);
-                $qrCodeImage->resize(200, 200);
-                // وضع QR Code في الزاوية اليمنى السفلى
-                $image->place($qrCodeImage, 'bottom-right', 50, 50);
+                try {
+                    // إذا كان QR Code بصيغة SVG، نحوله إلى PNG أولاً
+                    if (str_ends_with($certificate->qr_code, '.svg')) {
+                        // قراءة SVG وتحويله إلى PNG
+                        // SVG لا يمكن قراءته مباشرة بـ GD driver، لذلك سنحاول قراءته كـ image
+                        // أو يمكن تخطي دمج QR Code في الصورة إذا كان SVG
+                        // حالياً سنتخطي دمج SVG (يمكن عرضه بشكل منفصل في الواجهة)
+                        Log::info("QR Code is SVG format, skipping merge into certificate image", [
+                            'certificate_id' => $certificate->id,
+                            'qr_code_path' => $qrCodePath,
+                        ]);
+                    } else {
+                        // إذا كان PNG، دمجها مباشرة
+                        $qrCodeImage = $manager->read($qrCodePath);
+                        $qrCodeImage->resize(200, 200);
+                        // وضع QR Code في الزاوية اليمنى السفلى
+                        $image->place($qrCodeImage, 'bottom-right', 50, 50);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to merge QR code into certificate image", [
+                        'certificate_id' => $certificate->id,
+                        'qr_code_path' => $qrCodePath,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // تجاهل الخطأ والمتابعة بدون QR Code في الصورة
+                }
             }
         }
 
@@ -456,21 +480,67 @@ class CertificateService
      */
     public function generateCertificateQrCode(Certificate $certificate): string
     {
-        $verificationUrl = config('app.url') . '/api/v1/general/certificates/verify/' . $certificate->certificate_code;
+        try {
+            $verificationUrl = config('app.url') . '/api/v1/general/certificates/verify/' . $certificate->certificate_code;
 
-        $qrFolder = 'certificates/qr';
-        $qrFolderPath = storage_path("app/public/{$qrFolder}");
-        if (!File::isDirectory($qrFolderPath)) {
-            File::makeDirectory($qrFolderPath, 0755, true, true);
+            $qrFolder = 'certificates/qr';
+            $qrFolderPath = storage_path("app/public/{$qrFolder}");
+            
+            // إنشاء المجلد إذا لم يكن موجوداً
+            if (!File::isDirectory($qrFolderPath)) {
+                File::makeDirectory($qrFolderPath, 0755, true, true);
+            }
+
+            $qrCodePath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.png");
+
+            // توليد QR Code باستخدام SVG (لأن PNG يحتاج imagick extension)
+            // SVG يعمل بدون imagick extension
+            $qrCodeSvgPath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.svg");
+            
+            QrCode::format('svg')
+                ->size(300)
+                ->generate($verificationUrl, $qrCodeSvgPath);
+
+            // التحقق من أن SVG تم إنشاؤه
+            if (!File::exists($qrCodeSvgPath)) {
+                throw new \Exception("فشل في توليد QR Code SVG");
+            }
+
+            // استخدام SVG مباشرة (أو يمكن تحويله إلى PNG لاحقاً إذا كان imagick مثبت)
+            // حالياً سنستخدم SVG لأنه يعمل بدون imagick
+            $qrCodePath = $qrCodeSvgPath;
+            
+            // تحديث المسار للإرجاع ليشير إلى SVG
+            $qrFolder = 'certificates/qr';
+            $returnPath = "{$qrFolder}/{$certificate->certificate_code}.svg";
+
+            // التحقق من أن الملف تم إنشاؤه بنجاح
+            if (!File::exists($qrCodePath)) {
+                Log::error("Failed to generate QR code", [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificate->certificate_code,
+                    'qr_code_path' => $qrCodePath,
+                ]);
+                throw new \Exception("فشل في توليد QR Code للشهادة");
+            }
+
+            Log::info("QR code generated successfully", [
+                'certificate_id' => $certificate->id,
+                'certificate_code' => $certificate->certificate_code,
+                'qr_code_path' => $qrCodePath,
+                'format' => 'svg',
+            ]);
+
+            return $returnPath;
+        } catch (\Exception $e) {
+            Log::error("Error generating QR code", [
+                'certificate_id' => $certificate->id,
+                'certificate_code' => $certificate->certificate_code,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
-
-        $qrCodePath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.png");
-
-        \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')
-            ->size(300)
-            ->generate($verificationUrl, $qrCodePath);
-
-        return "{$qrFolder}/{$certificate->certificate_code}.png";
     }
 
     /**
