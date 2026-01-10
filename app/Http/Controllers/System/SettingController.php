@@ -43,7 +43,7 @@ class SettingController extends Controller
 
         $setting = $this->settingService->show($idOrKey);
         
-        SettingPermission::canShow($setting);
+        // SettingPermission::canShow($setting);
 
         return ResponseService::response([
             'success' => true,
