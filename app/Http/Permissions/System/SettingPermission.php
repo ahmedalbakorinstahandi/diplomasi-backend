@@ -22,9 +22,9 @@ class SettingPermission
 
     public static function canView(): void
     {
-        if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('setting.view');
-        }
+        // if (RequestContext::isDashboard()) {
+        //     AuthorizationService::authorize('setting.view');
+        // }
     }
 
     public static function canShow($setting): void
