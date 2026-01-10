@@ -96,20 +96,19 @@ class CertificateService
      */
     public function checkCertificateEligibility(int $userId, int $courseId, ?int $levelId = null): array
     {
-        $userCourse = UserCourse::where('user_id', $userId)
-            ->where('course_id', $courseId)
-            ->first();
-
-        if (!$userCourse) {
-            return [
-                'eligible' => false,
-                'reason' => 'المستخدم غير مسجل في هذا الكورس',
-                'type' => null,
-            ];
-        }
-
-        // سيناريو 1: إكمال الكورس (level_id = null)
+        // سيناريو 1: إكمال الكورس (level_id = null) - يحتاج UserCourse
         if ($levelId === null) {
+            $userCourse = UserCourse::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->first();
+
+            if (!$userCourse) {
+                return [
+                    'eligible' => false,
+                    'reason' => 'المستخدم غير مسجل في هذا الكورس',
+                    'type' => 'course',
+                ];
+            }
             if ($userCourse->status !== 'completed') {
                 return [
                     'eligible' => false,
@@ -224,6 +223,23 @@ class CertificateService
                 'reason' => 'تاريخ إكمال المستوى غير موجود',
                 'type' => 'level',
             ];
+        }
+
+        // إنشاء UserCourse تلقائياً إذا لم يكن موجوداً (لإصدار شهادة المستوى)
+        // هذا يضمن أن المستخدم يعتبر مسجل في الكورس عند إكمال مستوى
+        $userCourse = UserCourse::firstOrNew([
+            'user_id' => $userId,
+            'course_id' => $courseId,
+        ]);
+
+        if (!$userCourse->exists) {
+            // إنشاء UserCourse جديد مع status = 'active' إذا لم يكن موجوداً
+            $userCourse->status = 'active';
+            if (!$userCourse->started_at) {
+                // استخدام تاريخ بدء المستوى أو تاريخ إكماله
+                $userCourse->started_at = $userLevelProgress->started_at ?? $userLevelProgress->completed_at ?? now();
+            }
+            $userCourse->save();
         }
 
         // التحقق من عدم وجود شهادة سابقة لهذا المستوى

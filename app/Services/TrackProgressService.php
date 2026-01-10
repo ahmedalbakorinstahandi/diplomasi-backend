@@ -911,6 +911,24 @@ class TrackProgressService
             return; // بعض الدروس غير مكتملة
         }
 
+        // إنشاء أو تحديث UserCourse تلقائياً عند إكمال المستوى
+        // هذا يضمن أن المستخدم يعتبر مسجل في الكورس عند إكمال مستوى
+        if ($level->course_id) {
+            $userCourse = UserCourse::firstOrNew([
+                'user_id' => $userId,
+                'course_id' => $level->course_id,
+            ]);
+
+            if (!$userCourse->exists) {
+                // إنشاء UserCourse جديد مع status = 'active'
+                $userCourse->status = 'active';
+                if (!$userCourse->started_at) {
+                    $userCourse->started_at = now();
+                }
+                $userCourse->save();
+            }
+        }
+
         // تحديث أو إنشاء UserLevelProgress
         $userLevelProgress = UserLevelProgress::firstOrNew([
             'user_id' => $userId,
