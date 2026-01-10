@@ -21,7 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        request()->headers->set('Accept', 'application/json');
+        // تعيين Accept: application/json فقط لطلبات API
+        if (request()->is('api/*')) {
+            request()->headers->set('Accept', 'application/json');
+        }
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->is('api/*')) {

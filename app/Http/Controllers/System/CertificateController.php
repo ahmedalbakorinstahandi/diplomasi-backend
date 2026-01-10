@@ -79,6 +79,9 @@ class CertificateController extends Controller
         return $this->certificateService->downloadCertificateImage($id);
     }
 
+    /**
+     * التحقق من الشهادة (API) - يعيد JSON
+     */
     public function verify(string $certificateCode)
     {
         $result = $this->certificateService->verifyCertificate($certificateCode);
@@ -87,6 +90,32 @@ class CertificateController extends Controller
             'success' => $result['valid'],
             'data' => $result,
             'status' => $result['valid'] ? 200 : 404,
+        ]);
+    }
+
+    /**
+     * التحقق من الشهادة (Web View) - للمتصفحات (QR Code)
+     * يعرض صفحة ويب جميلة للشهادة
+     */
+    public function verifyWeb(string $certificateCode)
+    {
+        $result = $this->certificateService->verifyCertificate($certificateCode);
+
+        // إذا كانت الشهادة غير صحيحة، عرض صفحة خطأ
+        if (!$result['valid']) {
+            return response()->view('certificates.invalid', [
+                'message' => $result['message'] ?? 'الشهادة غير موجودة',
+            ], 404);
+        }
+
+        // عرض صفحة الشهادة
+        return response()->view('certificates.show', [
+            'certificate' => $result['certificate'],
+            'user_name' => $result['user_name'],
+            'course_title' => $result['course_title'],
+            'level_title' => $result['level_title'],
+            'issued_at' => $result['issued_at'],
+            'certificate_code' => $certificateCode,
         ]);
     }
 

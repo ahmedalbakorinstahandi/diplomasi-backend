@@ -481,7 +481,9 @@ class CertificateService
     public function generateCertificateQrCode(Certificate $certificate): string
     {
         try {
-            $verificationUrl = config('app.url') . '/api/v1/general/certificates/verify/' . $certificate->certificate_code;
+            // استخدام web route لعرض صفحة الشهادة بدلاً من API endpoint
+            // هذا يجعل QR Code يعرض صفحة ويب جميلة عند مسحه
+            $verificationUrl = config('app.url') . '/certificates/verify/' . $certificate->certificate_code;
 
             $qrFolder = 'certificates/qr';
             $qrFolderPath = storage_path("app/public/{$qrFolder}");
