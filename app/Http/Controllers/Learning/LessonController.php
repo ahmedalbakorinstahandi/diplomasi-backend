@@ -9,6 +9,7 @@ use App\Http\Requests\Learning\ReOrderLessonRequest;
 use App\Http\Requests\Learning\SubmitLessonAnswerRequest;
 use App\Http\Requests\Learning\UpdateLessonRequest;
 use App\Http\Resources\Learning\LessonResource;
+use App\Http\Resources\LessonVedioResource;
 use App\Http\Resources\Progress\UserLessonAttemptResource;
 use App\Http\Services\Learning\LessonQuestionService;
 use App\Http\Services\Learning\LessonService;
@@ -263,6 +264,23 @@ class LessonController extends Controller
             'message' => 'messages.video.marked_watched',
             'status' => 200,
             'resource' => UserLessonAttemptResource::class,
+        ]);
+    }
+
+
+    // get videos url 
+    public function getVideosUrl(Request $request)
+    {
+        LessonPermission::canView();
+
+        $lessons = $this->lessonService->index($request->all());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $lessons,
+            'meta' => true,
+            'resource' => LessonVedioResource::class,
+            'status' => 200,
         ]);
     }
 }
