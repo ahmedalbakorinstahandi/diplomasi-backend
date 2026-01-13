@@ -3,6 +3,7 @@
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
+use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
@@ -90,6 +91,14 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('articles/{id}', [ArticleController::class, 'update']);
         Route::delete('articles/{id}', [ArticleController::class, 'delete']);
         Route::put('articles/{id}/reorder', [ArticleController::class, 'reorder']);
+
+        // FAQs
+        Route::get('faqs', [FaqController::class, 'index']);
+        Route::get('faqs/{id}', [FaqController::class, 'show']);
+        Route::post('faqs', [FaqController::class, 'create']);
+        Route::put('faqs/{id}', [FaqController::class, 'update']);
+        Route::delete('faqs/{id}', [FaqController::class, 'delete']);
+        Route::put('faqs/{id}/reorder', [FaqController::class, 'reorder']);
 
         // Plans
         Route::get('plans', [PlanController::class, 'index']);

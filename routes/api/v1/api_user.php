@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
+use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
@@ -44,6 +45,10 @@ Route::group(['prefix' => 'user'], function () {
     // Public glossary terms
     Route::get('glossary-terms', [GlossaryTermController::class, 'index']);
     Route::get('glossary-terms/{id}', [GlossaryTermController::class, 'show']);
+
+    // Public FAQs
+    Route::get('faqs', [FaqController::class, 'index']);
+    Route::get('faqs/{id}', [FaqController::class, 'show']);
 
     // Public plans
     Route::get('plans', [PlanController::class, 'index']);
