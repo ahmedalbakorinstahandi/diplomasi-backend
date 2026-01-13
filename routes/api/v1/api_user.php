@@ -23,12 +23,14 @@ Route::group(['prefix' => 'user'], function () {
     Route::get('courses', [CourseController::class, 'index']);
     Route::get('courses/{id}', [CourseController::class, 'show']);
 
+    // Public lessons videos url
+    Route::get('lessons/videos-url', [LessonController::class, 'getVideosUrl']);
+
+    
     // Public lessons
     Route::get('lessons', [LessonController::class, 'index']);
     Route::get('lessons/{id}', [LessonController::class, 'show']);
 
-    // Public lessons videos url
-    Route::get('lessons/videos-url', [LessonController::class, 'getVideosUrl']);
 
     // Public levels
     Route::get('levels', [LevelController::class, 'index']);
