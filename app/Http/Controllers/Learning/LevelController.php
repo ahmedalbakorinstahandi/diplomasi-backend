@@ -26,11 +26,33 @@ class LevelController extends Controller
         LevelPermission::canView();
 
         $levels = $this->levelService->index($request->all());
+        
+        // Get paginated results if query is paginated
+        $perPage = $request->input('per_page', 20);
+        if ($levels instanceof \Illuminate\Contracts\Pagination\Paginator) {
+            $levelsPaginated = $levels;
+        } else {
+            $levelsPaginated = $levels->paginate($perPage);
+        }
+
+        // Load progress data in batch if user is authenticated
+        $user = \App\Models\Users\User::auth();
+        if ($user && $levelsPaginated->count() > 0) {
+            $levelsList = $levelsPaginated->items();
+            $trackProgressService = app(\App\Services\TrackProgressService::class);
+            $progressData = $trackProgressService->loadProgressDataForLevels(collect($levelsList), $user->id);
+            
+            // Set cache for Resource to use
+            LevelResource::setProgressDataCache($progressData);
+        } else {
+            // Clear cache if no user
+            LevelResource::clearProgressDataCache();
+        }
 
         return ResponseService::response([
             'success' => true,
             'message' => $message,
-            'data' => $levels,
+            'data' => $levelsPaginated,
             'meta' => true,
             'resource' => LevelResource::class,
             'status' => 200,
@@ -43,6 +65,16 @@ class LevelController extends Controller
 
         $level = $this->levelService->show($id);
         LevelPermission::canShow($level);
+
+        // Load progress data if user is authenticated
+        $user = \App\Models\Users\User::auth();
+        if ($user) {
+            $trackProgressService = app(\App\Services\TrackProgressService::class);
+            $progressData = $trackProgressService->loadProgressDataForLevels(collect([$level]), $user->id);
+            LevelResource::setProgressDataCache($progressData);
+        } else {
+            LevelResource::clearProgressDataCache();
+        }
 
         return ResponseService::response([
             'success' => true,

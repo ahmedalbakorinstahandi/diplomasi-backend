@@ -15,6 +15,7 @@ use App\Models\Progress\UserLevelProgress;
 use App\Models\Progress\UserCourse;
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\UserScenarioAttempt;
+use App\Models\System\Certificate;
 use Illuminate\Support\Facades\Event;
 
 class TrackProgressService
@@ -937,6 +938,12 @@ class TrackProgressService
 
         $oldStatus = $userLevelProgress->status;
 
+        // إذا كان المستوى مكتملاً بالفعل، لا نعيد التحقق ولا نغير شيئاً
+        // المستوى يبقى مكتملاً نهائياً حتى لو أضيفت دروس/سيناريوهات جديدة
+        if ($userLevelProgress->status === 'completed') {
+            return; // المستوى مكتمل نهائياً، لا تغيير
+        }
+
         // تحديث الحالة إلى completed
         if ($userLevelProgress->status !== 'completed') {
             $userLevelProgress->status = 'completed';
@@ -979,6 +986,124 @@ class TrackProgressService
             // التحقق من إكمال جميع المستويات في الكورس وإطلاق Event
             $this->checkAndUpdateCourseCompletion($level->course_id, $userId);
         }
+    }
+
+    /**
+     * التحقق من إكمال المستوى
+     * إذا كان status = 'completed' → المستوى مكتمل نهائياً
+     * وإلا نتحقق من جميع الدروس والسيناريوهات المنشورة
+     *
+     * @param Level $level
+     * @param int $userId
+     * @return bool
+     */
+    public function isLevelCompleted(Level $level, int $userId): bool
+    {
+        // التحقق من UserLevelProgress أولاً
+        $userLevelProgress = UserLevelProgress::where('user_id', $userId)
+            ->where('level_id', $level->id)
+            ->first();
+
+        // إذا كان المستوى مكتملاً بالفعل (status = completed)، يعتبر مكتملاً نهائياً
+        if ($userLevelProgress && $userLevelProgress->status === 'completed') {
+            return true;
+        }
+
+        // إذا لم يكن مكتملاً، نتحقق من جميع الدروس والسيناريوهات المنشورة
+        $levelTracks = LevelTrack::where('level_id', $level->id)
+            ->with('trackable')
+            ->orderBy('order_index')
+            ->get();
+
+        if ($levelTracks->isEmpty()) {
+            return false;
+        }
+
+        // التحقق من أن جميع الدروس والسيناريوهات المنشورة مكتملة
+        foreach ($levelTracks as $track) {
+            // تخطي الدروس غير المنشورة
+            if (!$this->isTrackablePublished($track->trackable)) {
+                continue;
+            }
+
+            // التحقق من الإكمال
+            if (!$this->isTrackCompleted($track->trackable, $userId)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * تحديد حالة الوصول للمستوى
+     * locked: المستوى السابق غير مكتمل
+     * open: المستوى يمكن الوصول إليه
+     * completed: المستوى مكتمل
+     *
+     * @param Level $level
+     * @param int $userId
+     * @return string
+     */
+    public function getLevelAccessStatus(Level $level, int $userId): string
+    {
+        // إذا كان المستوى مكتملاً، يعتبر completed
+        if ($this->isLevelCompleted($level, $userId)) {
+            return 'completed';
+        }
+
+        // إذا لم يكن المستوى مكتملاً، نتحقق من المستوى السابق
+        if (!$level->course_id) {
+            return 'open'; // إذا لم يكن له كورس، يكون مفتوح
+        }
+
+        // جلب جميع المستويات في الكورس مرتبة حسب order_index
+        $levels = Level::where('course_id', $level->course_id)
+            ->where('is_published', true)
+            ->orderBy('order_index', 'asc')
+            ->get();
+
+        // العثور على المستوى السابق (أقل order_index)
+        $previousLevel = null;
+        foreach ($levels as $courseLevel) {
+            if ($courseLevel->order_index < $level->order_index) {
+                $previousLevel = $courseLevel;
+            } else {
+                break;
+            }
+        }
+
+        // إذا لم يكن هناك مستوى سابق، المستوى مفتوح
+        if (!$previousLevel) {
+            return 'open';
+        }
+
+        // التحقق من إكمال المستوى السابق
+        if ($this->isLevelCompleted($previousLevel, $userId)) {
+            return 'open';
+        }
+
+        return 'locked';
+    }
+
+    /**
+     * الحصول على شهادة المستوى للمستخدم
+     *
+     * @param Level $level
+     * @param int $userId
+     * @return Certificate|null
+     */
+    public function getUserCertificateForLevel(Level $level, int $userId): ?Certificate
+    {
+        if (!$level->course_id) {
+            return null;
+        }
+
+        return Certificate::where('user_id', $userId)
+            ->where('course_id', $level->course_id)
+            ->where('level_id', $level->id)
+            ->whereNotNull('issued_at')
+            ->first();
     }
 
     /**
@@ -1040,6 +1165,144 @@ class TrackProgressService
                 Event::dispatch(new UserCourseCompleted($userCourse));
             }
         }
+    }
+
+    /**
+     * تحميل بيانات التقدم للمستويات بشكل batch
+     * لتحسين الأداء عند جلب قائمة المستويات
+     *
+     * @param \Illuminate\Support\Collection $levels
+     * @param int $userId
+     * @return array
+     */
+    public function loadProgressDataForLevels($levels, int $userId): array
+    {
+        $result = [];
+
+        if ($levels->isEmpty()) {
+            return $result;
+        }
+
+        $levelIds = $levels->pluck('id')->toArray();
+
+        // جلب جميع UserLevelProgress للمستويات
+        $userLevelProgressMap = UserLevelProgress::where('user_id', $userId)
+            ->whereIn('level_id', $levelIds)
+            ->get()
+            ->keyBy('level_id');
+
+        // جلب جميع الشهادات للمستويات
+        $certificatesMap = Certificate::where('user_id', $userId)
+            ->whereIn('level_id', $levelIds)
+            ->whereNotNull('issued_at')
+            ->get()
+            ->keyBy('level_id');
+
+        // جلب جميع المستويات في الكورسات (للتحقق من المستوى السابق)
+        $courseIds = $levels->whereNotNull('course_id')->pluck('course_id')->unique()->toArray();
+        $allCourseLevels = collect();
+        
+        if (!empty($courseIds)) {
+            $allCourseLevels = Level::whereIn('course_id', $courseIds)
+                ->where('is_published', true)
+                ->orderBy('order_index', 'asc')
+                ->get()
+                ->groupBy('course_id');
+        }
+
+        // معالجة كل مستوى
+        foreach ($levels as $level) {
+            $levelId = $level->id;
+            $userLevelProgress = $userLevelProgressMap->get($levelId);
+
+            // التحقق من الإكمال
+            $isCompleted = false;
+            if ($userLevelProgress && $userLevelProgress->status === 'completed') {
+                $isCompleted = true;
+            } else {
+                // إذا لم يكن مكتملاً، نتحقق من جميع الدروس والسيناريوهات
+                $levelTracks = LevelTrack::where('level_id', $levelId)
+                    ->with('trackable')
+                    ->orderBy('order_index')
+                    ->get();
+
+                if ($levelTracks->isNotEmpty()) {
+                    $allCompleted = true;
+                    foreach ($levelTracks as $track) {
+                        if (!$this->isTrackablePublished($track->trackable)) {
+                            continue;
+                        }
+                        if (!$this->isTrackCompleted($track->trackable, $userId)) {
+                            $allCompleted = false;
+                            break;
+                        }
+                    }
+                    $isCompleted = $allCompleted;
+                }
+            }
+
+            // تحديد access_status
+            $accessStatus = 'locked';
+            if ($isCompleted) {
+                $accessStatus = 'completed';
+            } elseif ($level->course_id && isset($allCourseLevels[$level->course_id])) {
+                // العثور على المستوى السابق
+                $courseLevels = $allCourseLevels[$level->course_id];
+                $previousLevel = null;
+                foreach ($courseLevels as $courseLevel) {
+                    if ($courseLevel->order_index < $level->order_index) {
+                        $previousLevel = $courseLevel;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (!$previousLevel) {
+                    $accessStatus = 'open';
+                } else {
+                    $previousUserProgress = $userLevelProgressMap->get($previousLevel->id);
+                    if ($previousUserProgress && $previousUserProgress->status === 'completed') {
+                        $accessStatus = 'open';
+                    } else {
+                        // التحقق من إكمال المستوى السابق
+                        $previousLevelTracks = LevelTrack::where('level_id', $previousLevel->id)
+                            ->with('trackable')
+                            ->orderBy('order_index')
+                            ->get();
+
+                        $previousCompleted = true;
+                        if ($previousLevelTracks->isNotEmpty()) {
+                            foreach ($previousLevelTracks as $track) {
+                                if (!$this->isTrackablePublished($track->trackable)) {
+                                    continue;
+                                }
+                                if (!$this->isTrackCompleted($track->trackable, $userId)) {
+                                    $previousCompleted = false;
+                                    break;
+                                }
+                            }
+                        } else {
+                            $previousCompleted = false;
+                        }
+
+                        $accessStatus = $previousCompleted ? 'open' : 'locked';
+                    }
+                }
+            } else {
+                $accessStatus = 'open';
+            }
+
+            // الحصول على الشهادة
+            $certificate = $certificatesMap->get($levelId);
+
+            $result[$levelId] = [
+                'is_completed' => $isCompleted,
+                'access_status' => $accessStatus,
+                'certificate' => $certificate,
+            ];
+        }
+
+        return $result;
     }
 }
 
