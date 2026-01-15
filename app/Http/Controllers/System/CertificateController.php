@@ -10,6 +10,7 @@ use App\Http\Resources\System\CertificateResource;
 use App\Http\Services\System\CertificateService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class CertificateController extends Controller
 {
@@ -108,9 +109,46 @@ class CertificateController extends Controller
             ], 404);
         }
 
+        $certificate = $result['certificate'];
+
+        // التحقق من وجود صورة الشهادة وتوليدها تلقائياً إذا لم تكن موجودة
+        $shouldGenerateImage = false;
+        
+        if (!$certificate->image_url) {
+            // الصورة غير موجودة في قاعدة البيانات
+            $shouldGenerateImage = true;
+        } else {
+            // التحقق من وجود الملف الفعلي
+            $imagePath = storage_path('app/public/' . $certificate->image_url);
+            if (!file_exists($imagePath)) {
+                // الملف غير موجود على الخادم
+                $shouldGenerateImage = true;
+            }
+        }
+
+        // توليد الصورة تلقائياً إذا لزم الأمر
+        if ($shouldGenerateImage) {
+            try {
+                $certificate->load(['user', 'course', 'level']); // تحميل العلاقات المطلوبة
+                $imagePath = $this->certificateService->generateCertificateImage($certificate);
+                $certificate->image_url = $imagePath;
+                $certificate->save();
+            } catch (\Exception $e) {
+                // في حالة فشل توليد الصورة، نكمل العرض بدون الصورة
+                Log::error('Failed to auto-generate certificate image in verifyWeb', [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificateCode,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // إعادة تحميل الشهادة للحصول على image_url المحدث
+        $certificate->refresh();
+
         // عرض صفحة الشهادة
         return response()->view('certificates.show', [
-            'certificate' => $result['certificate'],
+            'certificate' => $certificate,
             'user_name' => $result['user_name'],
             'course_title' => $result['course_title'],
             'level_title' => $result['level_title'],
