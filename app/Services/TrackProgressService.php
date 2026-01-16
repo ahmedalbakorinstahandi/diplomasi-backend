@@ -1015,7 +1015,22 @@ class TrackProgressService
             ->orderBy('order_index')
             ->get();
 
+        // إذا لم يكن هناك tracks، المستوى ليس مكتملاً
         if ($levelTracks->isEmpty()) {
+            return false;
+        }
+
+        // التحقق من وجود tracks منشورة
+        $hasPublishedTracks = false;
+        foreach ($levelTracks as $track) {
+            if ($this->isTrackablePublished($track->trackable)) {
+                $hasPublishedTracks = true;
+                break;
+            }
+        }
+
+        // إذا لم يكن هناك tracks منشورة، المستوى ليس مكتملاً
+        if (!$hasPublishedTracks) {
             return false;
         }
 
@@ -1375,17 +1390,20 @@ class TrackProgressService
                 }
             }
 
-            // المستوى مكتمل إذا: لا توجد tracks منشورة (فارغ) أو جميع tracks مكتملة
-            $levelCompletionMap[$levelId] = !$hasPublishedTracks || $allTracksCompleted;
+            // المستوى مكتمل إذا: جميع tracks المنشورة مكتملة
+            // المستوى الفارغ (بدون tracks منشورة) ليس مكتملاً - يحتاج إتمام فعلي في قاعدة البيانات
+            $levelCompletionMap[$levelId] = $hasPublishedTracks && $allTracksCompleted;
         }
 
-        // 7. حساب access_status لكل مستوى بناءً على is_completed للمستوى السابق
+        // 7. حساب access_status لكل مستوى
+        // access_status = 'completed' فقط إذا كان status = 'completed' في قاعدة البيانات
         foreach ($levels as $level) {
             $levelId = $level->id;
+            $userLevelProgress = $userLevelProgressMap->get($levelId);
             $isCompleted = $levelCompletionMap[$levelId];
 
-            // إذا كان المستوى مكتملاً → completed
-            if ($isCompleted) {
+            // access_status = 'completed' فقط إذا كان status = 'completed' في قاعدة البيانات
+            if ($userLevelProgress && $userLevelProgress->status === 'completed') {
                 $accessStatus = 'completed';
             } elseif (!$level->course_id || !isset($allCourseLevels[$level->course_id])) {
                 // إذا لم يكن له كورس → open
@@ -1407,8 +1425,16 @@ class TrackProgressService
                 if (!$previousLevel) {
                     $accessStatus = 'open';
                 } else {
-                    // المستوى السابق مكتمل؟ → open : locked
-                    $previousCompleted = $levelCompletionMap[$previousLevel->id] ?? false;
+                    // التحقق من المستوى السابق
+                    $previousUserProgress = $userLevelProgressMap->get($previousLevel->id);
+                    $previousIsCompleted = $levelCompletionMap[$previousLevel->id] ?? false;
+                    
+                    // المستوى السابق مكتمل إذا:
+                    // 1. status = 'completed' في قاعدة البيانات، أو
+                    // 2. is_completed = true (جميع tracks مكتملة)
+                    $previousCompleted = ($previousUserProgress && $previousUserProgress->status === 'completed') 
+                        || $previousIsCompleted;
+                    
                     $accessStatus = $previousCompleted ? 'open' : 'locked';
                 }
             }
