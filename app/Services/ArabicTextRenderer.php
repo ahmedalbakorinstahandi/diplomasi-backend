@@ -13,8 +13,8 @@ use Intervention\Image\Interfaces\ImageInterface;
 class ArabicTextRenderer
 {
     /**
-     * كتابة نص عربي على صورة باستخدام Intervention Image
-     * إذا كان Imagick driver مستخدماً، سيدعم العربية بشكل أفضل تلقائياً
+     * كتابة نص عربي على صورة باستخدام Imagick مباشرة
+     * محاولة استخدام Imagick مباشرة للحصول على أفضل دعم للعربية
      */
     public static function writeArabicText(
         ImageInterface $image,
@@ -26,8 +26,50 @@ class ArabicTextRenderer
         string $fontPath,
         ImageManager $manager
     ): ImageInterface {
-        // استخدام طريقة Intervention Image العادية
-        // إذا كان Imagick driver مستخدماً، سيدعم العربية بشكل أفضل
+        // محاولة استخدام Imagick مباشرة إذا كان متاحاً
+        if (extension_loaded('imagick') && class_exists('\Imagick') && class_exists('\ImagickDraw')) {
+            try {
+                // الحصول على Imagick object من Intervention Image
+                $core = $image->core();
+                if (method_exists($core, 'native')) {
+                    $imagick = $core->native();
+                    
+                    if ($imagick instanceof \Imagick) {
+                        $draw = new \ImagickDraw();
+                        
+                        // إعداد الخط
+                        if ($fontPath && file_exists($fontPath)) {
+                            $draw->setFont($fontPath);
+                        }
+                        
+                        $draw->setFontSize($fontSize);
+                        $draw->setFillColor(new \ImagickPixel($color));
+                        $draw->setTextAlignment(\Imagick::ALIGN_CENTER);
+                        $draw->setGravity(\Imagick::GRAVITY_NORTH);
+                        
+                        // محاولة تحسين العربية: عكس النص يدوياً
+                        // لأن Imagick بدون Pango يكتبه بشكل معكوس
+                        $processedText = self::reverseArabicText($text);
+                        
+                        // كتابة النص
+                        $imagick->annotateImage($draw, $x, $y, 0, $processedText);
+                        
+                        Log::info("Used Imagick directly for Arabic text", [
+                            'text' => substr($text, 0, 50),
+                            'font' => $fontPath ? basename($fontPath) : 'default',
+                        ]);
+                        
+                        return $image;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Failed to use Imagick directly, falling back", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        // Fallback: استخدام طريقة Intervention Image العادية
         $image->text($text, $x, $y, function ($font) use ($fontPath, $fontSize, $color) {
             if ($fontPath && file_exists($fontPath)) {
                 $font->filename($fontPath);
@@ -39,6 +81,36 @@ class ArabicTextRenderer
         });
         
         return $image;
+    }
+    
+    /**
+     * عكس ترتيب النص العربي لأن Imagick بدون Pango يكتبه بشكل معكوس
+     */
+    private static function reverseArabicText(string $text): string
+    {
+        // إذا لم يكن هناك نص عربي، إرجاعه كما هو
+        if (!preg_match('/[\x{0600}-\x{06FF}]/u', $text)) {
+            return $text;
+        }
+        
+        // فصل النص إلى كلمات
+        $words = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $reversed = [];
+        
+        foreach ($words as $word) {
+            // إذا كانت الكلمة عربية، عكس ترتيب الحروف
+            if (preg_match('/[\x{0600}-\x{06FF}]/u', $word)) {
+                // عكس ترتيب الحروف
+                $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY);
+                $reversed[] = implode('', array_reverse($chars));
+            } else {
+                // الكلمات الإنجليزية تبقى كما هي
+                $reversed[] = $word;
+            }
+        }
+        
+        // عكس ترتيب الكلمات أيضاً (RTL)
+        return implode('', array_reverse($reversed));
     }
     
     /**
