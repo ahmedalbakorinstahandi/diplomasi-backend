@@ -336,14 +336,68 @@ class CertificateService
         try {
             $manager = new ImageManager(new Driver());
 
-            // تحميل صورة القالب (محاولة المسار الأساسي أولاً، ثم البديل)
-            $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH);
+            // تحميل صورة القالب (محاولة جميع المسارات المحتملة)
+            $possiblePaths = [
+                storage_path('app/public/' . self::TEMPLATE_PATH),
+                storage_path('app/public/' . self::TEMPLATE_PATH_ALTERNATIVE),
+                // مسارات إضافية للتحقق
+                storage_path('app/public/certificates/templates/certificate-template.png'),
+                storage_path('app/public/certificates/qr/templates/certificate-template.png'),
+                // مسار مباشر من public
+                public_path('certificates/templates/certificate-template.png'),
+                public_path('certificates/qr/templates/certificate-template.png'),
+            ];
             
-            if (!file_exists($templatePath)) {
-                // محاولة المسار البديل
-                $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH_ALTERNATIVE);
-                if (!file_exists($templatePath)) {
-                    throw new \Exception('صورة القالب غير موجودة. يرجى حفظ القالب في: ' . self::TEMPLATE_PATH . ' أو ' . self::TEMPLATE_PATH_ALTERNATIVE);
+            $templatePath = null;
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    $templatePath = $path;
+                    break;
+                }
+            }
+            
+            if (!$templatePath) {
+                // محاولة البحث عن الملف في جميع المجلدات
+                $searchDirs = [
+                    storage_path('app/public'),
+                    public_path(),
+                ];
+                
+                $foundPath = null;
+                foreach ($searchDirs as $dir) {
+                    if (is_dir($dir)) {
+                        $iterator = new \RecursiveIteratorIterator(
+                            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                            \RecursiveIteratorIterator::SELF_FIRST
+                        );
+                        
+                        foreach ($iterator as $file) {
+                            if ($file->isFile() && $file->getFilename() === 'certificate-template.png') {
+                                $foundPath = $file->getRealPath();
+                                break 2;
+                            }
+                        }
+                    }
+                }
+                
+                if ($foundPath) {
+                    $templatePath = $foundPath;
+                    Log::info("Found certificate template in alternative location", [
+                        'path' => $templatePath,
+                    ]);
+                } else {
+                    $errorMsg = "صورة القالب غير موجودة. تم البحث في:\n" . 
+                                "- " . storage_path('app/public/' . self::TEMPLATE_PATH) . "\n" .
+                                "- " . storage_path('app/public/' . self::TEMPLATE_PATH_ALTERNATIVE) . "\n" .
+                                "- " . public_path('certificates/templates/certificate-template.png') . "\n" .
+                                "- " . public_path('certificates/qr/templates/certificate-template.png') . "\n" .
+                                "يرجى رفع ملف certificate-template.png إلى أحد هذه المواقع.";
+                    
+                    Log::error("Certificate template not found in any expected location", [
+                        'searched_paths' => $possiblePaths,
+                    ]);
+                    
+                    throw new \Exception($errorMsg);
                 }
             }
 
