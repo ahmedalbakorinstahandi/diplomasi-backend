@@ -385,6 +385,24 @@ class CertificateService
 
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            $fontDir = storage_path('app/fonts');
+            
+            // الحصول على الإعدادات الافتراضية لـ mPDF
+            $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+            $fontDirs = $defaultConfig['fontDir'];
+            
+            $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+            $fontData = $defaultFontConfig['fontdata'];
+            
+            // إعداد fontdata للخط العربي
+            $customFontData = $fontData;
+            if (file_exists($fontPath)) {
+                $customFontData['huwiyadisplay'] = [
+                    'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    'useOTL' => 0xFF,
+                    'useKashida' => 75,
+                ];
+            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -396,8 +414,10 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => 'dejavusans',
+                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
                 'default_font_size' => 12,
+                'fontDir' => array_merge($fontDirs, [$fontDir]),
+                'fontdata' => $customFontData,
                 'useOTL' => 0xFF,
                 'useKashida' => 75,
                 'shrink_tables_to_fit' => 1,
@@ -407,39 +427,17 @@ class CertificateService
                 'dpi' => 96,
             ]);
 
-            // تسجيل الخط العربي إذا كان موجوداً
-            if (file_exists($fontPath)) {
-                try {
-                    $mpdf->fontdata['HuwiyaDisplay'] = [
-                        'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    ];
-                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
-                    Log::info("Registered Arabic font in mPDF", [
-                        'font_path' => $fontPath,
-                    ]);
-                } catch (\Exception $e) {
-                    Log::warning("Failed to register Arabic font in mPDF", [
-                        'font_path' => $fontPath,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
             // إعداد mPDF للعربية
             $mpdf->SetDirectionality('rtl');
             $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
             
-            // استخدام الخط العربي إذا كان مسجل
             if (file_exists($fontPath)) {
-                try {
-                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
-                } catch (\Exception $e) {
-                    Log::warning("Failed to set Arabic font, using default", [
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                Log::info("Arabic font registered in mPDF", [
+                    'font_path' => $fontPath,
+                    'font_name' => 'huwiyadisplay',
+                ]);
             }
 
             // كتابة HTML إلى PDF
@@ -506,6 +504,24 @@ class CertificateService
 
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            $fontDir = storage_path('app/fonts');
+            
+            // الحصول على الإعدادات الافتراضية لـ mPDF
+            $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+            $fontDirs = $defaultConfig['fontDir'];
+            
+            $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+            $fontData = $defaultFontConfig['fontdata'];
+            
+            // إعداد fontdata للخط العربي
+            $customFontData = $fontData;
+            if (file_exists($fontPath)) {
+                $customFontData['huwiyadisplay'] = [
+                    'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    'useOTL' => 0xFF,
+                    'useKashida' => 75,
+                ];
+            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -517,24 +533,20 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => 'dejavusans',
+                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
                 'default_font_size' => 12,
+                'fontDir' => array_merge($fontDirs, [$fontDir]),
+                'fontdata' => $customFontData,
                 'useOTL' => 0xFF,
                 'useKashida' => 75,
                 'dpi' => 300, // دقة عالية للصورة
             ]);
-
-            // تسجيل الخط العربي
+            
             if (file_exists($fontPath)) {
-                try {
-                    $mpdf->fontdata['HuwiyaDisplay'] = [
-                        'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    ];
-                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
-                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
-                } catch (\Exception $e) {
-                    Log::warning("Failed to register Arabic font", ['error' => $e->getMessage()]);
-                }
+                Log::info("Arabic font registered in mPDF for PNG conversion", [
+                    'font_path' => $fontPath,
+                    'font_name' => 'huwiyadisplay',
+                ]);
             }
 
             $mpdf->SetDirectionality('rtl');
@@ -634,6 +646,24 @@ class CertificateService
 
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            $fontDir = storage_path('app/fonts');
+            
+            // الحصول على الإعدادات الافتراضية لـ mPDF
+            $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+            $fontDirs = $defaultConfig['fontDir'];
+            
+            $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+            $fontData = $defaultFontConfig['fontdata'];
+            
+            // إعداد fontdata للخط العربي
+            $customFontData = $fontData;
+            if (file_exists($fontPath)) {
+                $customFontData['huwiyadisplay'] = [
+                    'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    'useOTL' => 0xFF,
+                    'useKashida' => 75,
+                ];
+            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -645,8 +675,10 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => 'dejavusans', // خط افتراضي
+                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
                 'default_font_size' => 12,
+                'fontDir' => array_merge($fontDirs, [$fontDir]),
+                'fontdata' => $customFontData,
                 'useOTL' => 0xFF,
                 'useKashida' => 75,
                 'shrink_tables_to_fit' => 1,
@@ -656,40 +688,17 @@ class CertificateService
                 'dpi' => 96,
             ]);
 
-            // تسجيل الخط العربي إذا كان موجوداً
-            if (file_exists($fontPath)) {
-                try {
-                    $mpdf->fontdata['HuwiyaDisplay'] = [
-                        'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    ];
-                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
-                    Log::info("Registered Arabic font in mPDF", [
-                        'font_path' => $fontPath,
-                    ]);
-                } catch (\Exception $e) {
-                    Log::warning("Failed to register Arabic font in mPDF", [
-                        'font_path' => $fontPath,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
             // إعداد mPDF للعربية
             $mpdf->SetDirectionality('rtl');
             $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
             
-            // استخدام الخط العربي إذا كان مسجل
             if (file_exists($fontPath)) {
-                try {
-                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
-                } catch (\Exception $e) {
-                    // إذا فشل، استخدم الخط الافتراضي
-                    Log::warning("Failed to set Arabic font, using default", [
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                Log::info("Arabic font registered in mPDF (generateCertificateImageFromBlade)", [
+                    'font_path' => $fontPath,
+                    'font_name' => 'huwiyadisplay',
+                ]);
             }
 
             // كتابة HTML إلى PDF

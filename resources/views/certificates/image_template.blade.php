@@ -5,10 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الشهادة</title>
     <style>
-        @font-face {
-            font-family: 'HuwiyaDisplay';
-            src: url('file://{{ str_replace('\\', '/', storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf')) }}') format('opentype');
-        }
+        /* الخط العربي يتم تسجيله في mPDF مباشرة - لا حاجة لـ @font-face */
 
         * {
             margin: 0;
@@ -17,7 +14,7 @@
         }
 
         body {
-            font-family: 'HuwiyaDisplay', 'Cairo', 'dejavusans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'huwiyadisplay', 'Cairo', 'dejavusans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #FFFFFF;
             width: 1200px;
             height: 850px;
