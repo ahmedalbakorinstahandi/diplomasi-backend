@@ -15,9 +15,12 @@ use App\Services\MessageService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\Drivers\Imagick\Driver as ImagickDriver;
 use Intervention\Image\ImageManager;
+use Mpdf\Mpdf;
+use Mpdf\MpdfException;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class CertificateService
@@ -299,7 +302,8 @@ class CertificateService
         $certificate->save();
 
         // توليد صورة الشهادة
-        $imagePath = $this->generateCertificateImage($certificate);
+        // استخدام الطريقة الجديدة (Blade template) - أفضل للعربية
+        $imagePath = $this->generateCertificateImageFromBlade($certificate);
         $certificate->image_url = $imagePath;
         $certificate->save();
 
@@ -331,7 +335,175 @@ class CertificateService
     }
 
     /**
-     * توليد صورة الشهادة من القالب مع Text Overlay
+     * توليد صورة الشهادة من Blade template (الطريقة الجديدة - أفضل للعربية)
+     */
+    public function generateCertificateImageFromBlade(Certificate $certificate): string
+    {
+        try {
+            // تحميل العلاقات المطلوبة
+            $certificate->load(['user', 'course', 'level']);
+
+            // تجهيز البيانات للـ Blade template
+            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
+            $courseTitle = $certificate->course->title ?? '';
+            $hours = $this->calculateTrainingHours($certificate);
+            $hoursText = $this->numberToArabicWords($hours);
+            $date = $this->formatDateInArabic($certificate->issued_at);
+
+            // مسار QR Code
+            $qrCodePath = null;
+            if ($certificate->qr_code) {
+                $qrCodeFullPath = storage_path('app/public/' . $certificate->qr_code);
+                if (file_exists($qrCodeFullPath)) {
+                    $qrCodePath = $qrCodeFullPath;
+                }
+            }
+
+            // إنشاء HTML من Blade template
+            $html = View::make('certificates.image_template', [
+                'user_name' => $userName,
+                'course_title' => $courseTitle,
+                'hours' => $hours,
+                'hours_text' => $hoursText,
+                'date' => $date,
+                'qr_code_path' => $qrCodePath,
+            ])->render();
+
+            Log::info("Generated HTML from Blade template", [
+                'certificate_id' => $certificate->id,
+                'user_name' => $userName,
+            ]);
+
+            // إنشاء PDF باستخدام mPDF
+            $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            
+            $mpdf = new Mpdf([
+                'tempDir' => storage_path('framework/cache'),
+                'mode' => 'utf-8',
+                'format' => [1200, 850], // 1200x850 pixels
+                'margin_left' => 0,
+                'margin_right' => 0,
+                'margin_top' => 0,
+                'margin_bottom' => 0,
+                'margin_header' => 0,
+                'margin_footer' => 0,
+                'default_font' => 'dejavusans', // خط افتراضي
+                'default_font_size' => 12,
+                'useOTL' => 0xFF,
+                'useKashida' => 75,
+                'shrink_tables_to_fit' => 1,
+                'use_kwt' => true,
+                'keepColumns' => true,
+                'keep_table_proportions' => true,
+                'dpi' => 96,
+            ]);
+
+            // تسجيل الخط العربي إذا كان موجوداً
+            if (file_exists($fontPath)) {
+                try {
+                    $mpdf->fontdata['HuwiyaDisplay'] = [
+                        'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    ];
+                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
+                    Log::info("Registered Arabic font in mPDF", [
+                        'font_path' => $fontPath,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to register Arabic font in mPDF", [
+                        'font_path' => $fontPath,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // إعداد mPDF للعربية
+            $mpdf->SetDirectionality('rtl');
+            $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
+            $mpdf->SetAuthor('Diplomasi');
+            $mpdf->SetCreator('Diplomasi Certificate System');
+            
+            // استخدام الخط العربي إذا كان مسجل
+            if (file_exists($fontPath)) {
+                try {
+                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
+                } catch (\Exception $e) {
+                    // إذا فشل، استخدم الخط الافتراضي
+                    Log::warning("Failed to set Arabic font, using default", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // كتابة HTML إلى PDF
+            $mpdf->WriteHTML($html);
+
+            // حفظ PDF مؤقتاً
+            $tempPdfPath = storage_path('app/temp/certificate_' . $certificate->id . '_' . time() . '.pdf');
+            $tempDir = dirname($tempPdfPath);
+            if (!File::exists($tempDir)) {
+                File::makeDirectory($tempDir, 0755, true);
+            }
+
+            $mpdf->Output($tempPdfPath, 'F');
+
+            Log::info("Generated PDF from HTML", [
+                'certificate_id' => $certificate->id,
+                'pdf_path' => $tempPdfPath,
+            ]);
+
+            // تحويل PDF إلى PNG باستخدام Imagick
+            if (!extension_loaded('imagick')) {
+                throw new \Exception('Imagick extension is required to convert PDF to PNG');
+            }
+
+            $imagick = new \Imagick();
+            $imagick->setResolution(300, 300); // عالية الدقة
+            $imagick->readImage($tempPdfPath . '[0]'); // قراءة الصفحة الأولى فقط
+            $imagick->setImageFormat('png');
+            $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
+            $imagick->mergeImageLayers(\Imagick::LAYER_METHOD_FLATTEN);
+
+            // حفظ PNG
+            $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+            $fullImagePath = storage_path('app/public/' . $imagePath);
+            $imageDir = dirname($fullImagePath);
+            if (!File::exists($imageDir)) {
+                File::makeDirectory($imageDir, 0755, true);
+            }
+
+            $imagick->writeImage($fullImagePath);
+            $imagick->destroy();
+
+            // حذف PDF المؤقت
+            if (File::exists($tempPdfPath)) {
+                File::delete($tempPdfPath);
+            }
+
+            Log::info("Converted PDF to PNG", [
+                'certificate_id' => $certificate->id,
+                'image_path' => $imagePath,
+            ]);
+
+            return $imagePath;
+
+        } catch (MpdfException $e) {
+            Log::error("Error generating certificate image from Blade (mPDF)", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error("Error generating certificate image from Blade", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * توليد صورة الشهادة من القالب مع Text Overlay (الطريقة القديمة - محفوظة للرجوع)
      */
     public function generateCertificateImage(Certificate $certificate): string
     {
