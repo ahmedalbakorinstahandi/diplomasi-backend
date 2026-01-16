@@ -16,8 +16,8 @@
         body {
             font-family: 'dejavusans', 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #FFFFFF;
-            width: 1200px;
-            height: 850px;
+            width: 100%;
+            height: 100%;
             position: relative;
             overflow: hidden;
             direction: rtl;

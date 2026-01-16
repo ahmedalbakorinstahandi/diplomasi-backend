@@ -401,7 +401,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => [1200, 850], // 1200x850 pixels
+                'format' => 'A4-L', // A4 Landscape - حجم معقول
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
@@ -512,7 +512,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => [1200, 850],
+                'format' => 'A4-L', // A4 Landscape - حجم معقول
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
@@ -525,7 +525,7 @@ class CertificateService
                 'fontdata' => $customFontData,
                 'useOTL' => 0xFF,
                 'useKashida' => 75,
-                'dpi' => 150, // دقة متوسطة (150 DPI كافٍ للعرض ويوفر الذاكرة)
+                'dpi' => 96,
             ]);
             
             Log::info("Using dejavusans font for Arabic support (PNG conversion)", [
@@ -549,17 +549,23 @@ class CertificateService
             }
 
             // إعداد حد الذاكرة لـ Imagick لتجنب "cache resources exhausted"
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256); // 256MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512); // 512MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64); // 64MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024); // 1GB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512); // 512MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024); // 1GB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128); // 128MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048); // 2GB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768); // 768MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 300); // 5 دقائق
             
             $imagick = new \Imagick();
-            $imagick->setResolution(150, 150); // تقليل الدقة لتوفير الذاكرة (150 DPI كافٍ للعرض)
+            $imagick->setResolution(100, 100); // دقة أقل لتوفير الذاكرة (100 DPI كافٍ للعرض على الشاشة)
             $imagick->readImage($tempPdfPath . '[0]');
             $imagick->setImageFormat('png');
             $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
             $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+            
+            // تحسين الصورة لتقليل الحجم
+            $imagick->stripImage(); // إزالة metadata
+            $imagick->setImageCompressionQuality(85); // جودة 85% (جيدة وكافية)
 
             // حفظ PNG
             $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
@@ -651,7 +657,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => [1200, 850], // 1200x850 pixels
+                'format' => 'A4-L', // A4 Landscape - حجم معقول
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
