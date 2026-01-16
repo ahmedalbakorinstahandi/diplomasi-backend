@@ -111,58 +111,7 @@ class CertificateController extends Controller
 
         $certificate = $result['certificate'];
 
-        // التحقق من وجود صورة الشهادة وتوليدها تلقائياً إذا لم تكن موجودة
-        $shouldGenerateImage = false;
-        
-        if (!$certificate->image_url) {
-            // الصورة غير موجودة في قاعدة البيانات
-            $shouldGenerateImage = true;
-        } else {
-            // التحقق من وجود الملف الفعلي
-            $imagePath = storage_path('app/public/' . $certificate->image_url);
-            if (!file_exists($imagePath)) {
-                // الملف غير موجود على الخادم
-                $shouldGenerateImage = true;
-            }
-        }
-
-        // توليد الصورة تلقائياً إذا لزم الأمر
-        if ($shouldGenerateImage) {
-            try {
-                $certificate->load(['user', 'course', 'level']); // تحميل العلاقات المطلوبة
-                
-                // التحقق من وجود البيانات المطلوبة
-                if (!$certificate->user) {
-                    throw new \Exception('بيانات المستخدم غير موجودة');
-                }
-                if (!$certificate->course) {
-                    throw new \Exception('بيانات الكورس غير موجودة');
-                }
-                
-                $imagePath = $this->certificateService->generateCertificateImage($certificate);
-                $certificate->image_url = $imagePath;
-                $certificate->save();
-                
-                Log::info('Certificate image auto-generated successfully in verifyWeb', [
-                    'certificate_id' => $certificate->id,
-                    'certificate_code' => $certificateCode,
-                    'image_path' => $imagePath,
-                ]);
-            } catch (\Throwable $e) {
-                // في حالة فشل توليد الصورة، نكمل العرض بدون الصورة
-                Log::error('Failed to auto-generate certificate image in verifyWeb', [
-                    'certificate_id' => $certificate->id,
-                    'certificate_code' => $certificateCode,
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => substr($e->getTraceAsString(), 0, 1000), // أول 1000 حرف فقط
-                ]);
-            }
-        }
-
-        // إعادة تحميل الشهادة للحصول على image_url المحدث
-        $certificate->refresh();
+        // لا نحتاج لتوليد PNG - PDF يُعرض مباشرة في iframe
 
         // عرض صفحة الشهادة
         return response()->view('certificates.show', [

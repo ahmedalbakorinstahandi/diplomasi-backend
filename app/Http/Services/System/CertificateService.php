@@ -301,8 +301,20 @@ class CertificateService
         $certificate->qr_code = $qrCodePath;
         $certificate->save();
 
-        // ملاحظة: لا نحتاج لحفظ PNG الآن، PDF يُعرض مباشرة عبر route certificates.pdf
-        // إذا احتجت PNG لاحقاً، يمكن استخدام generateCertificateImageFromBlade()
+        // محاولة توليد PNG من PDF (اختياري - للعرض كصورة)
+        try {
+            $imagePath = $this->generateCertificateImageFromPdf($certificate);
+            if ($imagePath) {
+                $certificate->image_url = $imagePath;
+                $certificate->save();
+            }
+        } catch (\Exception $e) {
+            // إذا فشل تحويل PDF إلى PNG، لا مشكلة - PDF يعمل بشكل ممتاز
+            Log::warning("Failed to generate PNG from PDF (optional)", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         // إرسال إشعار للمستخدم
         $this->sendCertificateIssuedNotification($certificate);
@@ -457,7 +469,131 @@ class CertificateService
     }
 
     /**
-     * توليد صورة الشهادة من Blade template (الطريقة القديمة - تحويل PDF إلى PNG)
+     * توليد PNG من PDF (للعرض كصورة - اختياري)
+     * هذه المرة نستخدم PDF الذي تم إنشاؤه بـ mPDF (يدعم العربية بشكل ممتاز)
+     */
+    public function generateCertificateImageFromPdf(Certificate $certificate): ?string
+    {
+        try {
+            // تحميل العلاقات المطلوبة
+            $certificate->load(['user', 'course', 'level']);
+
+            // تجهيز البيانات للـ Blade template
+            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
+            $courseTitle = $certificate->course->title ?? '';
+            $hours = $this->calculateTrainingHours($certificate);
+            $hoursText = $this->numberToArabicWords($hours);
+            $date = $this->formatDateInArabic($certificate->issued_at);
+
+            // مسار QR Code
+            $qrCodePath = null;
+            if ($certificate->qr_code) {
+                $qrCodeFullPath = storage_path('app/public/' . $certificate->qr_code);
+                if (file_exists($qrCodeFullPath)) {
+                    $qrCodePath = $qrCodeFullPath;
+                }
+            }
+
+            // إنشاء HTML من Blade template
+            $html = View::make('certificates.image_template', [
+                'user_name' => $userName,
+                'course_title' => $courseTitle,
+                'hours' => $hours,
+                'hours_text' => $hoursText,
+                'date' => $date,
+                'qr_code_path' => $qrCodePath,
+            ])->render();
+
+            // إنشاء PDF باستخدام mPDF
+            $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            
+            $mpdf = new Mpdf([
+                'tempDir' => storage_path('framework/cache'),
+                'mode' => 'utf-8',
+                'format' => [1200, 850],
+                'margin_left' => 0,
+                'margin_right' => 0,
+                'margin_top' => 0,
+                'margin_bottom' => 0,
+                'margin_header' => 0,
+                'margin_footer' => 0,
+                'default_font' => 'dejavusans',
+                'default_font_size' => 12,
+                'useOTL' => 0xFF,
+                'useKashida' => 75,
+                'dpi' => 300, // دقة عالية للصورة
+            ]);
+
+            // تسجيل الخط العربي
+            if (file_exists($fontPath)) {
+                try {
+                    $mpdf->fontdata['HuwiyaDisplay'] = [
+                        'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    ];
+                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
+                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to register Arabic font", ['error' => $e->getMessage()]);
+                }
+            }
+
+            $mpdf->SetDirectionality('rtl');
+            $mpdf->WriteHTML($html);
+
+            // حفظ PDF مؤقتاً
+            $tempPdfPath = storage_path('app/temp/certificate_' . $certificate->id . '_' . time() . '.pdf');
+            $tempDir = dirname($tempPdfPath);
+            if (!File::exists($tempDir)) {
+                File::makeDirectory($tempDir, 0755, true);
+            }
+            $mpdf->Output($tempPdfPath, 'F');
+
+            // تحويل PDF إلى PNG باستخدام Imagick
+            if (!extension_loaded('imagick')) {
+                throw new \Exception('Imagick extension is required to convert PDF to PNG');
+            }
+
+            $imagick = new \Imagick();
+            $imagick->setResolution(300, 300); // دقة عالية
+            $imagick->readImage($tempPdfPath . '[0]');
+            $imagick->setImageFormat('png');
+            $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
+            $imagick->mergeImageLayers(\Imagick::LAYER_METHOD_FLATTEN);
+
+            // حفظ PNG
+            $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+            $fullImagePath = storage_path('app/public/' . $imagePath);
+            $imageDir = dirname($fullImagePath);
+            if (!File::exists($imageDir)) {
+                File::makeDirectory($imageDir, 0755, true);
+            }
+
+            $imagick->writeImage($fullImagePath);
+            $imagick->destroy();
+
+            // حذف PDF المؤقت
+            if (File::exists($tempPdfPath)) {
+                File::delete($tempPdfPath);
+            }
+
+            Log::info("Converted PDF to PNG successfully", [
+                'certificate_id' => $certificate->id,
+                'image_path' => $imagePath,
+            ]);
+
+            return $imagePath;
+
+        } catch (\Exception $e) {
+            Log::error("Error converting PDF to PNG", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+            return null; // إرجاع null بدلاً من throw - لأن PNG اختياري
+        }
+    }
+
+    /**
+     * توليد صورة الشهادة من Blade template (الطريقة القديمة - محفوظة للرجوع)
      */
     public function generateCertificateImageFromBlade(Certificate $certificate): string
     {

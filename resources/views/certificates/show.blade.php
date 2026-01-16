@@ -190,28 +190,29 @@
 
             @php
                 use App\Services\MediaUrlService;
-                $imageUrl = $certificate->image_url ? MediaUrlService::toUrl($certificate->image_url) : null;
                 $qrCodeUrl = $certificate->qr_code ? MediaUrlService::toUrl($certificate->qr_code) : null;
+                $pdfUrl = route('certificates.pdf', $certificate_code);
             @endphp
 
-            @if($imageUrl)
+            <!-- عرض PDF مباشرة -->
             <div class="certificate-image">
-                <img src="{{ $imageUrl }}" alt="صورة الشهادة" onerror="this.parentElement.innerHTML='<div class=\'no-image\'>📄 صورة الشهادة غير متاحة حالياً</div>'">
+                <iframe src="{{ $pdfUrl }}" 
+                        style="width: 100%; height: 800px; border: none; border-radius: 10px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);"
+                        title="صورة الشهادة">
+                    <p>المتصفح لا يدعم عرض PDF. 
+                       <a href="{{ $pdfUrl }}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                           اضغط هنا لتحميل PDF
+                       </a>
+                    </p>
+                </iframe>
             </div>
-            @else
-            <div class="certificate-image">
-                <div class="no-image">
-                    📄 صورة الشهادة غير متاحة حالياً
-                </div>
-            </div>
-            @endif
 
-            <!-- زر تحميل/عرض PDF -->
+            <!-- زر تحميل PDF -->
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ route('certificates.pdf', $certificate_code) }}" target="_blank" 
+                <a href="{{ $pdfUrl }}" target="_blank" 
                    style="display: inline-block; background: #667eea; color: white; padding: 15px 30px; 
                           border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 18px;">
-                    📄 عرض/تحميل PDF الشهادة
+                    📥 تحميل PDF الشهادة
                 </a>
             </div>
 
