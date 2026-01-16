@@ -543,24 +543,38 @@ class CertificateService
             }
             $mpdf->Output($tempPdfPath, 'F');
 
-            // محاولة تحويل PDF إلى PNG باستخدام Imagick
-            // إذا فشل، نرجع null (PNG اختياري - PDF يعمل بشكل ممتاز)
-            if (!extension_loaded('imagick')) {
-                Log::warning("Imagick not available, skipping PNG conversion");
-                return null;
-            }
-
+            // محاولة تحويل PDF إلى PNG
+            // أولاً: Ghostscript (أخف وأسرع)
+            // ثانياً: Imagick (إذا فشل Ghostscript)
             try {
-                // إعداد حد الذاكرة لـ Imagick
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 60); // 60 ثانية فقط
+                // محاولة استخدام Ghostscript أولاً (أخف وأسرع)
+                $gsPath = $this->findGhostscriptPath();
+                if ($gsPath && $this->convertPdfToPngWithGhostscript($tempPdfPath, $certificate, $gsPath)) {
+                    $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+                    if (file_exists(storage_path('app/public/' . $imagePath))) {
+                        Log::info("Converted PDF to PNG using Ghostscript", [
+                            'certificate_id' => $certificate->id,
+                            'image_path' => $imagePath,
+                        ]);
+                        return $imagePath;
+                    }
+                }
+                
+                // إذا فشل Ghostscript، استخدم Imagick
+                if (!extension_loaded('imagick')) {
+                    Log::warning("Imagick not available, Ghostscript also failed");
+                    return null;
+                }
+                
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256); // تقليل الذاكرة
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 384);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 30); // 30 ثانية فقط
                 
                 $imagick = new \Imagick();
-                $imagick->setResolution(72, 72); // دقة منخفضة (72 DPI) لتوفير الذاكرة
+                $imagick->setResolution(50, 50); // دقة منخفضة جداً (50 DPI) لتوفير الذاكرة
                 $imagick->readImage($tempPdfPath . '[0]');
                 $imagick->setImageFormat('png');
                 $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
@@ -568,7 +582,7 @@ class CertificateService
                 
                 // تحسين الصورة لتقليل الحجم
                 $imagick->stripImage();
-                $imagick->setImageCompressionQuality(80);
+                $imagick->setImageCompressionQuality(75); // جودة أقل قليلاً
 
                 // حفظ PNG
                 $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
@@ -727,28 +741,44 @@ class CertificateService
                 'pdf_path' => $tempPdfPath,
             ]);
 
-            // محاولة تحويل PDF إلى PNG (اختياري)
-            if (!extension_loaded('imagick')) {
-                Log::warning("Imagick not available, skipping PNG conversion");
-                return null;
-            }
-
+            // محاولة تحويل PDF إلى PNG
+            // أولاً: Ghostscript (أخف وأسرع)
+            // ثانياً: Imagick (إذا فشل Ghostscript)
             try {
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 60);
+                // محاولة استخدام Ghostscript أولاً (أخف وأسرع)
+                $gsPath = $this->findGhostscriptPath();
+                if ($gsPath && $this->convertPdfToPngWithGhostscript($tempPdfPath, $certificate, $gsPath)) {
+                    $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+                    if (file_exists(storage_path('app/public/' . $imagePath))) {
+                        Log::info("Converted PDF to PNG using Ghostscript (generateCertificateImageFromBlade)", [
+                            'certificate_id' => $certificate->id,
+                            'image_path' => $imagePath,
+                        ]);
+                        return $imagePath;
+                    }
+                }
+                
+                // إذا فشل Ghostscript، استخدم Imagick
+                if (!extension_loaded('imagick')) {
+                    Log::warning("Imagick not available, Ghostscript also failed");
+                    return null;
+                }
+                
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 384);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 30);
                 
                 $imagick = new \Imagick();
-                $imagick->setResolution(72, 72); // دقة منخفضة
+                $imagick->setResolution(50, 50); // دقة منخفضة جداً
                 $imagick->readImage($tempPdfPath . '[0]');
                 $imagick->setImageFormat('png');
                 $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
                 $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
                 $imagick->stripImage();
-                $imagick->setImageCompressionQuality(80);
+                $imagick->setImageCompressionQuality(75);
 
                 // حفظ PNG
                 $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
@@ -795,6 +825,88 @@ class CertificateService
                 'trace' => $e->getTraceAsString(),
             ]);
             return null; // PNG اختياري
+        }
+    }
+
+    /**
+     * البحث عن مسار Ghostscript
+     */
+    private function findGhostscriptPath(): ?string
+    {
+        $possiblePaths = [
+            '/usr/bin/gs',
+            '/usr/local/bin/gs',
+            '/bin/gs',
+            'gs', // في PATH
+        ];
+        
+        foreach ($possiblePaths as $path) {
+            if ($path === 'gs') {
+                // محاولة استخدام which/whereis
+                $output = [];
+                $returnVar = 0;
+                @exec('which gs 2>/dev/null', $output, $returnVar);
+                if ($returnVar === 0 && !empty($output)) {
+                    return trim($output[0]);
+                }
+            } else {
+                if (file_exists($path) && is_executable($path)) {
+                    return $path;
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * تحويل PDF إلى PNG باستخدام Ghostscript (أخف من Imagick)
+     */
+    private function convertPdfToPngWithGhostscript(string $pdfPath, Certificate $certificate, string $gsPath): bool
+    {
+        try {
+            $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+            $fullImagePath = storage_path('app/public/' . $imagePath);
+            $imageDir = dirname($fullImagePath);
+            if (!File::exists($imageDir)) {
+                File::makeDirectory($imageDir, 0755, true);
+            }
+            
+            // استخدام Ghostscript لتحويل PDF إلى PNG
+            // -dNOPAUSE: لا توقف بين الصفحات
+            // -dBATCH: إنهاء بعد المعالجة
+            // -sDEVICE=png16m: استخدام PNG 24-bit
+            // -r72: دقة 72 DPI
+            // -dFirstPage=1 -dLastPage=1: الصفحة الأولى فقط
+            // -sOutputFile: ملف الإخراج
+            $command = escapeshellarg($gsPath) . 
+                ' -dNOPAUSE -dBATCH -sDEVICE=png16m' .
+                ' -r72' . // دقة 72 DPI
+                ' -dFirstPage=1 -dLastPage=1' .
+                ' -sOutputFile=' . escapeshellarg($fullImagePath) .
+                ' ' . escapeshellarg($pdfPath) . 
+                ' 2>&1';
+            
+            $output = [];
+            $returnVar = 0;
+            @exec($command, $output, $returnVar);
+            
+            if ($returnVar === 0 && file_exists($fullImagePath) && filesize($fullImagePath) > 0) {
+                return true;
+            }
+            
+            Log::warning("Ghostscript conversion failed", [
+                'command' => $command,
+                'output' => implode("\n", $output),
+                'return_var' => $returnVar,
+            ]);
+            
+            return false;
+        } catch (\Exception $e) {
+            Log::warning("Ghostscript conversion error", [
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 

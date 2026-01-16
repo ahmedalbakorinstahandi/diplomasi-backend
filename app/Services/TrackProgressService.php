@@ -1346,7 +1346,19 @@ class TrackProgressService
                 // استخدام levelTracks المحملة مسبقاً
                 $levelTracks = $allLevelTracks->get($levelId, collect());
 
-                if ($levelTracks->isNotEmpty()) {
+                // التحقق من وجود tracks منشورة
+                $hasPublishedTracks = false;
+                foreach ($levelTracks as $track) {
+                    if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
+                        $hasPublishedTracks = true;
+                        break;
+                    }
+                }
+
+                // إذا لم يكن هناك tracks منشورة، المستوى يعتبر مكتملاً تلقائياً (فارغ)
+                if (!$hasPublishedTracks) {
+                    $isCompleted = true;
+                } elseif ($levelTracks->isNotEmpty()) {
                     $allCompleted = true;
                     foreach ($levelTracks as $track) {
                         if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
@@ -1371,33 +1383,53 @@ class TrackProgressService
             }
 
             // تحديد access_status
-            $accessStatus = 'locked';
+            $accessStatus = 'locked'; // الافتراضي: مقفول
+            
             if ($isCompleted) {
+                // إذا كان المستوى مكتملاً، دائماً completed
                 $accessStatus = 'completed';
             } elseif ($level->course_id && isset($allCourseLevels[$level->course_id])) {
-                // العثور على المستوى السابق
+                // العثور على المستوى السابق (الأقرب للمستوى الحالي)
                 $courseLevels = $allCourseLevels[$level->course_id];
                 $previousLevel = null;
+                $maxOrderIndex = -1;
+                
                 foreach ($courseLevels as $courseLevel) {
-                    if ($courseLevel->order_index < $level->order_index) {
+                    if ($courseLevel->order_index < $level->order_index && $courseLevel->order_index > $maxOrderIndex) {
                         $previousLevel = $courseLevel;
-                    } else {
-                        break;
+                        $maxOrderIndex = $courseLevel->order_index;
                     }
                 }
 
                 if (!$previousLevel) {
+                    // لا يوجد مستوى سابق - هذا المستوى الأول في الكورس
                     $accessStatus = 'open';
                 } else {
+                    // التحقق من إكمال المستوى السابق
                     $previousUserProgress = $userLevelProgressMap->get($previousLevel->id);
+                    $previousCompleted = false;
+                    
                     if ($previousUserProgress && $previousUserProgress->status === 'completed') {
-                        $accessStatus = 'open';
+                        $previousCompleted = true;
                     } else {
                         // استخدام levelTracks المحملة مسبقاً للمستوى السابق
                         $previousLevelTracks = $allCourseLevelTracks->get($previousLevel->id, collect());
 
-                        $previousCompleted = true;
-                        if ($previousLevelTracks->isNotEmpty()) {
+                        // التحقق من وجود tracks منشورة
+                        $hasPublishedTracks = false;
+                        foreach ($previousLevelTracks as $track) {
+                            if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
+                                $hasPublishedTracks = true;
+                                break;
+                            }
+                        }
+
+                        // إذا لم يكن هناك tracks منشورة، المستوى السابق يعتبر مكتملاً تلقائياً (فارغ)
+                        if (!$hasPublishedTracks) {
+                            $previousCompleted = true;
+                        } else {
+                            // التحقق من إكمال جميع tracks المنشورة
+                            $allTracksCompleted = true;
                             foreach ($previousLevelTracks as $track) {
                                 if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
                                     continue;
@@ -1412,18 +1444,20 @@ class TrackProgressService
                                 }
 
                                 if (!$trackCompleted) {
-                                    $previousCompleted = false;
+                                    $allTracksCompleted = false;
                                     break;
                                 }
                             }
-                        } else {
-                            $previousCompleted = false;
+                            $previousCompleted = $allTracksCompleted;
                         }
-
-                        $accessStatus = $previousCompleted ? 'open' : 'locked';
                     }
+
+                    // إذا كان المستوى السابق مكتملاً، المستوى الحالي مفتوح
+                    // وإلا فهو مقفول
+                    $accessStatus = $previousCompleted ? 'open' : 'locked';
                 }
             } else {
+                // إذا لم يكن له كورس، يكون مفتوح
                 $accessStatus = 'open';
             }
 
