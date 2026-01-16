@@ -1406,10 +1406,13 @@ class TrackProgressService
                     $accessStatus = 'open';
                 } else {
                     // التحقق من إكمال المستوى السابق
+                    // يجب أن يكون المستوى السابق مكتملاً بالفعل لكي يكون المستوى الحالي مفتوحاً
                     $previousUserProgress = $userLevelProgressMap->get($previousLevel->id);
                     $previousCompleted = false;
                     
+                    // التحقق أولاً من status في UserLevelProgress
                     if ($previousUserProgress && $previousUserProgress->status === 'completed') {
+                        // المستوى السابق مكتملاً في قاعدة البيانات
                         $previousCompleted = true;
                     } else {
                         // استخدام levelTracks المحملة مسبقاً للمستوى السابق
@@ -1424,9 +1427,11 @@ class TrackProgressService
                             }
                         }
 
-                        // إذا لم يكن هناك tracks منشورة، المستوى السابق يعتبر مكتملاً تلقائياً (فارغ)
                         if (!$hasPublishedTracks) {
-                            $previousCompleted = true;
+                            // المستوى السابق فارغ (لا توجد tracks منشورة)
+                            // لا نعتبره مكتملاً تلقائياً - يجب أن يكون المستوى السابق مكتملاً بالفعل في قاعدة البيانات
+                            // المستوى الفارغ يحتاج إلى أن يتم إكماله فعلياً (status = completed)
+                            $previousCompleted = false;
                         } else {
                             // التحقق من إكمال جميع tracks المنشورة
                             $allTracksCompleted = true;
