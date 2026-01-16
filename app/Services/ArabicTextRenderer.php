@@ -43,7 +43,9 @@ class ArabicTextRenderer
     
     /**
      * معالجة النص العربي لضمان الاتجاه الصحيح
-     * إضافة Unicode marks للتأكد من RTL
+     * 
+     * ملاحظة مهمة: بدون Pango، GD/Imagick لا يدعم Arabic shaping بشكل صحيح.
+     * الحل الجذري: تثبيت Pango على السيرفر (راجع docs/ARABIC_TEXT_FIX.md)
      */
     public static function prepareArabicText(string $text): string
     {
@@ -52,10 +54,11 @@ class ArabicTextRenderer
             return $text;
         }
         
-        // إضافة LRM (Left-to-Right Mark) قبل وبعد الكلمات الإنجليزية
-        // هذا يضمن أن الكلمات الإنجليزية تظهر بشكل صحيح داخل النص العربي
+        // إضافة LRM للكلمات الإنجليزية في النص المختلط
         $text = preg_replace('/([a-zA-Z0-9]+)/u', "\xE2\x80\x8E$1\xE2\x80\x8E", $text);
         
+        // بدون Pango، لا يمكن ضمان اتصال الحروف بشكل صحيح
+        // لكن نحاول على الأقل تحسين الاتجاه
         return $text;
     }
 }
