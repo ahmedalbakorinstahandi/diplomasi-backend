@@ -13,8 +13,8 @@ use Intervention\Image\Interfaces\ImageInterface;
 class ArabicTextRenderer
 {
     /**
-     * كتابة نص عربي على صورة باستخدام Imagick مباشرة
-     * محاولة استخدام Imagick مباشرة للحصول على أفضل دعم للعربية
+     * كتابة نص عربي على صورة باستخدام Pango markup في ImageMagick
+     * هذا يدعم العربية بشكل ممتاز مع اتصال الحروف
      */
     public static function writeArabicText(
         ImageInterface $image,
@@ -26,8 +26,8 @@ class ArabicTextRenderer
         string $fontPath,
         ImageManager $manager
     ): ImageInterface {
-        // محاولة استخدام Imagick مباشرة إذا كان متاحاً
-        if (extension_loaded('imagick') && class_exists('\Imagick') && class_exists('\ImagickDraw')) {
+        // محاولة استخدام Pango markup إذا كان ImageMagick يدعمه
+        if (extension_loaded('imagick') && class_exists('\Imagick')) {
             try {
                 // الحصول على Imagick object من Intervention Image
                 $core = $image->core();
@@ -35,9 +35,105 @@ class ArabicTextRenderer
                     $imagick = $core->native();
                     
                     if ($imagick instanceof \Imagick) {
+                        // التحقق من دعم Pango في ImageMagick
+                        $versionInfo = $imagick->getVersion();
+                        $versionString = $versionInfo['versionString'] ?? '';
+                        
+                        if (stripos($versionString, 'pangocairo') !== false || 
+                            stripos($versionString, 'pango') !== false) {
+                            
+                            // استخدام Pango markup للعربية
+                            $width = $imagick->getImageWidth();
+                            $height = $imagick->getImageHeight();
+                            
+                            // تحضير النص للـ Pango markup
+                            $escapedText = htmlspecialchars($text, ENT_XML1, 'UTF-8');
+                            
+                            // بناء Pango markup مع الخط واللون والحجم
+                            // Pango يحتاج اسم الخط أو file:// URI
+                            $fontSpec = 'Arial'; // Default
+                            
+                            if ($fontPath && file_exists($fontPath)) {
+                                // محاولة الحصول على اسم الخط من fontconfig أولاً
+                                $fontName = self::getFontNameFromPath($fontPath);
+                                
+                                if ($fontName) {
+                                    // استخدام اسم الخط المسجل في fontconfig
+                                    $fontSpec = $fontName;
+                                } else {
+                                    // استخدام file:// URI كبديل
+                                    $fontSpec = 'file://' . $fontPath;
+                                }
+                            }
+                            
+                            // Pango markup مع RTL وArabic shaping
+                            $pangoMarkup = sprintf(
+                                '<span font="%s" size="%d" foreground="%s" dir="rtl" lang="ar">%s</span>',
+                                htmlspecialchars($fontSpec, ENT_XML1, 'UTF-8'),
+                                (int)($fontSize * 1024), // Pango uses 1024th of a point (1 point = 1024 units)
+                                $color,
+                                $escapedText
+                            );
+                            
+                            // إنشاء صورة نصية باستخدام Pango
+                            // نحتاج إلى حساب عرض النص تقريبياً
+                            $textWidth = $width * 0.9; // 90% من عرض الصورة
+                            $textHeight = $fontSize * 4; // ارتفاع كافٍ للنص (أكبر قليلاً)
+                            
+                            try {
+                                $textImage = new \Imagick();
+                                $textImage->setBackgroundColor(new \ImagickPixel('transparent'));
+                                
+                                // استخدام Pango markup لإنشاء صورة النص
+                                $pangoCommand = "pango:{$pangoMarkup}";
+                                $textImage->newPseudoImage(
+                                    (int)$textWidth,
+                                    (int)$textHeight,
+                                    $pangoCommand
+                                );
+                                
+                                // دمج صورة النص مع الصورة الأساسية
+                                // حساب الموضع للوسط
+                                $textImgWidth = $textImage->getImageWidth();
+                                $textImgHeight = $textImage->getImageHeight();
+                                
+                                $destX = (int)($x - ($textImgWidth / 2));
+                                $destY = (int)$y;
+                                
+                                // التأكد من أن المواضع صحيحة
+                                if ($destX < 0) $destX = 0;
+                                if ($destY < 0) $destY = 0;
+                                
+                                $imagick->compositeImage(
+                                    $textImage,
+                                    \Imagick::COMPOSITE_OVER,
+                                    $destX,
+                                    $destY
+                                );
+                                
+                                $textImage->destroy();
+                                
+                                Log::info("Used Pango markup for Arabic text", [
+                                    'text' => substr($text, 0, 50),
+                                    'font' => $fontSpec,
+                                    'pango_support' => 'yes',
+                                    'text_size' => "{$textImgWidth}x{$textImgHeight}",
+                                    'position' => "{$destX},{$destY}",
+                                ]);
+                                
+                                return $image;
+                            } catch (\Throwable $e) {
+                                Log::warning("Pango markup failed, trying standard Imagick", [
+                                    'error' => $e->getMessage(),
+                                    'pango_markup' => substr($pangoMarkup, 0, 100),
+                                ]);
+                                // Continue to fallback
+                            }
+                        }
+                        
+                        // Fallback: استخدام ImagickDraw العادي
                         $draw = new \ImagickDraw();
                         
-                        // إعداد الخط
                         if ($fontPath && file_exists($fontPath)) {
                             $draw->setFont($fontPath);
                         }
@@ -47,14 +143,10 @@ class ArabicTextRenderer
                         $draw->setTextAlignment(\Imagick::ALIGN_CENTER);
                         $draw->setGravity(\Imagick::GRAVITY_NORTH);
                         
-                        // محاولة تحسين العربية: عكس النص يدوياً
-                        // لأن Imagick بدون Pango يكتبه بشكل معكوس
-                        $processedText = self::reverseArabicText($text);
+                        // كتابة النص (بدون عكس - قد يعمل بشكل أفضل الآن مع Imagick)
+                        $imagick->annotateImage($draw, $x, $y, 0, $text);
                         
-                        // كتابة النص
-                        $imagick->annotateImage($draw, $x, $y, 0, $processedText);
-                        
-                        Log::info("Used Imagick directly for Arabic text", [
+                        Log::info("Used Imagick Draw for Arabic text", [
                             'text' => substr($text, 0, 50),
                             'font' => $fontPath ? basename($fontPath) : 'default',
                         ]);
@@ -63,8 +155,9 @@ class ArabicTextRenderer
                     }
                 }
             } catch (\Throwable $e) {
-                Log::warning("Failed to use Imagick directly, falling back", [
+                Log::warning("Failed to use Imagick, falling back to Intervention Image", [
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         }
@@ -84,33 +177,23 @@ class ArabicTextRenderer
     }
     
     /**
-     * عكس ترتيب النص العربي لأن Imagick بدون Pango يكتبه بشكل معكوس
+     * الحصول على اسم الخط من fontconfig باستخدام مسار الخط
      */
-    private static function reverseArabicText(string $text): string
+    private static function getFontNameFromPath(string $fontPath): ?string
     {
-        // إذا لم يكن هناك نص عربي، إرجاعه كما هو
-        if (!preg_match('/[\x{0600}-\x{06FF}]/u', $text)) {
-            return $text;
-        }
-        
-        // فصل النص إلى كلمات
-        $words = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-        $reversed = [];
-        
-        foreach ($words as $word) {
-            // إذا كانت الكلمة عربية، عكس ترتيب الحروف
-            if (preg_match('/[\x{0600}-\x{06FF}]/u', $word)) {
-                // عكس ترتيب الحروف
-                $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY);
-                $reversed[] = implode('', array_reverse($chars));
-            } else {
-                // الكلمات الإنجليزية تبقى كما هي
-                $reversed[] = $word;
+        // محاولة الحصول على اسم الخط من fontconfig
+        // باستخدام fc-query (إذا كان متاحاً)
+        if (function_exists('shell_exec')) {
+            $command = "fc-query --format='%{family}' " . escapeshellarg($fontPath) . " 2>/dev/null";
+            $fontName = @shell_exec($command);
+            
+            if ($fontName && trim($fontName)) {
+                return trim($fontName);
             }
         }
         
-        // عكس ترتيب الكلمات أيضاً (RTL)
-        return implode('', array_reverse($reversed));
+        // إذا فشل، إرجاع null لاستخدام file:// URI
+        return null;
     }
     
     /**
