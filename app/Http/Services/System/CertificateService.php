@@ -525,7 +525,7 @@ class CertificateService
                 'fontdata' => $customFontData,
                 'useOTL' => 0xFF,
                 'useKashida' => 75,
-                'dpi' => 300, // دقة عالية للصورة
+                'dpi' => 150, // دقة متوسطة (150 DPI كافٍ للعرض ويوفر الذاكرة)
             ]);
             
             Log::info("Using dejavusans font for Arabic support (PNG conversion)", [
@@ -548,8 +548,14 @@ class CertificateService
                 throw new \Exception('Imagick extension is required to convert PDF to PNG');
             }
 
+            // إعداد حد الذاكرة لـ Imagick لتجنب "cache resources exhausted"
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256); // 256MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512); // 512MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64); // 64MB
+            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024); // 1GB
+            
             $imagick = new \Imagick();
-            $imagick->setResolution(300, 300); // دقة عالية
+            $imagick->setResolution(150, 150); // تقليل الدقة لتوفير الذاكرة (150 DPI كافٍ للعرض)
             $imagick->readImage($tempPdfPath . '[0]');
             $imagick->setImageFormat('png');
             $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
