@@ -543,66 +543,89 @@ class CertificateService
             }
             $mpdf->Output($tempPdfPath, 'F');
 
-            // تحويل PDF إلى PNG باستخدام Imagick
+            // محاولة تحويل PDF إلى PNG باستخدام Imagick
+            // إذا فشل، نرجع null (PNG اختياري - PDF يعمل بشكل ممتاز)
             if (!extension_loaded('imagick')) {
-                throw new \Exception('Imagick extension is required to convert PDF to PNG');
+                Log::warning("Imagick not available, skipping PNG conversion");
+                return null;
             }
 
-            // إعداد حد الذاكرة لـ Imagick لتجنب "cache resources exhausted"
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512); // 512MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024); // 1GB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128); // 128MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048); // 2GB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768); // 768MB
-            \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 300); // 5 دقائق
-            
-            $imagick = new \Imagick();
-            $imagick->setResolution(100, 100); // دقة أقل لتوفير الذاكرة (100 DPI كافٍ للعرض على الشاشة)
-            $imagick->readImage($tempPdfPath . '[0]');
-            $imagick->setImageFormat('png');
-            $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-            $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
-            
-            // تحسين الصورة لتقليل الحجم
-            $imagick->stripImage(); // إزالة metadata
-            $imagick->setImageCompressionQuality(85); // جودة 85% (جيدة وكافية)
+            try {
+                // إعداد حد الذاكرة لـ Imagick
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 60); // 60 ثانية فقط
+                
+                $imagick = new \Imagick();
+                $imagick->setResolution(72, 72); // دقة منخفضة (72 DPI) لتوفير الذاكرة
+                $imagick->readImage($tempPdfPath . '[0]');
+                $imagick->setImageFormat('png');
+                $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
+                $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+                
+                // تحسين الصورة لتقليل الحجم
+                $imagick->stripImage();
+                $imagick->setImageCompressionQuality(80);
 
-            // حفظ PNG
-            $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
-            $fullImagePath = storage_path('app/public/' . $imagePath);
-            $imageDir = dirname($fullImagePath);
-            if (!File::exists($imageDir)) {
-                File::makeDirectory($imageDir, 0755, true);
+                // حفظ PNG
+                $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+                $fullImagePath = storage_path('app/public/' . $imagePath);
+                $imageDir = dirname($fullImagePath);
+                if (!File::exists($imageDir)) {
+                    File::makeDirectory($imageDir, 0755, true);
+                }
+
+                $imagick->writeImage($fullImagePath);
+                $imagick->destroy();
+
+                Log::info("Converted PDF to PNG successfully", [
+                    'certificate_id' => $certificate->id,
+                    'image_path' => $imagePath,
+                ]);
+
+                return $imagePath;
+                
+            } catch (\ImagickException $e) {
+                // إذا فشل Imagick، لا مشكلة - PDF يعمل بشكل ممتاز
+                Log::warning("Failed to convert PDF to PNG (optional)", [
+                    'certificate_id' => $certificate->id,
+                    'error' => $e->getMessage(),
+                    'note' => 'PDF is available and works perfectly',
+                ]);
+                return null;
+            } catch (\Exception $e) {
+                Log::warning("Failed to convert PDF to PNG (optional)", [
+                    'certificate_id' => $certificate->id,
+                    'error' => $e->getMessage(),
+                    'note' => 'PDF is available and works perfectly',
+                ]);
+                return null;
+            } finally {
+                // حذف PDF المؤقت
+                if (File::exists($tempPdfPath)) {
+                    File::delete($tempPdfPath);
+                }
             }
-
-            $imagick->writeImage($fullImagePath);
-            $imagick->destroy();
-
-            // حذف PDF المؤقت
-            if (File::exists($tempPdfPath)) {
-                File::delete($tempPdfPath);
-            }
-
-            Log::info("Converted PDF to PNG successfully", [
-                'certificate_id' => $certificate->id,
-                'image_path' => $imagePath,
-            ]);
-
-            return $imagePath;
 
         } catch (\Exception $e) {
-            Log::error("Error converting PDF to PNG", [
+            // PNG اختياري - إذا فشل، PDF يعمل بشكل ممتاز
+            Log::warning("Error converting PDF to PNG (optional)", [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
+                'note' => 'PDF is available and works perfectly - PNG is optional',
             ]);
-            return null; // إرجاع null بدلاً من throw - لأن PNG اختياري
+            return null;
         }
     }
 
     /**
      * توليد صورة الشهادة من Blade template (الطريقة القديمة - محفوظة للرجوع)
+     * ملاحظة: PNG اختياري - إذا فشل، PDF يعمل بشكل ممتاز
      */
-    public function generateCertificateImageFromBlade(Certificate $certificate): string
+    public function generateCertificateImageFromBlade(Certificate $certificate): ?string
     {
         try {
             // تحميل العلاقات المطلوبة
@@ -704,54 +727,74 @@ class CertificateService
                 'pdf_path' => $tempPdfPath,
             ]);
 
-            // تحويل PDF إلى PNG باستخدام Imagick
+            // محاولة تحويل PDF إلى PNG (اختياري)
             if (!extension_loaded('imagick')) {
-                throw new \Exception('Imagick extension is required to convert PDF to PNG');
+                Log::warning("Imagick not available, skipping PNG conversion");
+                return null;
             }
 
-            $imagick = new \Imagick();
-            $imagick->setResolution(300, 300); // عالية الدقة
-            $imagick->readImage($tempPdfPath . '[0]'); // قراءة الصفحة الأولى فقط
-            $imagick->setImageFormat('png');
-            $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-            $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+            try {
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 512);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 1024);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 128);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 2048);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 768);
+                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 60);
+                
+                $imagick = new \Imagick();
+                $imagick->setResolution(72, 72); // دقة منخفضة
+                $imagick->readImage($tempPdfPath . '[0]');
+                $imagick->setImageFormat('png');
+                $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
+                $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+                $imagick->stripImage();
+                $imagick->setImageCompressionQuality(80);
 
-            // حفظ PNG
-            $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
-            $fullImagePath = storage_path('app/public/' . $imagePath);
-            $imageDir = dirname($fullImagePath);
-            if (!File::exists($imageDir)) {
-                File::makeDirectory($imageDir, 0755, true);
+                // حفظ PNG
+                $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
+                $fullImagePath = storage_path('app/public/' . $imagePath);
+                $imageDir = dirname($fullImagePath);
+                if (!File::exists($imageDir)) {
+                    File::makeDirectory($imageDir, 0755, true);
+                }
+
+                $imagick->writeImage($fullImagePath);
+                $imagick->destroy();
+
+                Log::info("Converted PDF to PNG", [
+                    'certificate_id' => $certificate->id,
+                    'image_path' => $imagePath,
+                ]);
+
+                return $imagePath;
+                
+            } catch (\Exception $e) {
+                Log::warning("Failed to convert PDF to PNG (optional)", [
+                    'certificate_id' => $certificate->id,
+                    'error' => $e->getMessage(),
+                    'note' => 'PDF is available and works perfectly',
+                ]);
+                return null;
+            } finally {
+                // حذف PDF المؤقت
+                if (File::exists($tempPdfPath)) {
+                    File::delete($tempPdfPath);
+                }
             }
-
-            $imagick->writeImage($fullImagePath);
-            $imagick->destroy();
-
-            // حذف PDF المؤقت
-            if (File::exists($tempPdfPath)) {
-                File::delete($tempPdfPath);
-            }
-
-            Log::info("Converted PDF to PNG", [
-                'certificate_id' => $certificate->id,
-                'image_path' => $imagePath,
-            ]);
-
-            return $imagePath;
 
         } catch (MpdfException $e) {
             Log::error("Error generating certificate image from Blade (mPDF)", [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
             ]);
-            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage());
+            return null; // PNG اختياري
         } catch (\Exception $e) {
             Log::error("Error generating certificate image from Blade", [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage());
+            return null; // PNG اختياري
         }
     }
 

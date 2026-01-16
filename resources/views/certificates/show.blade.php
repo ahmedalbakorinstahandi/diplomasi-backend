@@ -197,13 +197,20 @@
 
             @if($imageUrl)
             <div class="certificate-image">
-                <img src="{{ $imageUrl }}" alt="صورة الشهادة" onerror="this.parentElement.innerHTML='<div class=\'no-image\'>📄 صورة الشهادة غير متاحة حالياً</div>'">
+                <img src="{{ $imageUrl }}" alt="صورة الشهادة" onerror="this.parentElement.innerHTML='<iframe src=\'{{ $pdfUrl }}\' style=\'width:100%;height:800px;border:none;\'></iframe>'">
             </div>
             @else
+            <!-- إذا لم تكن PNG موجودة، عرض PDF مباشرة -->
             <div class="certificate-image">
-                <div class="no-image">
-                    📄 صورة الشهادة غير متاحة حالياً
-                </div>
+                <iframe src="{{ $pdfUrl }}" 
+                        style="width: 100%; height: 800px; border: none; border-radius: 10px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);"
+                        title="صورة الشهادة">
+                    <p>المتصفح لا يدعم عرض PDF. 
+                       <a href="{{ $pdfUrl }}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                           اضغط هنا لتحميل PDF
+                       </a>
+                    </p>
+                </iframe>
             </div>
             @endif
 
