@@ -8,13 +8,15 @@ use App\Models\Learning\Level;
 use App\Models\Progress\UserCourse;
 use App\Models\Progress\UserLevelProgress;
 use App\Models\System\Certificate;
+use App\Services\ArabicTextRenderer;
 use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Drivers\Imagick\Driver as ImagickDriver;
 use Intervention\Image\ImageManager;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -334,7 +336,23 @@ class CertificateService
     public function generateCertificateImage(Certificate $certificate): string
     {
         try {
-            $manager = new ImageManager(new Driver());
+            // محاولة استخدام Imagick أولاً (يدعم العربية بشكل أفضل)
+            // إذا لم يكن متاحاً، نستخدم GD
+            $useImagick = extension_loaded('imagick');
+            
+            if ($useImagick) {
+                try {
+                    $manager = new ImageManager(new ImagickDriver());
+                    Log::info("Using Imagick driver for Arabic text support");
+                } catch (\Exception $e) {
+                    Log::warning("Imagick driver failed, falling back to GD", ['error' => $e->getMessage()]);
+                    $useImagick = false;
+                    $manager = new ImageManager(new GdDriver());
+                }
+            } else {
+                $manager = new ImageManager(new GdDriver());
+                Log::warning("Imagick extension not available, using GD driver (limited Arabic support)");
+            }
 
             // إنشاء صورة بيضاء جديدة بدلاً من استخدام القالب
             // حجم مناسب للطباعة: 1200x850 بكسل (نسبة 16:11 تقريباً)
@@ -350,6 +368,7 @@ class CertificateService
             Log::info("Certificate image created (white background)", [
                 'image_width' => $imageWidth,
                 'image_height' => $imageHeight,
+                'driver' => $useImagick ? 'Imagick' : 'GD',
             ]);
 
             // تحميل العلاقات المطلوبة
@@ -374,34 +393,54 @@ class CertificateService
             // بناء نص الشهادة - نص عربي موصول بشكل احترافي
             $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
             
+            // إذا كان Imagick متاحاً، نستخدمه مباشرة لكتابة النص العربي بشكل أفضل
+            $imagickImage = null;
+            $imagickDraw = null;
+            
+            if ($useImagick && $arabicFontPath && class_exists('\Imagick') && class_exists('\ImagickDraw')) {
+                try {
+                    // تحويل الصورة إلى Imagick object للتعامل المباشر مع النص العربي
+                    $imagickImage = $image->toImagick();
+                    $imagickDraw = new \ImagickDraw();
+                    Log::info("Using Imagick directly for Arabic text rendering");
+                } catch (\Exception $e) {
+                    Log::warning("Failed to convert to Imagick, using standard method", [
+                        'error' => $e->getMessage(),
+                    ]);
+                    $imagickImage = null;
+                    $imagickDraw = null;
+                }
+            }
+            
+            // دالة مساعدة لكتابة النص العربي بشكل احترافي
+            // استخدام Imagick مباشرة إذا كان متاحاً
+            $writeArabicText = function($text, $x, $y, $fontSize, $color) use (&$image, $arabicFontPath, $manager, $useImagick) {
+                // معالجة النص العربي للتأكد من الاتجاه الصحيح
+                $processedText = ArabicTextRenderer::prepareArabicText($text);
+                
+                // استخدام خدمة عرض النص العربي
+                $image = ArabicTextRenderer::writeArabicText(
+                    $image,
+                    $processedText,
+                    $x,
+                    $y,
+                    $fontSize,
+                    $color,
+                    $arabicFontPath ?? '',
+                    $manager
+                );
+            };
+            
             // 1. كتابة نص "تمنح هذه الشهادة الى:" ثم اسم المستخدم
             if (!empty($userName)) {
                 // نص "تمنح هذه الشهادة الى:"
                 $awardText = "تمنح هذه الشهادة الى:";
-                $awardTextY = (int)($imageHeight * 0.30); // ~30% من الارتفاع
-                
-                $image->text($awardText, $centerX, $awardTextY, function ($font) use ($arabicFontPath) {
-                    if ($arabicFontPath) {
-                        $font->filename($arabicFontPath);
-                    }
-                    $font->size(32);
-                    $font->color('#1a1a5e'); // أزرق داكن
-                    $font->align('center');
-                    $font->valign('top');
-                });
+                $awardTextY = (int)($imageHeight * 0.30);
+                $writeArabicText($awardText, $centerX, $awardTextY, 32, '#1a1a5e');
                 
                 // اسم المستخدم (بخط أكبر)
-                $userNameY = (int)($imageHeight * 0.40); // ~40% من الارتفاع
-                
-                $image->text($userName, $centerX, $userNameY, function ($font) use ($arabicFontPath) {
-                    if ($arabicFontPath) {
-                        $font->filename($arabicFontPath);
-                    }
-                    $font->size(60);
-                    $font->color('#1a1a5e'); // أزرق داكن
-                    $font->align('center');
-                    $font->valign('top');
-                });
+                $userNameY = (int)($imageHeight * 0.40);
+                $writeArabicText($userName, $centerX, $userNameY, 60, '#1a1a5e');
             }
 
             // 2. كتابة نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:" ثم اسم الكورس
@@ -409,77 +448,32 @@ class CertificateService
             if (!empty($courseTitle)) {
                 // نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:"
                 $attendanceText = "وذلك لحضوره / ها الدورة التدريبية بعنوان:";
-                $attendanceTextY = (int)($imageHeight * 0.52); // ~52% من الارتفاع
-                
-                $image->text($attendanceText, $centerX, $attendanceTextY, function ($font) use ($arabicFontPath) {
-                    if ($arabicFontPath) {
-                        $font->filename($arabicFontPath);
-                    }
-                    $font->size(28);
-                    $font->color('#1a1a5e'); // أزرق داكن
-                    $font->align('center');
-                    $font->valign('top');
-                });
+                $attendanceTextY = (int)($imageHeight * 0.52);
+                $writeArabicText($attendanceText, $centerX, $attendanceTextY, 28, '#1a1a5e');
                 
                 // اسم الكورس (بخط أكبر ولون ذهبي/بني برتقالي)
-                $courseTitleY = (int)($imageHeight * 0.60); // ~60% من الارتفاع
-                
-                $image->text($courseTitle, $centerX, $courseTitleY, function ($font) use ($arabicFontPath) {
-                    if ($arabicFontPath) {
-                        $font->filename($arabicFontPath);
-                    }
-                    $font->size(48);
-                    $font->color('#D4A017'); // ذهبي/بني برتقالي
-                    $font->align('center');
-                    $font->valign('top');
-                });
+                $courseTitleY = (int)($imageHeight * 0.60);
+                $writeArabicText($courseTitle, $centerX, $courseTitleY, 48, '#D4A017');
                 
                 // نص "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية"
                 $companyText = "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية";
-                $companyTextY = (int)($imageHeight * 0.68); // ~68% من الارتفاع
-                
-                $image->text($companyText, $centerX, $companyTextY, function ($font) use ($arabicFontPath) {
-                    if ($arabicFontPath) {
-                        $font->filename($arabicFontPath);
-                    }
-                    $font->size(22);
-                    $font->color('#1a1a5e'); // أزرق داكن
-                    $font->align('center');
-                    $font->valign('top');
-                });
+                $companyTextY = (int)($imageHeight * 0.68);
+                $writeArabicText($companyText, $centerX, $companyTextY, 22, '#1a1a5e');
             }
 
             // 3. كتابة مدة التدريب: "بمدة تدريبية قدرها [عدد بالعربي] ([عدد]) ساعة تدريبية"
             $hours = $this->calculateTrainingHours($certificate);
             $hoursText = $this->numberToArabicWords($hours);
             $trainingDuration = "بمدة تدريبية قدرها {$hoursText} ({$hours}) ساعة تدريبية";
-            $trainingDurationY = (int)($imageHeight * 0.75); // ~75% من الارتفاع
-            
-            $image->text($trainingDuration, $centerX, $trainingDurationY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(26);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('top');
-            });
+            $trainingDurationY = (int)($imageHeight * 0.75);
+            $writeArabicText($trainingDuration, $centerX, $trainingDurationY, 26, '#1a1a5e');
 
             // 4. كتابة التاريخ في الأسفل الأيمن
             $date = $this->formatDateInArabic($certificate->issued_at);
             $dateText = "التاريخ: {$date}";
-            $dateX = (int)($imageWidth * 0.70); // ~70% من العرض (من اليسار)
-            $dateY = (int)($imageHeight * 0.88); // ~88% من الارتفاع (من الأعلى)
-            
-            $image->text($dateText, $dateX, $dateY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(20);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('top');
-            });
+            $dateX = (int)($imageWidth * 0.70);
+            $dateY = (int)($imageHeight * 0.88);
+            $writeArabicText($dateText, $dateX, $dateY, 20, '#1a1a5e');
 
             // 5. دمج QR Code في الصورة (إذا كان موجوداً)
             if ($certificate->qr_code) {
