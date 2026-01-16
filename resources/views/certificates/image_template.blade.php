@@ -14,7 +14,7 @@
         }
 
         body {
-            font-family: 'huwiyadisplay', 'Cairo', 'dejavusans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'dejavusans', 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #FFFFFF;
             width: 1200px;
             height: 850px;

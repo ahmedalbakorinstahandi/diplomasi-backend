@@ -394,15 +394,9 @@ class CertificateService
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
             
-            // إعداد fontdata للخط العربي
+            // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
+            // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            if (file_exists($fontPath)) {
-                $customFontData['huwiyadisplay'] = [
-                    'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    'useOTL' => 0xFF,
-                    'useKashida' => 75,
-                ];
-            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -414,7 +408,7 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
+                'default_font' => 'dejavusans', // dejavusans يدعم العربية بشكل ممتاز
                 'default_font_size' => 12,
                 'fontDir' => array_merge($fontDirs, [$fontDir]),
                 'fontdata' => $customFontData,
@@ -433,12 +427,10 @@ class CertificateService
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
             
-            if (file_exists($fontPath)) {
-                Log::info("Arabic font registered in mPDF", [
-                    'font_path' => $fontPath,
-                    'font_name' => 'huwiyadisplay',
-                ]);
-            }
+            // dejavusans يدعم العربية بشكل ممتاز - لا حاجة لتسجيل خط إضافي
+            Log::info("Using dejavusans font for Arabic support in mPDF", [
+                'note' => 'dejavusans has excellent Arabic support built-in',
+            ]);
 
             // كتابة HTML إلى PDF
             $mpdf->WriteHTML($html);
@@ -513,15 +505,9 @@ class CertificateService
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
             
-            // إعداد fontdata للخط العربي
+            // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
+            // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            if (file_exists($fontPath)) {
-                $customFontData['huwiyadisplay'] = [
-                    'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    'useOTL' => 0xFF,
-                    'useKashida' => 75,
-                ];
-            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -533,7 +519,7 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
+                'default_font' => 'dejavusans', // dejavusans يدعم العربية بشكل ممتاز
                 'default_font_size' => 12,
                 'fontDir' => array_merge($fontDirs, [$fontDir]),
                 'fontdata' => $customFontData,
@@ -542,12 +528,9 @@ class CertificateService
                 'dpi' => 300, // دقة عالية للصورة
             ]);
             
-            if (file_exists($fontPath)) {
-                Log::info("Arabic font registered in mPDF for PNG conversion", [
-                    'font_path' => $fontPath,
-                    'font_name' => 'huwiyadisplay',
-                ]);
-            }
+            Log::info("Using dejavusans font for Arabic support (PNG conversion)", [
+                'note' => 'dejavusans has excellent Arabic support built-in',
+            ]);
 
             $mpdf->SetDirectionality('rtl');
             $mpdf->WriteHTML($html);
@@ -570,7 +553,7 @@ class CertificateService
             $imagick->readImage($tempPdfPath . '[0]');
             $imagick->setImageFormat('png');
             $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-            $imagick->mergeImageLayers(\Imagick::LAYER_METHOD_FLATTEN);
+            $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
 
             // حفظ PNG
             $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
@@ -655,15 +638,9 @@ class CertificateService
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
             
-            // إعداد fontdata للخط العربي
+            // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
+            // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            if (file_exists($fontPath)) {
-                $customFontData['huwiyadisplay'] = [
-                    'R' => 'itfHuwiyaDisplay-Regular.otf',
-                    'useOTL' => 0xFF,
-                    'useKashida' => 75,
-                ];
-            }
             
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
@@ -675,7 +652,7 @@ class CertificateService
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => file_exists($fontPath) ? 'huwiyadisplay' : 'dejavusans',
+                'default_font' => 'dejavusans', // dejavusans يدعم العربية بشكل ممتاز
                 'default_font_size' => 12,
                 'fontDir' => array_merge($fontDirs, [$fontDir]),
                 'fontdata' => $customFontData,
@@ -694,12 +671,9 @@ class CertificateService
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
             
-            if (file_exists($fontPath)) {
-                Log::info("Arabic font registered in mPDF (generateCertificateImageFromBlade)", [
-                    'font_path' => $fontPath,
-                    'font_name' => 'huwiyadisplay',
-                ]);
-            }
+            Log::info("Using dejavusans font for Arabic support (generateCertificateImageFromBlade)", [
+                'note' => 'dejavusans has excellent Arabic support built-in',
+            ]);
 
             // كتابة HTML إلى PDF
             $mpdf->WriteHTML($html);
@@ -728,7 +702,7 @@ class CertificateService
             $imagick->readImage($tempPdfPath . '[0]'); // قراءة الصفحة الأولى فقط
             $imagick->setImageFormat('png');
             $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-            $imagick->mergeImageLayers(\Imagick::LAYER_METHOD_FLATTEN);
+            $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
 
             // حفظ PNG
             $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
