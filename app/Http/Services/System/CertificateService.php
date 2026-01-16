@@ -393,25 +393,6 @@ class CertificateService
             // بناء نص الشهادة - نص عربي موصول بشكل احترافي
             $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
             
-            // إذا كان Imagick متاحاً، نستخدمه مباشرة لكتابة النص العربي بشكل أفضل
-            $imagickImage = null;
-            $imagickDraw = null;
-            
-            if ($useImagick && $arabicFontPath && class_exists('\Imagick') && class_exists('\ImagickDraw')) {
-                try {
-                    // تحويل الصورة إلى Imagick object للتعامل المباشر مع النص العربي
-                    $imagickImage = $image->toImagick();
-                    $imagickDraw = new \ImagickDraw();
-                    Log::info("Using Imagick directly for Arabic text rendering");
-                } catch (\Exception $e) {
-                    Log::warning("Failed to convert to Imagick, using standard method", [
-                        'error' => $e->getMessage(),
-                    ]);
-                    $imagickImage = null;
-                    $imagickDraw = null;
-                }
-            }
-            
             // دالة مساعدة لكتابة النص العربي بشكل احترافي
             // استخدام Imagick مباشرة إذا كان متاحاً
             $writeArabicText = function($text, $x, $y, $fontSize, $color) use (&$image, $arabicFontPath, $manager, $useImagick) {

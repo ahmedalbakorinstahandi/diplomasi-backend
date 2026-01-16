@@ -13,7 +13,8 @@ use Intervention\Image\Interfaces\ImageInterface;
 class ArabicTextRenderer
 {
     /**
-     * كتابة نص عربي على صورة باستخدام Imagick مع دعم أفضل للعربية
+     * كتابة نص عربي على صورة باستخدام Intervention Image
+     * إذا كان Imagick driver مستخدماً، سيدعم العربية بشكل أفضل تلقائياً
      */
     public static function writeArabicText(
         ImageInterface $image,
@@ -25,46 +26,8 @@ class ArabicTextRenderer
         string $fontPath,
         ImageManager $manager
     ): ImageInterface {
-        // محاولة استخدام Imagick مباشرة إذا كان متاحاً
-        if (extension_loaded('imagick') && class_exists('\Imagick') && class_exists('\ImagickDraw')) {
-            try {
-                // التحقق من أن الصورة من نوع Imagick
-                $driver = $manager->driver();
-                if (method_exists($image, 'core') && method_exists($image->core(), 'native')) {
-                    $imagickImage = $image->core()->native();
-                    
-                    if ($imagickImage && class_exists('\Imagick') && $imagickImage instanceof \Imagick) {
-                        /** @var \ImagickDraw $draw */
-                        $draw = new \ImagickDraw();
-                        
-                        // إعداد الخط والخصائص
-                        if ($fontPath && file_exists($fontPath)) {
-                            $draw->setFont($fontPath);
-                        }
-                        $draw->setFontSize($fontSize);
-                        /** @var \ImagickPixel $pixel */
-                        $pixel = new \ImagickPixel($color);
-                        $draw->setFillColor($pixel);
-                        $draw->setTextAlignment(\Imagick::ALIGN_CENTER);
-                        
-                        // استخدام Gravity للتأكد من الاتجاه الصحيح
-                        $draw->setGravity(\Imagick::GRAVITY_NORTH);
-                        
-                        // كتابة النص
-                        $imagickImage->annotateImage($draw, $x, $y, 0, $text);
-                        
-                        // تحديث الصورة
-                        return $image;
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::warning("Failed to use Imagick for Arabic text, falling back to standard method", [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-        
-        // Fallback: استخدام الطريقة العادية
+        // استخدام طريقة Intervention Image العادية
+        // إذا كان Imagick driver مستخدماً، سيدعم العربية بشكل أفضل
         $image->text($text, $x, $y, function ($font) use ($fontPath, $fontSize, $color) {
             if ($fontPath && file_exists($fontPath)) {
                 $font->filename($fontPath);
