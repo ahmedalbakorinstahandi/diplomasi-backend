@@ -1076,15 +1076,46 @@ class TrackProgressService
         $levels = Level::where('course_id', $level->course_id)
             ->where('is_published', true)
             ->orderBy('order_index', 'asc')
+            ->orderBy('id', 'asc')
             ->get();
 
-        // العثور على المستوى السابق (أقل order_index)
+        // العثور على المستوى السابق
+        // المنطق: نبحث عن المستوى الذي:
+        // 1. order_index أصغر من المستوى الحالي (الأكبر order_index من بينها)
+        // 2. أو order_index مساوٍ لكن id أصغر (الأقدم في نفس الترتيب)
         $previousLevel = null;
+        $currentOrderIndex = $level->order_index;
+        $currentId = $level->id;
+        
         foreach ($levels as $courseLevel) {
-            if ($courseLevel->order_index < $level->order_index) {
-                $previousLevel = $courseLevel;
-            } else {
-                break;
+            // تخطي المستوى الحالي
+            if ($courseLevel->id === $currentId) {
+                continue;
+            }
+            
+            $courseOrderIndex = $courseLevel->order_index;
+            
+            // الحالة 1: order_index أصغر
+            if ($courseOrderIndex < $currentOrderIndex) {
+                if (!$previousLevel || $courseOrderIndex > $previousLevel->order_index) {
+                    $previousLevel = $courseLevel;
+                } elseif ($courseOrderIndex === $previousLevel->order_index) {
+                    // نفس order_index: نأخذ الأصغر id (الأقدم)
+                    if ($courseLevel->id < $previousLevel->id) {
+                        $previousLevel = $courseLevel;
+                    }
+                }
+            }
+            // الحالة 2: order_index مساوٍ لكن id أصغر (الأقدم في نفس الترتيب)
+            elseif ($courseOrderIndex === $currentOrderIndex && $courseLevel->id < $currentId) {
+                if (!$previousLevel) {
+                    $previousLevel = $courseLevel;
+                } elseif ($previousLevel->order_index === $currentOrderIndex) {
+                    // نفس order_index: نأخذ الأصغر id
+                    if ($courseLevel->id < $previousLevel->id) {
+                        $previousLevel = $courseLevel;
+                    }
+                }
             }
         }
 
@@ -1409,15 +1440,57 @@ class TrackProgressService
                 // إذا لم يكن له كورس → open
                 $accessStatus = 'open';
             } else {
-                // البحث عن المستوى السابق (الأكبر order_index الأصغر من المستوى الحالي)
+                // البحث عن المستوى السابق
+                // المنطق:
+                // 1. نبحث عن المستوى الذي order_index أصغر من المستوى الحالي (الأكبر order_index من بينها)
+                // 2. إذا كان هناك مستويات بنفس order_index، نأخذ الأصغر id (الأقدم)
+                // 3. إذا كان المستوى الحالي له نفس order_index مع مستويات أخرى، نأخذ الأصغر id من بينها
                 $courseLevels = $allCourseLevels[$level->course_id];
                 $previousLevel = null;
+                $currentOrderIndex = $level->order_index;
+                $currentId = $level->id;
                 
                 foreach ($courseLevels as $courseLevel) {
-                    if ($courseLevel->order_index < $level->order_index) {
-                        if (!$previousLevel || $courseLevel->order_index > $previousLevel->order_index) {
-                            $previousLevel = $courseLevel;
+                    // تخطي المستوى الحالي
+                    if ($courseLevel->id === $currentId) {
+                        continue;
+                    }
+                    
+                    $shouldBePrevious = false;
+                    $courseOrderIndex = $courseLevel->order_index;
+                    
+                    // الحالة 1: order_index أصغر من المستوى الحالي
+                    if ($courseOrderIndex < $currentOrderIndex) {
+                        if (!$previousLevel) {
+                            $shouldBePrevious = true;
+                        } elseif ($courseOrderIndex > $previousLevel->order_index) {
+                            // order_index أكبر من السابق الحالي
+                            $shouldBePrevious = true;
+                        } elseif ($courseOrderIndex === $previousLevel->order_index) {
+                            // نفس order_index: نأخذ الأصغر id (الأقدم)
+                            if ($courseLevel->id < $previousLevel->id) {
+                                $shouldBePrevious = true;
+                            }
                         }
+                    }
+                    // الحالة 2: order_index مساوٍ لكن id أصغر (الأقدم في نفس الترتيب)
+                    elseif ($courseOrderIndex === $currentOrderIndex && $courseLevel->id < $currentId) {
+                        if (!$previousLevel) {
+                            // لم نجد مستوى سابق حتى الآن
+                            $shouldBePrevious = true;
+                        } elseif ($previousLevel->order_index < $currentOrderIndex) {
+                            // المستوى السابق له order_index أصغر، لا نغيره
+                            $shouldBePrevious = false;
+                        } elseif ($previousLevel->order_index === $currentOrderIndex) {
+                            // نفس order_index: نأخذ الأصغر id
+                            if ($courseLevel->id < $previousLevel->id) {
+                                $shouldBePrevious = true;
+                            }
+                        }
+                    }
+                    
+                    if ($shouldBePrevious) {
+                        $previousLevel = $courseLevel;
                     }
                 }
 
