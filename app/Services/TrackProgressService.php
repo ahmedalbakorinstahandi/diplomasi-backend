@@ -1398,14 +1398,14 @@ class TrackProgressService
             // التحقق من tracks
             $levelTracks = $allLevelTracks->get($levelId, collect());
             $hasPublishedTracks = false;
-            $allTracksCompleted = true;
+            $allTracksCompleted = true; // نبدأ بـ true، وإذا وجدنا track غير مكتمل نضعه false
 
             foreach ($levelTracks as $track) {
                 if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
-                    continue;
+                    continue; // تخطي tracks غير المنشورة
                 }
 
-                $hasPublishedTracks = true;
+                $hasPublishedTracks = true; // وجدنا track منشور على الأقل
                 $trackableId = $track->trackable_id;
 
                 $trackCompleted = false;
@@ -1416,12 +1416,16 @@ class TrackProgressService
                 }
 
                 if (!$trackCompleted) {
+                    // إذا وجدنا track غير مكتمل، المستوى غير مكتمل - نخرج من الحلقة
                     $allTracksCompleted = false;
                     break;
                 }
+                // إذا كان track مكتملاً، نستمر في التحقق من الباقي
             }
 
-            // المستوى مكتمل إذا: جميع tracks المنشورة مكتملة
+            // المستوى مكتمل إذا:
+            // 1. يوجد tracks منشورة ($hasPublishedTracks = true)
+            // 2. جميع tracks المنشورة مكتملة ($allTracksCompleted = true - إذا لم نخرج من الحلقة)
             // المستوى الفارغ (بدون tracks منشورة) ليس مكتملاً - يحتاج إتمام فعلي في قاعدة البيانات
             $levelCompletionMap[$levelId] = $hasPublishedTracks && $allTracksCompleted;
         }
