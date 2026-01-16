@@ -111,7 +111,61 @@ class CertificateController extends Controller
 
         $certificate = $result['certificate'];
 
-        // لا نحتاج لتوليد PNG - PDF يُعرض مباشرة في iframe
+        // التحقق من وجود صورة PNG وتوليدها من PDF إذا لم تكن موجودة
+        $shouldGenerateImage = false;
+        
+        if (!$certificate->image_url) {
+            // الصورة غير موجودة في قاعدة البيانات
+            $shouldGenerateImage = true;
+        } else {
+            // التحقق من وجود الملف الفعلي
+            $imagePath = storage_path('app/public/' . $certificate->image_url);
+            if (!file_exists($imagePath)) {
+                // الملف غير موجود على الخادم
+                $shouldGenerateImage = true;
+            }
+        }
+
+        // توليد PNG من PDF إذا لزم الأمر
+        if ($shouldGenerateImage) {
+            try {
+                $certificate->load(['user', 'course', 'level']); // تحميل العلاقات المطلوبة
+                
+                // التحقق من وجود البيانات المطلوبة
+                if (!$certificate->user) {
+                    throw new \Exception('بيانات المستخدم غير موجودة');
+                }
+                if (!$certificate->course) {
+                    throw new \Exception('بيانات الكورس غير موجودة');
+                }
+                
+                // توليد PNG من PDF (يدعم العربية بشكل ممتاز)
+                $imagePath = $this->certificateService->generateCertificateImageFromPdf($certificate);
+                if ($imagePath) {
+                    $certificate->image_url = $imagePath;
+                    $certificate->save();
+                }
+                
+                Log::info('Certificate PNG generated from PDF successfully in verifyWeb', [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificateCode,
+                    'image_path' => $imagePath,
+                ]);
+            } catch (\Throwable $e) {
+                // في حالة فشل توليد الصورة، نكمل العرض بدون الصورة
+                Log::error('Failed to generate certificate PNG from PDF in verifyWeb', [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificateCode,
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => substr($e->getTraceAsString(), 0, 1000),
+                ]);
+            }
+        }
+
+        // إعادة تحميل الشهادة للحصول على image_url المحدث
+        $certificate->refresh();
 
         // عرض صفحة الشهادة
         return response()->view('certificates.show', [
