@@ -333,200 +333,225 @@ class CertificateService
      */
     public function generateCertificateImage(Certificate $certificate): string
     {
-        $manager = new ImageManager(new Driver());
+        try {
+            $manager = new ImageManager(new Driver());
 
-        // تحميل صورة القالب (محاولة المسار الأساسي أولاً، ثم البديل)
-        $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH);
-        
-        if (!file_exists($templatePath)) {
-            // محاولة المسار البديل
-            $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH_ALTERNATIVE);
+            // تحميل صورة القالب (محاولة المسار الأساسي أولاً، ثم البديل)
+            $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH);
+            
             if (!file_exists($templatePath)) {
-                MessageService::abort(500, 'صورة القالب غير موجودة. يرجى حفظ القالب في: ' . self::TEMPLATE_PATH . ' أو ' . self::TEMPLATE_PATH_ALTERNATIVE);
+                // محاولة المسار البديل
+                $templatePath = storage_path('app/public/' . self::TEMPLATE_PATH_ALTERNATIVE);
+                if (!file_exists($templatePath)) {
+                    throw new \Exception('صورة القالب غير موجودة. يرجى حفظ القالب في: ' . self::TEMPLATE_PATH . ' أو ' . self::TEMPLATE_PATH_ALTERNATIVE);
+                }
             }
-        }
 
-        $image = $manager->read($templatePath);
-        
-        Log::info("Certificate template loaded", [
-            'template_path' => $templatePath,
-            'image_width' => $image->width(),
-            'image_height' => $image->height(),
-        ]);
-
-        // تحميل العلاقات المطلوبة
-        $certificate->load(['user', 'course', 'level']);
-
-        // الحصول على أبعاد الصورة لتحديد المواضع بشكل صحيح
-        $imageWidth = $image->width();
-        $imageHeight = $image->height();
-        $centerX = $imageWidth / 2;
-        
-        // استخدام الخط العربي الموجود: itfHuwiyaDisplay-Regular.otf
-        $arabicFontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
-        if (!file_exists($arabicFontPath)) {
-            Log::warning("Arabic font not found, using default font", [
-                'expected_path' => $arabicFontPath,
+            $image = $manager->read($templatePath);
+            
+            Log::info("Certificate template loaded", [
+                'template_path' => $templatePath,
+                'image_width' => $image->width(),
+                'image_height' => $image->height(),
             ]);
-            $arabicFontPath = null;
-        }
 
-        // بناء نص الشهادة حسب التصميم الفعلي
-        $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
-        
-        // 1. كتابة نص "تمنح هذه الشهادة الى:" ثم اسم المستخدم
-        // الموضع: في منتصف الصورة تقريباً (Y: ~40% من الارتفاع)
-        // بناءً على التصميم: النص يجب أن يكون في منتصف الجزء العلوي
-        if (!empty($userName)) {
-            // نص "تمنح هذه الشهادة الى:"
-            $awardText = "تمنح هذه الشهادة الى:";
-            $awardTextY = (int)($imageHeight * 0.35); // ~35% من الارتفاع
-            
-            $image->text($awardText, $centerX, $awardTextY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(28);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('middle');
-            });
-            
-            // اسم المستخدم (بخط أكبر وعريض)
-            $userNameY = (int)($imageHeight * 0.45); // ~45% من الارتفاع
-            
-            $image->text($userName, $centerX, $userNameY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(52);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('middle');
-            });
-        }
+            // تحميل العلاقات المطلوبة
+            $certificate->load(['user', 'course', 'level']);
 
-        // 2. كتابة نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:" ثم اسم الكورس
-        $courseTitle = $certificate->course->title;
-        if (!empty($courseTitle)) {
-            // نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:"
-            $attendanceText = "وذلك لحضوره / ها الدورة التدريبية بعنوان:";
-            $attendanceTextY = (int)($imageHeight * 0.55); // ~55% من الارتفاع
+            // الحصول على أبعاد الصورة لتحديد المواضع بشكل صحيح
+            $imageWidth = $image->width();
+            $imageHeight = $image->height();
+            $centerX = $imageWidth / 2;
             
-            $image->text($attendanceText, $centerX, $attendanceTextY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(24);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('middle');
-            });
-            
-            // اسم الكورس (بخط أكبر ولون ذهبي/بني برتقالي)
-            $courseTitleY = (int)($imageHeight * 0.62); // ~62% من الارتفاع
-            
-            $image->text($courseTitle, $centerX, $courseTitleY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(42);
-                $font->color('#D4A017'); // ذهبي/بني برتقالي
-                $font->align('center');
-                $font->valign('middle');
-            });
-            
-            // نص "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية"
-            $companyText = "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية";
-            $companyTextY = (int)($imageHeight * 0.68); // ~68% من الارتفاع
-            
-            $image->text($companyText, $centerX, $companyTextY, function ($font) use ($arabicFontPath) {
-                if ($arabicFontPath) {
-                    $font->filename($arabicFontPath);
-                }
-                $font->size(20);
-                $font->color('#1a1a5e'); // أزرق داكن
-                $font->align('center');
-                $font->valign('middle');
-            });
-        }
-
-        // 3. كتابة مدة التدريب: "بمدة تدريبية قدرها [عدد بالعربي] ([عدد]) ساعة تدريبية"
-        $hours = $this->calculateTrainingHours($certificate);
-        $hoursText = $this->numberToArabicWords($hours);
-        $trainingDuration = "بمدة تدريبية قدرها {$hoursText} ({$hours}) ساعة تدريبية";
-        $trainingDurationY = (int)($imageHeight * 0.75); // ~75% من الارتفاع
-        
-        $image->text($trainingDuration, $centerX, $trainingDurationY, function ($font) use ($arabicFontPath) {
-            if ($arabicFontPath) {
-                $font->filename($arabicFontPath);
+            // استخدام الخط العربي الموجود: itfHuwiyaDisplay-Regular.otf
+            $arabicFontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            if (!file_exists($arabicFontPath)) {
+                Log::warning("Arabic font not found, using default font", [
+                    'expected_path' => $arabicFontPath,
+                ]);
+                $arabicFontPath = null;
             }
-            $font->size(22);
-            $font->color('#1a1a5e'); // أزرق داكن
-            $font->align('center');
-            $font->valign('middle');
-        });
 
-        // 4. كتابة التاريخ في الأسفل الأيمن
-        $date = $this->formatDateInArabic($certificate->issued_at);
-        $dateText = "التاريخ: {$date}";
-        $dateX = (int)($imageWidth * 0.75); // ~75% من العرض (من اليسار)
-        $dateY = (int)($imageHeight * 0.85); // ~85% من الارتفاع (من الأعلى)
-        
-        $image->text($dateText, $dateX, $dateY, function ($font) use ($arabicFontPath) {
-            if ($arabicFontPath) {
-                $font->filename($arabicFontPath);
+            // بناء نص الشهادة حسب التصميم الفعلي
+            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
+            
+            // 1. كتابة نص "تمنح هذه الشهادة الى:" ثم اسم المستخدم
+            // الموضع: في منتصف الصورة تقريباً (Y: ~40% من الارتفاع)
+            // بناءً على التصميم: النص يجب أن يكون في منتصف الجزء العلوي
+            if (!empty($userName)) {
+                // نص "تمنح هذه الشهادة الى:"
+                $awardText = "تمنح هذه الشهادة الى:";
+                $awardTextY = (int)($imageHeight * 0.35); // ~35% من الارتفاع
+                
+                $image->text($awardText, $centerX, $awardTextY, function ($font) use ($arabicFontPath) {
+                    if ($arabicFontPath) {
+                        $font->filename($arabicFontPath);
+                    }
+                    $font->size(28);
+                    $font->color('#1a1a5e'); // أزرق داكن
+                    $font->align('center');
+                    $font->valign('middle');
+                });
+                
+                // اسم المستخدم (بخط أكبر وعريض)
+                $userNameY = (int)($imageHeight * 0.45); // ~45% من الارتفاع
+                
+                $image->text($userName, $centerX, $userNameY, function ($font) use ($arabicFontPath) {
+                    if ($arabicFontPath) {
+                        $font->filename($arabicFontPath);
+                    }
+                    $font->size(52);
+                    $font->color('#1a1a5e'); // أزرق داكن
+                    $font->align('center');
+                    $font->valign('middle');
+                });
             }
-            $font->size(18);
-            $font->color('#1a1a5e'); // أزرق داكن
-            $font->align('center');
-            $font->valign('middle');
-        });
 
-        // 5. دمج QR Code في الصورة (إذا كان موجوداً)
-        if ($certificate->qr_code) {
-            $qrCodePath = storage_path('app/public/' . $certificate->qr_code);
-            if (file_exists($qrCodePath)) {
-                try {
-                    // إذا كان QR Code بصيغة SVG، نحوله إلى PNG أولاً
-                    if (str_ends_with($certificate->qr_code, '.svg')) {
-                        // قراءة SVG وتحويله إلى PNG
-                        // SVG لا يمكن قراءته مباشرة بـ GD driver، لذلك سنحاول قراءته كـ image
-                        // أو يمكن تخطي دمج QR Code في الصورة إذا كان SVG
-                        // حالياً سنتخطي دمج SVG (يمكن عرضه بشكل منفصل في الواجهة)
-                        Log::info("QR Code is SVG format, skipping merge into certificate image", [
+            // 2. كتابة نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:" ثم اسم الكورس
+            $courseTitle = $certificate->course->title;
+            if (!empty($courseTitle)) {
+                // نص "وذلك لحضوره / ها الدورة التدريبية بعنوان:"
+                $attendanceText = "وذلك لحضوره / ها الدورة التدريبية بعنوان:";
+                $attendanceTextY = (int)($imageHeight * 0.55); // ~55% من الارتفاع
+                
+                $image->text($attendanceText, $centerX, $attendanceTextY, function ($font) use ($arabicFontPath) {
+                    if ($arabicFontPath) {
+                        $font->filename($arabicFontPath);
+                    }
+                    $font->size(24);
+                    $font->color('#1a1a5e'); // أزرق داكن
+                    $font->align('center');
+                    $font->valign('middle');
+                });
+                
+                // اسم الكورس (بخط أكبر ولون ذهبي/بني برتقالي)
+                $courseTitleY = (int)($imageHeight * 0.62); // ~62% من الارتفاع
+                
+                $image->text($courseTitle, $centerX, $courseTitleY, function ($font) use ($arabicFontPath) {
+                    if ($arabicFontPath) {
+                        $font->filename($arabicFontPath);
+                    }
+                    $font->size(42);
+                    $font->color('#D4A017'); // ذهبي/بني برتقالي
+                    $font->align('center');
+                    $font->valign('middle');
+                });
+                
+                // نص "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية"
+                $companyText = "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية";
+                $companyTextY = (int)($imageHeight * 0.68); // ~68% من الارتفاع
+                
+                $image->text($companyText, $centerX, $companyTextY, function ($font) use ($arabicFontPath) {
+                    if ($arabicFontPath) {
+                        $font->filename($arabicFontPath);
+                    }
+                    $font->size(20);
+                    $font->color('#1a1a5e'); // أزرق داكن
+                    $font->align('center');
+                    $font->valign('middle');
+                });
+            }
+
+            // 3. كتابة مدة التدريب: "بمدة تدريبية قدرها [عدد بالعربي] ([عدد]) ساعة تدريبية"
+            $hours = $this->calculateTrainingHours($certificate);
+            $hoursText = $this->numberToArabicWords($hours);
+            $trainingDuration = "بمدة تدريبية قدرها {$hoursText} ({$hours}) ساعة تدريبية";
+            $trainingDurationY = (int)($imageHeight * 0.75); // ~75% من الارتفاع
+            
+            $image->text($trainingDuration, $centerX, $trainingDurationY, function ($font) use ($arabicFontPath) {
+                if ($arabicFontPath) {
+                    $font->filename($arabicFontPath);
+                }
+                $font->size(22);
+                $font->color('#1a1a5e'); // أزرق داكن
+                $font->align('center');
+                $font->valign('middle');
+            });
+
+            // 4. كتابة التاريخ في الأسفل الأيمن
+            $date = $this->formatDateInArabic($certificate->issued_at);
+            $dateText = "التاريخ: {$date}";
+            $dateX = (int)($imageWidth * 0.75); // ~75% من العرض (من اليسار)
+            $dateY = (int)($imageHeight * 0.85); // ~85% من الارتفاع (من الأعلى)
+            
+            $image->text($dateText, $dateX, $dateY, function ($font) use ($arabicFontPath) {
+                if ($arabicFontPath) {
+                    $font->filename($arabicFontPath);
+                }
+                $font->size(18);
+                $font->color('#1a1a5e'); // أزرق داكن
+                $font->align('center');
+                $font->valign('middle');
+            });
+
+            // 5. دمج QR Code في الصورة (إذا كان موجوداً)
+            if ($certificate->qr_code) {
+                $qrCodePath = storage_path('app/public/' . $certificate->qr_code);
+                if (file_exists($qrCodePath)) {
+                    try {
+                        // إذا كان QR Code بصيغة SVG، نحوله إلى PNG أولاً
+                        if (str_ends_with($certificate->qr_code, '.svg')) {
+                            // قراءة SVG وتحويله إلى PNG
+                            // SVG لا يمكن قراءته مباشرة بـ GD driver، لذلك سنحاول قراءته كـ image
+                            // أو يمكن تخطي دمج QR Code في الصورة إذا كان SVG
+                            // حالياً سنتخطي دمج SVG (يمكن عرضه بشكل منفصل في الواجهة)
+                            Log::info("QR Code is SVG format, skipping merge into certificate image", [
+                                'certificate_id' => $certificate->id,
+                                'qr_code_path' => $qrCodePath,
+                            ]);
+                        } else {
+                            // إذا كان PNG، دمجها مباشرة
+                            $qrCodeImage = $manager->read($qrCodePath);
+                            $qrCodeImage->resize(200, 200);
+                            // وضع QR Code في الزاوية اليمنى السفلى
+                            $image->place($qrCodeImage, 'bottom-right', 50, 50);
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning("Failed to merge QR code into certificate image", [
                             'certificate_id' => $certificate->id,
                             'qr_code_path' => $qrCodePath,
+                            'error' => $e->getMessage(),
                         ]);
-                    } else {
-                        // إذا كان PNG، دمجها مباشرة
-                        $qrCodeImage = $manager->read($qrCodePath);
-                        $qrCodeImage->resize(200, 200);
-                        // وضع QR Code في الزاوية اليمنى السفلى
-                        $image->place($qrCodeImage, 'bottom-right', 50, 50);
+                        // تجاهل الخطأ والمتابعة بدون QR Code في الصورة
                     }
-                } catch (\Exception $e) {
-                    Log::warning("Failed to merge QR code into certificate image", [
-                        'certificate_id' => $certificate->id,
-                        'qr_code_path' => $qrCodePath,
-                        'error' => $e->getMessage(),
-                    ]);
-                    // تجاهل الخطأ والمتابعة بدون QR Code في الصورة
                 }
             }
-        }
 
-        // حفظ الصورة النهائية
-        $outputFolder = 'certificates';
-        $outputPath = storage_path("app/public/{$outputFolder}");
-        if (!File::isDirectory($outputPath)) {
-            File::makeDirectory($outputPath, 0755, true, true);
-        }
-        
-        $outputPath = storage_path("app/public/{$outputFolder}/{$certificate->certificate_code}.png");
-        $image->toPng()->save($outputPath);
+            // حفظ الصورة النهائية
+            $outputFolder = 'certificates';
+            $outputPath = storage_path("app/public/{$outputFolder}");
+            if (!File::isDirectory($outputPath)) {
+                File::makeDirectory($outputPath, 0755, true, true);
+            }
+            
+            $outputPath = storage_path("app/public/{$outputFolder}/{$certificate->certificate_code}.png");
+            $image->toPng()->save($outputPath);
 
-        return "{$outputFolder}/{$certificate->certificate_code}.png";
+            // التحقق من أن الملف تم حفظه بنجاح
+            if (!file_exists($outputPath)) {
+                throw new \Exception("فشل في حفظ صورة الشهادة في: {$outputPath}");
+            }
+
+            Log::info("Certificate image generated successfully", [
+                'certificate_id' => $certificate->id,
+                'certificate_code' => $certificate->certificate_code,
+                'image_path' => $outputPath,
+                'file_size' => filesize($outputPath),
+            ]);
+
+            return "{$outputFolder}/{$certificate->certificate_code}.png";
+        } catch (\Throwable $e) {
+            // التقاط جميع أنواع الأخطاء (Exception و Error)
+            Log::error("Error generating certificate image", [
+                'certificate_id' => $certificate->id ?? null,
+                'certificate_code' => $certificate->certificate_code ?? null,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     /**

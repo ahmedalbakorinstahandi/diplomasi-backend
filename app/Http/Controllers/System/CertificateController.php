@@ -130,15 +130,33 @@ class CertificateController extends Controller
         if ($shouldGenerateImage) {
             try {
                 $certificate->load(['user', 'course', 'level']); // تحميل العلاقات المطلوبة
+                
+                // التحقق من وجود البيانات المطلوبة
+                if (!$certificate->user) {
+                    throw new \Exception('بيانات المستخدم غير موجودة');
+                }
+                if (!$certificate->course) {
+                    throw new \Exception('بيانات الكورس غير موجودة');
+                }
+                
                 $imagePath = $this->certificateService->generateCertificateImage($certificate);
                 $certificate->image_url = $imagePath;
                 $certificate->save();
-            } catch (\Exception $e) {
+                
+                Log::info('Certificate image auto-generated successfully in verifyWeb', [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificateCode,
+                    'image_path' => $imagePath,
+                ]);
+            } catch (\Throwable $e) {
                 // في حالة فشل توليد الصورة، نكمل العرض بدون الصورة
                 Log::error('Failed to auto-generate certificate image in verifyWeb', [
                     'certificate_id' => $certificate->id,
                     'certificate_code' => $certificateCode,
                     'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => substr($e->getTraceAsString(), 0, 1000), // أول 1000 حرف فقط
                 ]);
             }
         }
