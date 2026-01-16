@@ -206,6 +206,15 @@
             </div>
             @endif
 
+            <!-- زر تحميل/عرض PDF -->
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ route('certificates.pdf', $certificate_code) }}" target="_blank" 
+                   style="display: inline-block; background: #667eea; color: white; padding: 15px 30px; 
+                          border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 18px;">
+                    📄 عرض/تحميل PDF الشهادة
+                </a>
+            </div>
+
             @if($qrCodeUrl)
             <div class="qr-code">
                 <h3 style="margin-bottom: 15px; color: #555;">QR Code للتحقق:</h3>

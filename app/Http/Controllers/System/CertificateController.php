@@ -189,4 +189,19 @@ class CertificateController extends Controller
             'resource' => CertificateResource::class,
         ]);
     }
+
+    /**
+     * عرض PDF الشهادة مباشرة في المتصفح
+     */
+    public function viewPdf(string $certificateCode)
+    {
+        // البحث عن الشهادة باستخدام الكود
+        $certificate = $this->certificateService->verifyCertificate($certificateCode);
+        
+        if (!$certificate['valid']) {
+            abort(404, 'الشهادة غير موجودة');
+        }
+
+        return $this->certificateService->generateCertificatePdf($certificate['certificate']);
+    }
 }

@@ -301,11 +301,8 @@ class CertificateService
         $certificate->qr_code = $qrCodePath;
         $certificate->save();
 
-        // توليد صورة الشهادة
-        // استخدام الطريقة الجديدة (Blade template) - أفضل للعربية
-        $imagePath = $this->generateCertificateImageFromBlade($certificate);
-        $certificate->image_url = $imagePath;
-        $certificate->save();
+        // ملاحظة: لا نحتاج لحفظ PNG الآن، PDF يُعرض مباشرة عبر route certificates.pdf
+        // إذا احتجت PNG لاحقاً، يمكن استخدام generateCertificateImageFromBlade()
 
         // إرسال إشعار للمستخدم
         $this->sendCertificateIssuedNotification($certificate);
@@ -335,7 +332,132 @@ class CertificateService
     }
 
     /**
-     * توليد صورة الشهادة من Blade template (الطريقة الجديدة - أفضل للعربية)
+     * توليد PDF الشهادة مباشرة للعرض في المتصفح (الطريقة الجديدة - أفضل للعربية)
+     */
+    public function generateCertificatePdf(Certificate $certificate): \Illuminate\Http\Response
+    {
+        try {
+            // تحميل العلاقات المطلوبة
+            $certificate->load(['user', 'course', 'level']);
+
+            // تجهيز البيانات للـ Blade template
+            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
+            $courseTitle = $certificate->course->title ?? '';
+            $hours = $this->calculateTrainingHours($certificate);
+            $hoursText = $this->numberToArabicWords($hours);
+            $date = $this->formatDateInArabic($certificate->issued_at);
+
+            // مسار QR Code
+            $qrCodePath = null;
+            if ($certificate->qr_code) {
+                $qrCodeFullPath = storage_path('app/public/' . $certificate->qr_code);
+                if (file_exists($qrCodeFullPath)) {
+                    $qrCodePath = $qrCodeFullPath;
+                }
+            }
+
+            // إنشاء HTML من Blade template
+            $html = View::make('certificates.image_template', [
+                'user_name' => $userName,
+                'course_title' => $courseTitle,
+                'hours' => $hours,
+                'hours_text' => $hoursText,
+                'date' => $date,
+                'qr_code_path' => $qrCodePath,
+            ])->render();
+
+            Log::info("Generated HTML from Blade template for PDF", [
+                'certificate_id' => $certificate->id,
+                'user_name' => $userName,
+            ]);
+
+            // إنشاء PDF باستخدام mPDF
+            $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
+            
+            $mpdf = new Mpdf([
+                'tempDir' => storage_path('framework/cache'),
+                'mode' => 'utf-8',
+                'format' => [1200, 850], // 1200x850 pixels
+                'margin_left' => 0,
+                'margin_right' => 0,
+                'margin_top' => 0,
+                'margin_bottom' => 0,
+                'margin_header' => 0,
+                'margin_footer' => 0,
+                'default_font' => 'dejavusans',
+                'default_font_size' => 12,
+                'useOTL' => 0xFF,
+                'useKashida' => 75,
+                'shrink_tables_to_fit' => 1,
+                'use_kwt' => true,
+                'keepColumns' => true,
+                'keep_table_proportions' => true,
+                'dpi' => 96,
+            ]);
+
+            // تسجيل الخط العربي إذا كان موجوداً
+            if (file_exists($fontPath)) {
+                try {
+                    $mpdf->fontdata['HuwiyaDisplay'] = [
+                        'R' => 'itfHuwiyaDisplay-Regular.otf',
+                    ];
+                    $mpdf->AddFont('HuwiyaDisplay', '', $fontPath);
+                    Log::info("Registered Arabic font in mPDF", [
+                        'font_path' => $fontPath,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to register Arabic font in mPDF", [
+                        'font_path' => $fontPath,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // إعداد mPDF للعربية
+            $mpdf->SetDirectionality('rtl');
+            $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
+            $mpdf->SetAuthor('Diplomasi');
+            $mpdf->SetCreator('Diplomasi Certificate System');
+            
+            // استخدام الخط العربي إذا كان مسجل
+            if (file_exists($fontPath)) {
+                try {
+                    $mpdf->SetFont('HuwiyaDisplay', '', 12);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to set Arabic font, using default", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // كتابة HTML إلى PDF
+            $mpdf->WriteHTML($html);
+
+            // إرجاع PDF مباشرة للعرض في المتصفح
+            $pdfContent = $mpdf->Output('', 'S');
+
+            return response($pdfContent)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="certificate_' . $certificate->certificate_code . '.pdf"');
+
+        } catch (MpdfException $e) {
+            Log::error("Error generating certificate PDF (mPDF)", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw new \Exception('فشل في توليد PDF الشهادة: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error("Error generating certificate PDF", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \Exception('فشل في توليد PDF الشهادة: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * توليد صورة الشهادة من Blade template (الطريقة القديمة - تحويل PDF إلى PNG)
      */
     public function generateCertificateImageFromBlade(Certificate $certificate): string
     {
