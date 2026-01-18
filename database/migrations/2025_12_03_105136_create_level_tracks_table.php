@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreign('level_id')->references('id')->on('levels');
             $table->unsignedBigInteger('trackable_id');
             $table->string('trackable_type')->comment('lesson,scenario');
-            $table->unsignedBigInteger('order_index');
+            $table->unsignedBigInteger('order_index')->nullable();
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['level_id', 'trackable_id', 'trackable_type', 'deleted_at'], 'level_tracks_unique');

@@ -103,7 +103,7 @@ class CertificateService
     /**
      * التحقق من أهلية المستخدم للحصول على شهادة
      */
-    public function checkCertificateEligibility(int $userId, int $courseId, ?int $levelId = null): array
+    public function checkCertificateEligibility(int $userId, int $courseId, ?int $levelId = null): void
     {
         // سيناريو 1: إكمال الكورس (level_id = null) - يحتاج UserCourse
         if ($levelId === null) {
@@ -112,36 +112,20 @@ class CertificateService
                 ->first();
 
             if (!$userCourse) {
-                return [
-                    'eligible' => false,
-                    'reason' => 'المستخدم غير مسجل في هذا الكورس',
-                    'type' => 'course',
-                ];
+                MessageService::abort(400, 'messages.certificate.eligibility.user_not_registered_in_course');
             }
             if ($userCourse->status !== 'completed') {
-                return [
-                    'eligible' => false,
-                    'reason' => 'الكورس لم يكتمل بعد',
-                    'type' => 'course',
-                ];
+                MessageService::abort(400, 'messages.certificate.eligibility.course_not_completed');
             }
 
             if (!$userCourse->completed_at) {
-                return [
-                    'eligible' => false,
-                    'reason' => 'تاريخ الإكمال غير موجود',
-                    'type' => 'course',
-                ];
+                MessageService::abort(400, 'messages.certificate.eligibility.completion_date_not_found');
             }
 
             // التحقق من أن جميع المستويات مكتملة
             $course = Course::find($courseId);
             if (!$course) {
-                return [
-                    'eligible' => false,
-                    'reason' => 'الكورس غير موجود',
-                    'type' => 'course',
-                ];
+                MessageService::abort(400, 'messages.certificate.eligibility.course_not_found');
             }
 
             $levels = $course->levels()->get();
@@ -151,11 +135,7 @@ class CertificateService
                     ->first();
 
                 if (!$userLevelProgress || $userLevelProgress->status !== 'completed') {
-                    return [
-                        'eligible' => false,
-                        'reason' => 'بعض المستويات غير مكتملة',
-                        'type' => 'course',
-                    ];
+                    MessageService::abort(400, 'messages.certificate.eligibility.some_levels_not_completed');
                 }
             }
 
@@ -166,44 +146,24 @@ class CertificateService
                 ->first();
 
             if ($existingCertificate) {
-                return [
-                    'eligible' => false,
-                    'reason' => 'تم إصدار شهادة سابقة لهذا الكورس',
-                    'type' => 'course',
-                ];
+                MessageService::abort(400, 'messages.certificate.eligibility.certificate_already_issued_for_course');
             }
 
-            return [
-                'eligible' => true,
-                'reason' => 'المستخدم مؤهل للحصول على شهادة الكورس',
-                'type' => 'course',
-            ];
+            return; // مؤهل
         }
 
         // سيناريو 2: إكمال مستوى محدد (level_id محدد)
         $level = Level::find($levelId);
         if (!$level) {
-            return [
-                'eligible' => false,
-                'reason' => 'المستوى غير موجود',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
         }
 
         if ($level->course_id != $courseId) {
-            return [
-                'eligible' => false,
-                'reason' => 'المستوى لا ينتمي لهذا الكورس',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_belongs_to_course');
         }
 
         if (!$level->has_certificate) {
-            return [
-                'eligible' => false,
-                'reason' => 'هذا المستوى لا يحتوي على شهادة',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.level_has_no_certificate');
         }
 
         $userLevelProgress = UserLevelProgress::where('user_id', $userId)
@@ -211,27 +171,15 @@ class CertificateService
             ->first();
 
         if (!$userLevelProgress) {
-            return [
-                'eligible' => false,
-                'reason' => 'المستخدم غير مسجل في هذا المستوى',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.user_not_registered_in_level');
         }
 
         if ($userLevelProgress->status !== 'completed') {
-            return [
-                'eligible' => false,
-                'reason' => 'المستوى لم يكتمل بعد',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_completed');
         }
 
         if (!$userLevelProgress->completed_at) {
-            return [
-                'eligible' => false,
-                'reason' => 'تاريخ إكمال المستوى غير موجود',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.level_completion_date_not_found');
         }
 
         // إنشاء UserCourse تلقائياً إذا لم يكن موجوداً (لإصدار شهادة المستوى)
@@ -258,18 +206,10 @@ class CertificateService
             ->first();
 
         if ($existingCertificate) {
-            return [
-                'eligible' => false,
-                'reason' => 'تم إصدار شهادة سابقة لهذا المستوى',
-                'type' => 'level',
-            ];
+            MessageService::abort(400, 'messages.certificate.eligibility.certificate_already_issued_for_level');
         }
 
-        return [
-            'eligible' => true,
-            'reason' => 'المستخدم مؤهل للحصول على شهادة المستوى',
-            'type' => 'level',
-        ];
+        return; // مؤهل
     }
 
     /**
@@ -277,11 +217,8 @@ class CertificateService
      */
     public function issueCertificate(int $userId, int $courseId, ?int $levelId = null)
     {
-        // التحقق من الأهلية
-        $eligibility = $this->checkCertificateEligibility($userId, $courseId, $levelId);
-        if (!$eligibility['eligible']) {
-            MessageService::abort(400, $eligibility['reason']);
-        }
+        // التحقق من الأهلية (ستستدعي MessageService::abort تلقائياً عند الفشل)
+        $this->checkCertificateEligibility($userId, $courseId, $levelId);
 
         // توليد كود الشهادة
         $certificateCode = $this->generateCertificateCode($userId, $courseId, $levelId);
@@ -447,14 +384,14 @@ class CertificateService
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
             ]);
-            throw new \Exception('فشل في توليد PDF الشهادة: ' . $e->getMessage());
+            throw new \Exception(trans('messages.certificate.pdf_generation_failed') . ': ' . $e->getMessage());
         } catch (\Exception $e) {
             Log::error("Error generating certificate PDF", [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            throw new \Exception('فشل في توليد PDF الشهادة: ' . $e->getMessage());
+            throw new \Exception(trans('messages.certificate.pdf_generation_failed') . ': ' . $e->getMessage());
         }
     }
 
@@ -561,24 +498,28 @@ class CertificateService
                 }
                 
                 // إذا فشل Ghostscript، استخدم Imagick
-                if (!extension_loaded('imagick')) {
+                if (!extension_loaded('imagick') || !class_exists('\Imagick')) {
                     Log::warning("Imagick not available, Ghostscript also failed");
                     return null;
                 }
                 
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256); // تقليل الذاكرة
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 384);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 30); // 30 ثانية فقط
+                // Imagick class is available via PHP extension (checked above)
+                // Using variable to avoid static analyzer warnings for extension class
+                $imagickClass = 'Imagick';
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_MEMORY'), 256); // تقليل الذاكرة
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_MAP'), 512);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_AREA'), 64);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_DISK'), 1024);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_FILE'), 384);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30); // 30 ثانية فقط
                 
-                $imagick = new \Imagick();
+                $imagick = new $imagickClass();
                 $imagick->setResolution(50, 50); // دقة منخفضة جداً (50 DPI) لتوفير الذاكرة
                 $imagick->readImage($tempPdfPath . '[0]');
                 $imagick->setImageFormat('png');
-                $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-                $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+                $imagickPixelClass = 'ImagickPixel';
+                $imagick->setImageBackgroundColor(new $imagickPixelClass('white'));
+                $imagick = $imagick->mergeImageLayers(constant('Imagick::LAYERMETHOD_FLATTEN'));
                 
                 // تحسين الصورة لتقليل الحجم
                 $imagick->stripImage();
@@ -602,15 +543,23 @@ class CertificateService
 
                 return $imagePath;
                 
-            } catch (\ImagickException $e) {
-                // إذا فشل Imagick، لا مشكلة - PDF يعمل بشكل ممتاز
-                Log::warning("Failed to convert PDF to PNG (optional)", [
-                    'certificate_id' => $certificate->id,
-                    'error' => $e->getMessage(),
-                    'note' => 'PDF is available and works perfectly',
-                ]);
-                return null;
             } catch (\Exception $e) {
+                // إذا كان الخطأ من نوع ImagickException، نتعامل معه بشكل خاص
+                $imagickExceptionClass = 'ImagickException';
+                $isImagickException = class_exists($imagickExceptionClass) && 
+                    (get_class($e) === $imagickExceptionClass || str_contains(get_class($e), 'ImagickException'));
+                
+                if ($isImagickException) {
+                    // إذا فشل Imagick، لا مشكلة - PDF يعمل بشكل ممتاز
+                    Log::warning("Failed to convert PDF to PNG (optional)", [
+                        'certificate_id' => $certificate->id,
+                        'error' => $e->getMessage(),
+                        'note' => 'PDF is available and works perfectly',
+                    ]);
+                    return null;
+                }
+                
+                // إذا كان خطأ آخر، نعيده
                 Log::warning("Failed to convert PDF to PNG (optional)", [
                     'certificate_id' => $certificate->id,
                     'error' => $e->getMessage(),
@@ -759,24 +708,27 @@ class CertificateService
                 }
                 
                 // إذا فشل Ghostscript، استخدم Imagick
-                if (!extension_loaded('imagick')) {
+                if (!extension_loaded('imagick') || !class_exists('\Imagick')) {
                     Log::warning("Imagick not available, Ghostscript also failed");
                     return null;
                 }
                 
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 256);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_MAP, 512);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_AREA, 64);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_DISK, 1024);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_FILE, 384);
-                \Imagick::setResourceLimit(\Imagick::RESOURCETYPE_TIME, 30);
+                // Imagick class is available via PHP extension (checked above)
+                $imagickClass = 'Imagick';
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_MEMORY'), 256);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_MAP'), 512);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_AREA'), 64);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_DISK'), 1024);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_FILE'), 384);
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30);
                 
-                $imagick = new \Imagick();
+                $imagick = new $imagickClass();
                 $imagick->setResolution(50, 50); // دقة منخفضة جداً
                 $imagick->readImage($tempPdfPath . '[0]');
                 $imagick->setImageFormat('png');
-                $imagick->setImageBackgroundColor(new \ImagickPixel('white'));
-                $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+                $imagickPixelClass = 'ImagickPixel';
+                $imagick->setImageBackgroundColor(new $imagickPixelClass('white'));
+                $imagick = $imagick->mergeImageLayers(constant('Imagick::LAYERMETHOD_FLATTEN'));
                 $imagick->stripImage();
                 $imagick->setImageCompressionQuality(75);
 
@@ -1081,7 +1033,7 @@ class CertificateService
 
             // التحقق من أن الملف تم حفظه بنجاح
             if (!file_exists($outputPath)) {
-                throw new \Exception("فشل في حفظ صورة الشهادة في: {$outputPath}");
+                throw new \Exception(trans('messages.certificate.image_save_failed') . ": {$outputPath}");
             }
 
             Log::info("Certificate image generated successfully", [
@@ -1102,7 +1054,7 @@ class CertificateService
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            throw new \Exception('فشل في توليد صورة الشهادة: ' . $e->getMessage(), 0, $e);
+            throw new \Exception(trans('messages.certificate.image_generation_failed') . ': ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -1136,7 +1088,7 @@ class CertificateService
 
             // التحقق من أن SVG تم إنشاؤه
             if (!File::exists($qrCodeSvgPath)) {
-                throw new \Exception("فشل في توليد QR Code SVG");
+                throw new \Exception(trans('messages.certificate.qr_code_svg_generation_failed'));
             }
 
             // استخدام SVG مباشرة (أو يمكن تحويله إلى PNG لاحقاً إذا كان imagick مثبت)
@@ -1154,7 +1106,7 @@ class CertificateService
                     'certificate_code' => $certificate->certificate_code,
                     'qr_code_path' => $qrCodePath,
                 ]);
-                throw new \Exception("فشل في توليد QR Code للشهادة");
+                throw new \Exception(trans('messages.certificate.qr_code_generation_failed'));
             }
 
             Log::info("QR code generated successfully", [
@@ -1188,7 +1140,7 @@ class CertificateService
         if (!$certificate) {
             return [
                 'valid' => false,
-                'message' => 'الشهادة غير موجودة',
+                'message' => 'messages.certificate.not_found',
             ];
         }
 
@@ -1210,13 +1162,13 @@ class CertificateService
         $certificate = $this->show($id);
 
         if (!$certificate->image_url) {
-            MessageService::abort(404, 'صورة الشهادة غير موجودة');
+            MessageService::abort(404, 'messages.certificate.image_not_found');
         }
 
         $imagePath = storage_path('app/public/' . $certificate->image_url);
 
         if (!file_exists($imagePath)) {
-            MessageService::abort(404, 'ملف الصورة غير موجود');
+            MessageService::abort(404, 'messages.certificate.image_file_not_found');
         }
 
         return response()->download($imagePath, $certificate->certificate_code . '.png');

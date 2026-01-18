@@ -178,16 +178,10 @@ class CheckAndFixLevelCompletion extends Command
                         $this->info("  🔧 محاولة إصدار الشهادة...");
                         try {
                             $certificateService = app(\App\Http\Services\System\CertificateService::class);
-                            $eligibility = $certificateService->checkCertificateEligibility($userId, $level->course_id, $levelId);
-                            
-                            if ($eligibility['eligible']) {
-                                $certificateService->issueCertificate($userId, $level->course_id, $levelId);
-                                $this->info("  ✅ تم إصدار الشهادة بنجاح");
-                            } else {
-                                $this->error("  ❌ غير مؤهل: {$eligibility['reason']}");
-                            }
-                        } catch (\Exception $e) {
-                            $this->error("  ❌ خطأ: " . $e->getMessage());
+                            $certificateService->issueCertificate($userId, $level->course_id, $levelId);
+                            $this->info("  ✅ تم إصدار الشهادة بنجاح");
+                        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+                            $this->error("  ❌ المستخدم غير مؤهل للحصول على الشهادة");
                             Log::error("Certificate issuance error in command", [
                                 'user_id' => $userId,
                                 'level_id' => $levelId,

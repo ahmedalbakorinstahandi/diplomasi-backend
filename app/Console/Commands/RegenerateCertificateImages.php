@@ -137,7 +137,7 @@ class RegenerateCertificateImages extends Command
             // التحقق من أن الملف تم إنشاؤه
             $fullPath = storage_path('app/public/' . $imagePath);
             if (!File::exists($fullPath)) {
-                throw new \Exception("صورة الشهادة لم يتم إنشاؤها في: {$fullPath}");
+                throw new \Exception(trans('messages.certificate.image_not_created') . ": {$fullPath}");
             }
 
             if ($verbose) {

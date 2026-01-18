@@ -104,8 +104,9 @@ class CertificateController extends Controller
 
         // إذا كانت الشهادة غير صحيحة، عرض صفحة خطأ
         if (!$result['valid']) {
+            $messageKey = $result['message'] ?? 'messages.certificate.not_found';
             return response()->view('certificates.invalid', [
-                'message' => $result['message'] ?? 'الشهادة غير موجودة',
+                'message' => trans($messageKey),
             ], 404);
         }
 
@@ -133,10 +134,10 @@ class CertificateController extends Controller
                 
                 // التحقق من وجود البيانات المطلوبة
                 if (!$certificate->user) {
-                    throw new \Exception('بيانات المستخدم غير موجودة');
+                    throw new \Exception(trans('messages.certificate.user_data_not_found'));
                 }
                 if (!$certificate->course) {
-                    throw new \Exception('بيانات الكورس غير موجودة');
+                    throw new \Exception(trans('messages.certificate.course_data_not_found'));
                 }
                 
                 // توليد PNG من PDF (يدعم العربية بشكل ممتاز)
@@ -202,7 +203,7 @@ class CertificateController extends Controller
         $certificate = $this->certificateService->verifyCertificate($certificateCode);
         
         if (!$certificate['valid']) {
-            abort(404, 'الشهادة غير موجودة');
+            \App\Services\MessageService::abort(404, 'messages.certificate.not_found');
         }
 
         return $this->certificateService->generateCertificatePdf($certificate['certificate']);

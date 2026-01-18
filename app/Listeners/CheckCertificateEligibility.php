@@ -76,12 +76,19 @@ class CheckCertificateEligibility
         $levelId = $userLevelProgress->level_id;
         $courseId = $level->course_id;
 
-        // التحقق من الأهلية لإصدار شهادة للمستوى
-        $eligibility = $this->certificateService->checkCertificateEligibility($userId, $courseId, $levelId);
-        if ($eligibility['eligible']) {
-            // إصدار شهادة للمستوى
+        // التحقق من الأهلية وإصدار شهادة للمستوى
+        try {
+            $this->certificateService->checkCertificateEligibility($userId, $courseId, $levelId);
+            // إذا وصلنا هنا، المستخدم مؤهل
             $this->certificateService->issueCertificate($userId, $courseId, $levelId);
             Log::info("Certificate issued for level", [
+                'user_id' => $userId,
+                'course_id' => $courseId,
+                'level_id' => $levelId,
+            ]);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            // غير مؤهل - تم إرسال الرد بالفعل من MessageService::abort
+            Log::info("User not eligible for level certificate", [
                 'user_id' => $userId,
                 'course_id' => $courseId,
                 'level_id' => $levelId,
@@ -139,12 +146,18 @@ class CheckCertificateEligibility
             return; // آخر مستوى لا يحتوي على شهادة
         }
 
-        // التحقق من الأهلية لإصدار شهادة للكورس
-        $eligibility = $this->certificateService->checkCertificateEligibility($userId, $courseId, null);
-        if ($eligibility['eligible']) {
-            // إصدار شهادة للكورس
+        // التحقق من الأهلية وإصدار شهادة للكورس
+        try {
+            $this->certificateService->checkCertificateEligibility($userId, $courseId, null);
+            // إذا وصلنا هنا، المستخدم مؤهل
             $this->certificateService->issueCertificate($userId, $courseId, null);
             Log::info("Certificate issued for course", [
+                'user_id' => $userId,
+                'course_id' => $courseId,
+            ]);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            // غير مؤهل - تم إرسال الرد بالفعل من MessageService::abort
+            Log::info("User not eligible for course certificate", [
                 'user_id' => $userId,
                 'course_id' => $courseId,
             ]);

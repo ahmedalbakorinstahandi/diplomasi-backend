@@ -25,7 +25,8 @@ class ImageController extends Controller
                 'image_name' => $imageName,
                 'image_url' => asset('storage/' . $imageName),
             ],
-            'message' => 'تم رفع الصورة بنجاح',
+            'message' => trans('messages.image.uploaded'),
+            'key' => 'messages.image.uploaded',
         ]);
     }
 
@@ -46,7 +47,8 @@ class ImageController extends Controller
                 'file_name' => $fileName,
                 'file_url' => asset('storage/' . $fileName),
             ],
-            'message' => 'تم رفع الملف بنجاح',
+            'message' => trans('messages.image.file_uploaded'),
+            'key' => 'messages.image.file_uploaded',
         ]);
     }
 
@@ -67,7 +69,8 @@ class ImageController extends Controller
         return response()->json([
             'success' => true,
             'data' => $media,
-            'message' => 'تم جلب الميديا بنجاح',
+            'message' => trans('messages.image.media_fetched'),
+            'key' => 'messages.image.media_fetched',
         ]);
     }
 }

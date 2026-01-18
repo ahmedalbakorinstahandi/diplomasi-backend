@@ -154,7 +154,8 @@ class ImageService
             abort(
                 response()->json([
                     'success' => false,
-                    'message' =>  'يجب تقديم معرفات الصور كمصفوفة غير فارغة.',
+                    'message' => trans('messages.image.ids_must_be_array'),
+                    'key' => 'messages.image.ids_must_be_array',
                 ], 422),
             );
         }
@@ -165,7 +166,8 @@ class ImageService
             abort(
                 response()->json([
                     'success' => false,
-                    'message' => 'بعض الصور المطلوب حذفها غير موجودة.',
+                    'message' => trans('messages.image.some_images_not_found'),
+                    'key' => 'messages.image.some_images_not_found',
                 ], 422),
             );
         }

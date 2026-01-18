@@ -7,9 +7,11 @@ use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
+use App\Http\Controllers\Learning\LessonQuestionController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Scenarios\ScenarioController;
+use App\Http\Controllers\Scenarios\ScenarioQuestionController;
 use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\NotificationController;
 use App\Http\Controllers\System\SettingController;
@@ -51,6 +53,14 @@ Route::group(['prefix' => 'admin'], function () {
         Route::delete('lessons/{id}', [LessonController::class, 'delete']);
         Route::put('lessons/{id}/reorder', [LessonController::class, 'reorder']);
 
+        // Lesson Questions
+        Route::get('lesson-questions', [LessonQuestionController::class, 'index']);
+        Route::get('lesson-questions/{id}', [LessonQuestionController::class, 'show']);
+        Route::post('lesson-questions', [LessonQuestionController::class, 'create']);
+        Route::put('lesson-questions/{id}', [LessonQuestionController::class, 'update']);
+        Route::delete('lesson-questions/{id}', [LessonQuestionController::class, 'delete']);
+        Route::put('lesson-questions/{id}/reorder', [LessonQuestionController::class, 'reorder']);
+
         // Levels
         Route::get('levels', [LevelController::class, 'index']);
         Route::get('levels/{id}', [LevelController::class, 'show']);
@@ -66,6 +76,14 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('scenarios/{id}', [ScenarioController::class, 'update']);
         Route::delete('scenarios/{id}', [ScenarioController::class, 'delete']);
         Route::put('scenarios/{id}/reorder', [ScenarioController::class, 'reorder']);
+
+        // Scenario Questions
+        Route::get('scenario-questions', [ScenarioQuestionController::class, 'index']);
+        Route::get('scenario-questions/{id}', [ScenarioQuestionController::class, 'show']);
+        Route::post('scenario-questions', [ScenarioQuestionController::class, 'create']);
+        Route::put('scenario-questions/{id}', [ScenarioQuestionController::class, 'update']);
+        Route::delete('scenario-questions/{id}', [ScenarioQuestionController::class, 'delete']);
+        Route::put('scenario-questions/{id}/reorder', [ScenarioQuestionController::class, 'reorder']);
 
         // Level Tracks
         Route::get('level-tracks', [LevelTrackController::class, 'index']);

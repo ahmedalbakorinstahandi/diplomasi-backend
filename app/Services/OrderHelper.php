@@ -9,6 +9,7 @@ class OrderHelper
 {
     /**
      * تعيين ترتيب جديد تلقائي عند الإنشاء (بأعلى رقم موجود + 1).
+     * order_index فريد على مستوى الجدول كامل (global)، يعتمد على max(id).
      */
     public static function assign(Model $model, string $orderField = 'order_index'): void
     {

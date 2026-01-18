@@ -20,6 +20,19 @@ class Faq extends Model
     protected $fillable = [
         'question',
         'answer',
+        'order_index',
     ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'order_index' => 'integer',
+        ];
+    }
 }
 
