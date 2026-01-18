@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Content\Faq;
+use App\Services\OrderHelper;
 use Illuminate\Database\Seeder;
 
 class FaqSeeder extends Seeder
@@ -21,14 +22,16 @@ class FaqSeeder extends Seeder
         ];
 
         foreach ($faqs as $faq) {
-            Faq::withTrashed()->updateOrCreate(
+            $faq = Faq::withTrashed()->updateOrCreate(
                 ['question' => $faq['question']],
                 [
                     'answer' => $faq['answer'],
                     'deleted_at' => null,
                 ]
             );
+            $faq->save();
+
+            OrderHelper::assign($faq, 'order_index');
         }
     }
 }
-
