@@ -40,7 +40,7 @@ class TrackProgressService
             $progress = UserLessonProgress::where('user_id', $userId)
                 ->where('lesson_id', $levelTrack->trackable->id)
                 ->first();
-            
+
             if ($progress && $progress->track_status) {
                 return $progress->track_status;
             }
@@ -49,7 +49,7 @@ class TrackProgressService
                 ->where('scenario_id', $levelTrack->trackable->id)
                 ->orderBy('started_at', 'desc')
                 ->first();
-            
+
             if ($attempt && $attempt->track_status) {
                 return $attempt->track_status;
             }
@@ -161,17 +161,17 @@ class TrackProgressService
             if (isset($progress->is_completed) && $progress->is_completed === true) {
                 return true;
             }
-            
+
             // 2. التحقق من status = 'completed'
             if (isset($progress->status) && $progress->status === 'completed') {
                 return true;
             }
-            
+
             // 3. التحقق من progress_percentage >= 100
             if (isset($progress->progress_percentage) && (float)$progress->progress_percentage >= 100) {
                 return true;
             }
-            
+
             // 4. التحقق من track_status = 'completed'
             if (isset($progress->track_status) && $progress->track_status === 'completed') {
                 return true;
@@ -209,17 +209,17 @@ class TrackProgressService
             if (isset($attempt->is_completed) && $attempt->is_completed === true) {
                 return true;
             }
-            
+
             // 2. التحقق من progress_percentage >= 100
             if (isset($attempt->progress_percentage) && (float)$attempt->progress_percentage >= 100) {
                 return true;
             }
-            
+
             // 3. التحقق من status = 'finished'
             if (isset($attempt->status) && $attempt->status === 'finished') {
                 return true;
             }
-            
+
             // 4. التحقق من track_status = 'completed'
             if (isset($attempt->track_status) && $attempt->track_status === 'completed') {
                 return true;
@@ -654,7 +654,7 @@ class TrackProgressService
                 // Sort by order_index descending to find the closest previous track first
                 $previousTrack = null;
                 $sortedTracks = $tracksInLevel->sortByDesc('order_index');
-                
+
                 foreach ($sortedTracks as $potentialPrevious) {
                     if ($potentialPrevious->order_index >= $track->order_index) {
                         continue; // Skip current track and tracks after it
@@ -718,7 +718,7 @@ class TrackProgressService
                         if (!$previousTrack->relationLoaded('trackable')) {
                             $previousTrack->load('trackable');
                         }
-                        
+
                         if ($previousTrack->trackable) {
                             $previousCompletionMap[$currentTrackId] = $this->isTrackCompleted($previousTrack->trackable, $userId);
                         } else {
@@ -754,7 +754,7 @@ class TrackProgressService
         $result = [];
         foreach ($levelTracks as $track) {
             $trackableId = $track->trackable_id;
-            
+
             // Get progress data
             if ($track->trackable_type === Lesson::class) {
                 $progressData = $lessonProgressMap[$trackableId] ?? [
@@ -772,7 +772,7 @@ class TrackProgressService
 
             // Check if accessible (previous published track completed)
             $hasPreviousTrack = isset($previousTrackCompletionMap[$track->id]);
-            
+
             // If no previous track in map, check if there's actually a previous published track
             if (!$hasPreviousTrack) {
                 $tracksInLevel = $allTracksInLevels->get($track->level_id);
@@ -803,7 +803,7 @@ class TrackProgressService
                     }
                 }
             }
-            
+
             if ($hasPreviousTrack) {
                 // There is a previous published track, check if it's completed
                 if (isset($previousCompletionMap[$track->id])) {
@@ -812,19 +812,19 @@ class TrackProgressService
                 } else {
                     // Completion status not in cache, check directly
                     $previousTrack = $previousTrackCompletionMap[$track->id];
-                    
+
                     // Ensure trackable is loaded
                     if (!$previousTrack->relationLoaded('trackable')) {
                         $previousTrack->load('trackable');
                     }
-                    
+
                     if ($previousTrack->trackable) {
                         $isAccessible = $this->isTrackCompleted($previousTrack->trackable, $userId);
                     } else {
                         // If trackable is null, assume not completed
                         $isAccessible = false;
                     }
-                    
+
                     // Cache it for future use
                     $previousCompletionMap[$track->id] = $isAccessible;
                 }
@@ -853,7 +853,7 @@ class TrackProgressService
                 // Default to open if accessible and not completed
                 $status = 'open';
             }
-            
+
             // If track is in progress (has progress but not completed), allow access even if previous is not completed
             // This only applies if the user has actually started the track (progress > 0)
             if ($progressData['progress_percentage'] > 0 && !$progressData['is_completed'] && !$isAccessible) {
@@ -958,12 +958,12 @@ class TrackProgressService
             $lessons = $level->lessons()->get();
             $totalScore = 0;
             $completedLessons = 0;
-            
+
             foreach ($lessons as $lesson) {
                 $lessonProgress = UserLessonProgress::where('user_id', $userId)
                     ->where('lesson_id', $lesson->id)
                     ->first();
-                
+
                 if ($lessonProgress && $lessonProgress->status === 'completed') {
                     $totalScore += $lessonProgress->score ?? 0;
                     $completedLessons++;
@@ -1086,15 +1086,15 @@ class TrackProgressService
         $previousLevel = null;
         $currentOrderIndex = $level->order_index;
         $currentId = $level->id;
-        
+
         foreach ($levels as $courseLevel) {
             // تخطي المستوى الحالي
             if ($courseLevel->id === $currentId) {
                 continue;
             }
-            
+
             $courseOrderIndex = $courseLevel->order_index;
-            
+
             // الحالة 1: order_index أصغر
             if ($courseOrderIndex < $currentOrderIndex) {
                 if (!$previousLevel || $courseOrderIndex > $previousLevel->order_index) {
@@ -1236,32 +1236,13 @@ class TrackProgressService
 
         $levelIds = $levels->pluck('id')->toArray();
 
-        // 1. جلب جميع UserLevelProgress للمستويات (batch query)
-        $userLevelProgressMap = UserLevelProgress::where('user_id', $userId)
-            ->whereIn('level_id', $levelIds)
-            ->get()
-            ->keyBy('level_id');
-
-        // 2. جلب جميع الشهادات للمستويات (batch query)
-        $certificatesMap = Certificate::where('user_id', $userId)
-            ->whereIn('level_id', $levelIds)
-            ->whereNotNull('issued_at')
-            ->get()
-            ->keyBy('level_id');
-
-        // 3. جلب جميع levelTracks لجميع المستويات بشكل batch (query واحد)
-        $allLevelTracks = LevelTrack::whereIn('level_id', $levelIds)
-            ->with('trackable')
-            ->orderBy('level_id')
-            ->orderBy('order_index')
-            ->get()
-            ->groupBy('level_id');
-
         // 4. جلب جميع المستويات في الكورسات (للتحقق من المستوى السابق) - batch query
+        // يجب جلبها أولاً لأننا نحتاج معرفة جميع مستويات الكورس
         $courseIds = $levels->whereNotNull('course_id')->pluck('course_id')->unique()->toArray();
         $allCourseLevels = collect();
         $allCourseLevelTracks = collect();
-        
+        $allCourseLevelIds = $levelIds; // نبدأ بـ levelIds المطلوبة
+
         if (!empty($courseIds)) {
             $allCourseLevels = Level::whereIn('course_id', $courseIds)
                 ->where('is_published', true)
@@ -1272,6 +1253,8 @@ class TrackProgressService
 
             // جلب جميع levelTracks لجميع مستويات الكورسات بشكل batch
             $courseLevelIds = $allCourseLevels->flatten()->pluck('id')->toArray();
+            $allCourseLevelIds = array_unique(array_merge($levelIds, $courseLevelIds)); // دمج جميع مستويات الكورس
+
             if (!empty($courseLevelIds)) {
                 $allCourseLevelTracks = LevelTrack::whereIn('level_id', $courseLevelIds)
                     ->with('trackable')
@@ -1282,6 +1265,28 @@ class TrackProgressService
             }
         }
 
+        // 1. جلب جميع UserLevelProgress لجميع مستويات الكورس (batch query)
+        // نحتاج بيانات جميع مستويات الكورس وليس فقط المستويات المطلوبة
+        $userLevelProgressMap = UserLevelProgress::where('user_id', $userId)
+            ->whereIn('level_id', $allCourseLevelIds)
+            ->get()
+            ->keyBy('level_id');
+
+        // 2. جلب جميع الشهادات للمستويات المطلوبة فقط (batch query)
+        $certificatesMap = Certificate::where('user_id', $userId)
+            ->whereIn('level_id', $levelIds)
+            ->whereNotNull('issued_at')
+            ->get()
+            ->keyBy('level_id');
+
+        // 3. جلب جميع levelTracks لجميع المستويات المطلوبة بشكل batch (query واحد)
+        $allLevelTracks = LevelTrack::whereIn('level_id', $levelIds)
+            ->with('trackable')
+            ->orderBy('level_id')
+            ->orderBy('order_index')
+            ->get()
+            ->groupBy('level_id');
+
         // 5. تحميل بيانات التقدم للدروس والسيناريوهات بشكل batch
         $allTracks = $allLevelTracks->flatten();
         $allCourseTracks = $allCourseLevelTracks->flatten();
@@ -1290,7 +1295,7 @@ class TrackProgressService
         // فصل الدروس عن السيناريوهات
         $lessonIds = [];
         $scenarioIds = [];
-        
+
         foreach ($combinedTracks as $track) {
             if ($track->trackable_type === Lesson::class) {
                 $lessonIds[] = $track->trackable_id;
@@ -1309,8 +1314,8 @@ class TrackProgressService
 
             foreach ($lessonProgresses as $progress) {
                 $lessonProgressMap[$progress->lesson_id] = [
-                    'is_completed' => ($progress->is_completed ?? false) 
-                        || ($progress->status === 'completed') 
+                    'is_completed' => ($progress->is_completed ?? false)
+                        || ($progress->status === 'completed')
                         || (($progress->progress_percentage ?? 0) >= 100)
                         || ($progress->track_status === 'completed'),
                 ];
@@ -1347,7 +1352,7 @@ class TrackProgressService
                     ->where('scenario_id', $attempt->scenario_id)
                     ->where('started_at', $attempt->max_started_at)
                     ->first();
-                
+
                 if ($latestAttempt) {
                     $scenarioAttemptIds[] = $latestAttempt->id;
                 }
@@ -1383,8 +1388,11 @@ class TrackProgressService
             }
         }
 
-        // 6. حساب is_completed لكل مستوى بشكل بسيط
+        // 6. حساب is_completed لجميع مستويات الكورس (وليس فقط المستويات المطلوبة)
+        // هذا ضروري للتحقق من المستوى السابق عند حساب access_status
         $levelCompletionMap = [];
+
+        // أولاً: حساب is_completed للمستويات المطلوبة
         foreach ($levels as $level) {
             $levelId = $level->id;
             $userLevelProgress = $userLevelProgressMap->get($levelId);
@@ -1430,6 +1438,57 @@ class TrackProgressService
             $levelCompletionMap[$levelId] = $hasPublishedTracks && $allTracksCompleted;
         }
 
+        // ثانياً: حساب is_completed لبقية مستويات الكورس (التي ليست في $levels)
+        // هذا ضروري للتحقق من المستوى السابق
+        if (!empty($courseIds)) {
+            foreach ($allCourseLevels as $courseId => $courseLevelsCollection) {
+                foreach ($courseLevelsCollection as $courseLevel) {
+                    $levelId = $courseLevel->id;
+
+                    // تخطي المستويات التي تم حسابها بالفعل
+                    if (isset($levelCompletionMap[$levelId])) {
+                        continue;
+                    }
+
+                    $userLevelProgress = $userLevelProgressMap->get($levelId);
+
+                    // إذا كان status = 'completed' في قاعدة البيانات → مكتمل نهائياً
+                    if ($userLevelProgress && $userLevelProgress->status === 'completed') {
+                        $levelCompletionMap[$levelId] = true;
+                        continue;
+                    }
+
+                    // التحقق من tracks
+                    $levelTracks = $allCourseLevelTracks->get($levelId, collect());
+                    $hasPublishedTracks = false;
+                    $allTracksCompleted = true;
+
+                    foreach ($levelTracks as $track) {
+                        if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
+                            continue; // تخطي tracks غير المنشورة
+                        }
+
+                        $hasPublishedTracks = true;
+                        $trackableId = $track->trackable_id;
+
+                        $trackCompleted = false;
+                        if ($track->trackable_type === Lesson::class) {
+                            $trackCompleted = $lessonProgressMap[$trackableId]['is_completed'] ?? false;
+                        } else {
+                            $trackCompleted = $scenarioProgressMap[$trackableId]['is_completed'] ?? false;
+                        }
+
+                        if (!$trackCompleted) {
+                            $allTracksCompleted = false;
+                            break;
+                        }
+                    }
+
+                    $levelCompletionMap[$levelId] = $hasPublishedTracks && $allTracksCompleted;
+                }
+            }
+        }
+
         // 7. حساب access_status لكل مستوى
         // access_status = 'completed' فقط إذا كان status = 'completed' في قاعدة البيانات
         foreach ($levels as $level) {
@@ -1453,16 +1512,16 @@ class TrackProgressService
                 $previousLevel = null;
                 $currentOrderIndex = $level->order_index;
                 $currentId = $level->id;
-                
+
                 foreach ($courseLevels as $courseLevel) {
                     // تخطي المستوى الحالي
                     if ($courseLevel->id === $currentId) {
                         continue;
                     }
-                    
+
                     $shouldBePrevious = false;
                     $courseOrderIndex = $courseLevel->order_index;
-                    
+
                     // الحالة 1: order_index أصغر من المستوى الحالي
                     if ($courseOrderIndex < $currentOrderIndex) {
                         if (!$previousLevel) {
@@ -1492,7 +1551,7 @@ class TrackProgressService
                             }
                         }
                     }
-                    
+
                     if ($shouldBePrevious) {
                         $previousLevel = $courseLevel;
                     }
@@ -1505,13 +1564,13 @@ class TrackProgressService
                     // التحقق من المستوى السابق
                     $previousUserProgress = $userLevelProgressMap->get($previousLevel->id);
                     $previousIsCompleted = $levelCompletionMap[$previousLevel->id] ?? false;
-                    
+
                     // المستوى السابق مكتمل إذا:
                     // 1. status = 'completed' في قاعدة البيانات، أو
                     // 2. is_completed = true (جميع tracks مكتملة)
-                    $previousCompleted = ($previousUserProgress && $previousUserProgress->status === 'completed') 
+                    $previousCompleted = ($previousUserProgress && $previousUserProgress->status === 'completed')
                         || $previousIsCompleted;
-                    
+
                     $accessStatus = $previousCompleted ? 'open' : 'locked';
                 }
             }
@@ -1529,4 +1588,3 @@ class TrackProgressService
         return $result;
     }
 }
-
