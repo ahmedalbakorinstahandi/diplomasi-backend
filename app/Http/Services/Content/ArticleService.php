@@ -20,7 +20,7 @@ class ArticleService
         $filters['sort_field'] = $filters['sort_field'] ?? 'created_at';
         $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
 
-        $searchFields = ['title', 'content'];
+        $searchFields = ['title', 'content', ['author.first_name', 'author.last_name']];
         $numericFields = [];
         $dateFields = ['created_at', 'published_at'];
         $exactMatchFields = ['is_published', 'author_id'];

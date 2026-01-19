@@ -2,6 +2,7 @@
 
 namespace App\Models\Content;
 
+use App\Models\Users\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -47,7 +48,6 @@ class Article extends Model
      */
     public function author()
     {
-        return $this->belongsTo(\App\Models\Users\User::class, 'author_id')->withTrashed();
+        return $this->belongsTo(User::class, 'author_id')->withTrashed();
     }
 }
-
