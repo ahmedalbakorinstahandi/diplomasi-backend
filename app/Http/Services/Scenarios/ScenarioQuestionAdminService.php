@@ -314,7 +314,7 @@ class ScenarioQuestionAdminService
                 if (count($uniqueNextIds) === 1 && $uniqueNextIds[0] == $questionId) {
                     return [
                         'success' => false,
-                        'message' => "messages.scenario.deadlock_question: {$questionId}",
+                        'message' => trans('messages.scenario.deadlock_question', ['question_id' => $questionId]),
                     ];
                 }
             }
@@ -326,7 +326,7 @@ class ScenarioQuestionAdminService
                 if ($option->next_question_id && !in_array($option->next_question_id, $allQuestionIds)) {
                     return [
                         'success' => false,
-                        'message' => "messages.scenario.invalid_next_question: {$option->id}",
+                        'message' => trans('messages.scenario.invalid_next_question', ['option_id' => $option->id]),
                     ];
                 }
             }

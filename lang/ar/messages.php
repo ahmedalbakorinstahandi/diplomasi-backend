@@ -185,6 +185,23 @@ return [
         'reordered' => 'تم إعادة ترتيب السيناريو بنجاح',
         'attempt_started' => 'تم بدء المحاولة بنجاح',
         'answer_submitted' => 'تم إرسال الإجابة بنجاح',
+        'finished' => 'تم إنهاء السيناريو بنجاح',
+        'attempt_finished' => 'تم إنهاء المحاولة بنجاح',
+        'locked' => 'السيناريو مقفل',
+        'no_start_question' => 'لا يوجد سؤال بداية محدد',
+        'cannot_publish_without_start_question' => 'لا يمكن نشر السيناريو بدون تحديد سؤال البداية',
+        'deadlock_question' => 'السؤال (ID: :question_id) يشكل حلقة مغلقة (deadlock): جميع خياراته تشير لنفس السؤال',
+        'invalid_next_question' => 'الخيار (ID: :option_id) يشير لسؤال غير موجود في السيناريو',
+    ],
+
+    'scenario_question' => [
+        'created' => 'تم إنشاء سؤال السيناريو بنجاح',
+        'updated' => 'تم تحديث سؤال السيناريو بنجاح',
+        'deleted' => 'تم حذف سؤال السيناريو بنجاح',
+        'not_found' => 'سؤال السيناريو غير موجود',
+        'reordered' => 'تم إعادة ترتيب سؤال السيناريو بنجاح',
+        'cannot_delete_start_question' => 'لا يمكن حذف سؤال البداية',
+        'cannot_delete_referenced' => 'لا يمكن حذف سؤال يُشار إليه من خيارات أخرى',
     ],
 
     'article' => [
