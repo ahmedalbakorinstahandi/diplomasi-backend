@@ -164,5 +164,329 @@ class SubscriptionController extends Controller
             'resource' => SubscriptionResource::class,
         ]);
     }
+
+    /**
+     * Prepare payment for subscription (User route)
+     * Returns payment intent data for Stripe SDK
+     */
+    public function preparePayment(Request $request)
+    {
+        $request->validate([
+            'plan_id' => 'required|exists:plans,id',
+        ]);
+
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $plan = \App\Models\Billing\Plan::find($request->plan_id);
+        if (!$plan) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Plan not found',
+                'status' => 404,
+            ]);
+        }
+
+        $stripeService = app(\App\Services\StripeService::class);
+        
+        // Get or create Stripe customer
+        $customerId = $user->getStripeCustomer();
+
+        // Create payment intent
+        $paymentIntent = $stripeService->createPaymentIntent(
+            $plan->price,
+            'USD',
+            $customerId,
+            null, // No payment method yet
+            [
+                'type' => 'subscription',
+                'user_id' => $user->id,
+                'plan_id' => $plan->id,
+            ]
+        );
+
+        // Create ephemeral key
+        $ephemeralKey = $stripeService->createEphemeralKey($customerId);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => [
+                'payment' => [
+                    'client_secret' => $paymentIntent->client_secret,
+                    'customer_id' => $customerId,
+                    'ephemeral_key' => $ephemeralKey->secret,
+                    'amount' => $plan->price,
+                    'currency' => 'USD',
+                ],
+                'plan' => [
+                    'id' => $plan->id,
+                    'name' => $plan->name,
+                    'price' => $plan->price,
+                ],
+            ],
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Create subscription with payment (User route)
+     * After payment is confirmed in Flutter
+     */
+    public function createWithPayment(Request $request)
+    {
+        $request->validate([
+            'plan_id' => 'required|exists:plans,id',
+            'payment_intent_id' => 'required|string',
+            'auto_renew' => 'boolean',
+        ]);
+
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->createWithPaymentIntent($request->all(), $user);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription created successfully',
+            'status' => 201,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Get current subscription (User route)
+     */
+    public function getCurrent()
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->getCurrent($user);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Cancel auto-renewal (User route)
+     */
+    public function cancelAutoRenew(int $id)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->show($id);
+
+        // Verify ownership
+        if ($subscription->user_id !== $user->id) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 403,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->cancelAutoRenew($subscription);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Auto-renewal cancelled',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Resume auto-renewal (User route)
+     */
+    public function resumeAutoRenew(int $id)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->show($id);
+
+        // Verify ownership
+        if ($subscription->user_id !== $user->id) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 403,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->resumeAutoRenew($subscription);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Auto-renewal resumed',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Upgrade subscription (User route)
+     */
+    public function upgradeUser(int $id, UpgradeSubscriptionRequest $request)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->show($id);
+
+        // Verify ownership
+        if ($subscription->user_id !== $user->id) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 403,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->upgradeSubscription(
+            $subscription,
+            $request->validated()['plan_id']
+        );
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription upgraded successfully',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Pause subscription (Admin route)
+     */
+    public function pause(int $id, Request $request)
+    {
+        SubscriptionPermission::canUpdate();
+
+        $subscription = $this->subscriptionService->show($id);
+
+        $subscription = $this->subscriptionService->pause($subscription, $request->input('reason'));
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription paused',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Resume subscription (Admin route)
+     */
+    public function resume(int $id)
+    {
+        SubscriptionPermission::canUpdate();
+
+        $subscription = $this->subscriptionService->show($id);
+
+        $subscription = $this->subscriptionService->resume($subscription);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription resumed',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Manual renewal (Admin route)
+     */
+    public function renewManual(int $id, Request $request)
+    {
+        SubscriptionPermission::canRenew();
+
+        $request->validate([
+            'days' => 'nullable|integer|min:1',
+        ]);
+
+        $subscription = $this->subscriptionService->show($id);
+
+        $subscription = $this->subscriptionService->renewManual($subscription, $request->input('days'));
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription renewed manually',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
+     * Extend subscription (Admin route)
+     */
+    public function extend(int $id, Request $request)
+    {
+        SubscriptionPermission::canUpdate();
+
+        $request->validate([
+            'days' => 'required|integer|min:1',
+        ]);
+
+        $subscription = $this->subscriptionService->show($id);
+
+        $subscription = $this->subscriptionService->extend($subscription, $request->input('days'));
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Subscription extended',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
 }
 

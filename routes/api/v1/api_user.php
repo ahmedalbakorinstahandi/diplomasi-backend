@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Billing\PlanController;
+use App\Http\Controllers\Billing\SubscriptionController;
+use App\Http\Controllers\Billing\PaymentMethodController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
@@ -103,5 +105,19 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
+
+        // Subscriptions
+        Route::get('subscriptions/current', [SubscriptionController::class, 'getCurrent']);
+        Route::post('subscriptions/prepare-payment', [SubscriptionController::class, 'preparePayment']);
+        Route::post('subscriptions', [SubscriptionController::class, 'createWithPayment']);
+        Route::post('subscriptions/{id}/cancel-auto-renew', [SubscriptionController::class, 'cancelAutoRenew']);
+        Route::post('subscriptions/{id}/resume-auto-renew', [SubscriptionController::class, 'resumeAutoRenew']);
+        Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgradeUser']);
+
+        // Payment Methods
+        Route::get('payment-methods', [PaymentMethodController::class, 'index']);
+        Route::post('payment-methods', [PaymentMethodController::class, 'store']);
+        Route::post('payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);
+        Route::delete('payment-methods/{id}', [PaymentMethodController::class, 'destroy']);
     });
 });

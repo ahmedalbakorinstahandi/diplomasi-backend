@@ -135,6 +135,16 @@ Route::group(['prefix' => 'admin'], function () {
         // Route::post('subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
         Route::post('subscriptions/{id}/renew', [SubscriptionController::class, 'renew']);
         Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgrade']);
+        Route::post('subscriptions/{id}/pause', [SubscriptionController::class, 'pause']);
+        Route::post('subscriptions/{id}/resume', [SubscriptionController::class, 'resume']);
+        Route::post('subscriptions/{id}/renew-manual', [SubscriptionController::class, 'renewManual']);
+        Route::post('subscriptions/{id}/extend', [SubscriptionController::class, 'extend']);
+
+        // Financial Dashboard
+        Route::get('financial/overview', [\App\Http\Controllers\Billing\FinancialController::class, 'overview']);
+        Route::get('financial/transactions', [\App\Http\Controllers\Billing\FinancialController::class, 'transactions']);
+        Route::get('financial/revenue', [\App\Http\Controllers\Billing\FinancialController::class, 'revenue']);
+        Route::get('financial/subscriptions-stats', [\App\Http\Controllers\Billing\FinancialController::class, 'subscriptionsStats']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);

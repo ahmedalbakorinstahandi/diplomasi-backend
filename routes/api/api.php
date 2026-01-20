@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Route;
 
 request()->headers->set('Accept', 'application/json');
 
+// Public webhook route (no authentication required)
+Route::post('webhooks/stripe', [\App\Http\Controllers\Billing\StripeWebhookController::class, 'handle']);
+
 // Public routes
 Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddleware::class])->group(function () {
 

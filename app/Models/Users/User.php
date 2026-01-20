@@ -35,6 +35,8 @@ class User extends Authenticatable
         'status',
         'otp',
         'otp_expire_at',
+        'stripe_customer_id',
+        'stripe_default_payment_method_id',
     ];
 
     /**
@@ -246,6 +248,68 @@ class User extends Authenticatable
     public function subscriptions()
     {
         return $this->hasMany(\App\Models\Billing\Subscription::class);
+    }
+
+    /**
+     * Get the payment methods.
+     */
+    public function paymentMethods()
+    {
+        return $this->hasMany(\App\Models\Billing\PaymentMethod::class);
+    }
+
+    /**
+     * Get the financial transactions.
+     */
+    public function financialTransactions()
+    {
+        return $this->hasMany(\App\Models\Billing\FinancialTransaction::class);
+    }
+
+    /**
+     * Check if user has an active subscription.
+     */
+    public function isSubscribed(): bool
+    {
+        return $this->hasActiveSubscription();
+    }
+
+    /**
+     * Check if user has an active subscription.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        return $this->subscriptions()
+            ->where('status', 'active')
+            ->where('end_date', '>=', now()->toDateString())
+            ->exists();
+    }
+
+    /**
+     * Get the active subscription.
+     */
+    public function getActiveSubscription()
+    {
+        return $this->subscriptions()
+            ->where('status', 'active')
+            ->where('end_date', '>=', now()->toDateString())
+            ->with(['plan'])
+            ->orderBy('created_at', 'desc')
+            ->first();
+    }
+
+    /**
+     * Get Stripe customer ID or create one.
+     */
+    public function getStripeCustomer()
+    {
+        if (!$this->stripe_customer_id) {
+            $stripeService = app(\App\Services\StripeService::class);
+            $this->stripe_customer_id = $stripeService->createOrGetCustomer($this);
+            $this->save();
+        }
+
+        return $this->stripe_customer_id;
     }
 
     /**
