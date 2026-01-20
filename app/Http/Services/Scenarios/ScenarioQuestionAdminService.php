@@ -67,13 +67,13 @@ class ScenarioQuestionAdminService
             MessageService::abort(404, 'messages.scenario.not_found');
         }
 
-        // التحقق من عدم تكرار code في نفس السيناريو
-        $existingQuestion = ScenarioQuestion::where('scenario_id', $data['scenario_id'])
-            ->where('code', $data['code'])
-            ->first();
-        if ($existingQuestion) {
-            MessageService::abort(422, 'messages.scenario_question.code_exists');
-        }
+        // // التحقق من عدم تكرار code في نفس السيناريو
+        // $existingQuestion = ScenarioQuestion::where('scenario_id', $data['scenario_id'])
+        //     ->where('code', $data['code'])
+        //     ->first();
+        // if ($existingQuestion) {
+        //     MessageService::abort(422, 'messages.scenario_question.code_exists');
+        // }
 
         // إنشاء السؤال
         $questionData = [
@@ -121,16 +121,16 @@ class ScenarioQuestionAdminService
             }
         }
 
-        // التحقق من عدم تكرار code إذا تم تحديثه
-        if (isset($data['code']) && $data['code'] != $question->code) {
-            $existingQuestion = ScenarioQuestion::where('scenario_id', $question->scenario_id)
-                ->where('code', $data['code'])
-                ->where('id', '!=', $question->id)
-                ->first();
-            if ($existingQuestion) {
-                MessageService::abort(422, 'messages.scenario_question.code_exists');
-            }
-        }
+        // // التحقق من عدم تكرار code إذا تم تحديثه
+        // if (isset($data['code']) && $data['code'] != $question->code) {
+        //     $existingQuestion = ScenarioQuestion::where('scenario_id', $question->scenario_id)
+        //         ->where('code', $data['code'])
+        //         ->where('id', '!=', $question->id)
+        //         ->first();
+        //     if ($existingQuestion) {
+        //         MessageService::abort(422, 'messages.scenario_question.code_exists');
+        //     }
+        // }
 
         // تحديث بيانات السؤال
         $questionData = [];
@@ -309,7 +309,7 @@ class ScenarioQuestionAdminService
 
             // إذا كان السؤال لديه خيارات وكلها تشير لنفس السؤال (loop نفسي بدون خروج)
             if (count($options) > 0 && count($nextIds) > 0) {
-                $uniqueNextIds = array_unique($nextIds);
+                $uniqueNextIds = array_values(array_unique($nextIds));
                 // إذا كان كل الخيارات تشير لنفس السؤال فقط (deadlock)
                 if (count($uniqueNextIds) === 1 && $uniqueNextIds[0] == $questionId) {
                     return [
