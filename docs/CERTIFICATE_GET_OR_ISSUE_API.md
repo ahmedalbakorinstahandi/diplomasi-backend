@@ -1,8 +1,8 @@
-# Certificate Get or Issue API - التحقق من الشهادة وإصدارها تلقائياً
+# Certificate Verify and Generate Image API - التحقق من الشهادة وتوليد الصورة
 
 ## نظرة عامة
 
-هذا الـ API يتيح الحصول على شهادة موجودة أو إصدار شهادة جديدة تلقائياً إذا كان المستخدم مؤهلاً.
+هذا الـ API يتيح التحقق من وجود شهادة للمستخدم وتوليد صورة PNG لها إذا لم تكن موجودة. يعمل بنفس طريقة رابط التحقق Web.
 
 ## Endpoint
 
@@ -38,17 +38,17 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ## Response Cases - الحالات المختلفة
 
-### ✅ الحالة 1: الشهادة موجودة مسبقاً
+### ✅ الحالة 1: الشهادة موجودة والصورة جاهزة
 
 **Status Code:** `200 OK`
 
 ```json
 {
   "status": true,
-  "message": "الشهادة موجودة مسبقاً",
+  "message": "الشهادة جاهزة",
   "data": {
-    "certificate_status": "already_exists",
-    "message": "الشهادة موجودة مسبقاً",
+    "certificate_status": "certificate_ready",
+    "message": "الشهادة جاهزة",
     "id": 42,
     "certificate_code": "CERT-20260116-1-5-ABC123",
     "user_id": 1,
@@ -81,23 +81,23 @@ POST /api/v1/admin/certificates/get-or-issue
 ```
 
 **الوصف:**
-- الشهادة موجودة مسبقاً ولم يتم إصدار شهادة جديدة
-- يتم إرجاع معلومات الشهادة الموجودة بنفس صيغة `show`
-- حقل `certificate_status` يخبرك أن الشهادة كانت موجودة مسبقاً
+- الشهادة موجودة والصورة جاهزة للعرض
+- لا حاجة لتوليد صورة جديدة
+- يتم إرجاع معلومات الشهادة الكاملة بنفس صيغة `show`
 
 ---
 
-### ✅ الحالة 2: تم إصدار شهادة جديدة
+### ✅ الحالة 2: تم توليد صورة الشهادة الآن
 
 **Status Code:** `200 OK`
 
 ```json
 {
   "status": true,
-  "message": "تم إصدار الشهادة بنجاح",
+  "message": "تم توليد صورة الشهادة بنجاح",
   "data": {
-    "certificate_status": "newly_issued",
-    "message": "تم إصدار الشهادة بنجاح",
+    "certificate_status": "image_generated",
+    "message": "تم توليد صورة الشهادة بنجاح",
     "id": 43,
     "certificate_code": "CERT-20260116-1-5-XYZ789",
     "user_id": 1,
@@ -135,9 +135,8 @@ POST /api/v1/admin/certificates/get-or-issue
 ```
 
 **الوصف:**
-- تم التحقق من أهلية المستخدم بنجاح
-- تم إصدار شهادة جديدة
-- تم توليد الصورة والـ QR Code
+- الشهادة موجودة لكن الصورة PNG لم تكن موجودة
+- تم توليد الصورة بنجاح من البيانات
 - البيانات بنفس صيغة `show` مع إضافة `certificate_status`
 
 ---
@@ -166,7 +165,24 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ---
 
-### 2. المستخدم غير مسجل في الكورس
+### 2. الشهادة لم يتم إصدارها بعد
+
+**Status Code:** `404 Not Found`
+
+```json
+{
+  "status": false,
+  "message": "الشهادة لم يتم إصدارها بعد"
+}
+```
+
+**متى يحدث:**
+- المستخدم مؤهل لكن الشهادة لم تُصدر له بعد
+- يجب إصدار الشهادة من لوحة التحكم أو تلقائياً عند إكمال الكورس
+
+---
+
+### 3. المستخدم غير مسجل في الكورس
 
 **Status Code:** `400 Bad Request`
 
@@ -182,7 +198,7 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ---
 
-### 3. الكورس لم يكتمل بعد
+### 4. الكورس لم يكتمل بعد
 
 **Status Code:** `400 Bad Request`
 
@@ -199,7 +215,7 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ---
 
-### 4. تاريخ الإكمال غير موجود
+### 5. تاريخ الإكمال غير موجود
 
 **Status Code:** `400 Bad Request`
 
@@ -216,7 +232,7 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ---
 
-### 5. بعض المستويات غير مكتملة
+### 6. بعض المستويات غير مكتملة
 
 **Status Code:** `400 Bad Request`
 
@@ -231,21 +247,6 @@ POST /api/v1/admin/certificates/get-or-issue
 - عند طلب شهادة للكورس (بدون level_id)
 - الكورس يحتوي على مستويات لها شهادات
 - المستخدم لم يكمل جميع المستويات
-
----
-
-### 6. تم إصدار شهادة سابقة للكورس
-
-**Status Code:** `400 Bad Request`
-
-```json
-{
-  "status": false,
-  "message": "تم إصدار شهادة سابقة لهذا الكورس"
-}
-```
-
-**ملاحظة:** هذا لن يحدث عادةً لأن الـ API يتحقق من الشهادة الموجودة أولاً ويرجعها
 
 ---
 
@@ -345,23 +346,7 @@ POST /api/v1/admin/certificates/get-or-issue
 
 ---
 
-### 13. فشل في إصدار الشهادة
-
-**Status Code:** `500 Internal Server Error`
-
-```json
-{
-  "status": false,
-  "message": "فشل في إصدار الشهادة"
-}
-```
-
-**متى يحدث:**
-- خطأ داخلي أثناء عملية إصدار الشهادة
-
----
-
-### 14. حدث خطأ أثناء معالجة الشهادة
+### 13. حدث خطأ أثناء معالجة الشهادة
 
 **Status Code:** `500 Internal Server Error`
 
@@ -383,7 +368,7 @@ POST /api/v1/admin/certificates/get-or-issue
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `certificate_status` | string | حالة العملية: `already_exists` أو `newly_issued` |
+| `certificate_status` | string | حالة العملية: `certificate_ready` أو `image_generated` |
 | `message` | string | رسالة توضيحية بالعربية |
 | `id` | integer | معرّف الشهادة |
 | `certificate_code` | string | كود الشهادة الفريد |
@@ -426,10 +411,10 @@ const result = await response.json();
 
 if (result.status) {
   // التحقق من حالة الشهادة
-  if (result.data.certificate_status === 'already_exists') {
-    console.log('الشهادة موجودة مسبقاً');
-  } else if (result.data.certificate_status === 'newly_issued') {
-    console.log('تم إصدار شهادة جديدة');
+  if (result.data.certificate_status === 'certificate_ready') {
+    console.log('الشهادة جاهزة');
+  } else if (result.data.certificate_status === 'image_generated') {
+    console.log('تم توليد صورة الشهادة');
   }
   
   // تحديث مباشر - البيانات بنفس صيغة show
@@ -471,11 +456,15 @@ if (result.status) {
   // تحديث State مباشرة (نفس صيغة show)
   dispatch(setCertificate(certificate));
   
-  // رابط التحقق (للباركود)
-  const verificationUrl = `https://api.diplomasi.com/certificates/${certificate.certificate_code}/verify`;
+  // عرض الصورة
+  if (certificate.image_url) {
+    showCertificateImage(certificate.image_url);
+  }
   
-  // فتح صفحة التحقق
-  window.open(verificationUrl, '_blank');
+  // إذا تم توليد الصورة الآن
+  if (certificate.certificate_status === 'image_generated') {
+    showToast('تم توليد صورة الشهادة بنجاح');
+  }
 }
 ```
 
@@ -486,9 +475,9 @@ if (result.status) {
 ```
 START
   ↓
-هل الشهادة موجودة مسبقاً؟
+البحث عن الشهادة
   ↓
-YES → إرجاع الشهادة الموجودة (already_exists)
+هل الشهادة موجودة؟
   ↓
 NO → التحقق من الأهلية
   ↓
@@ -496,13 +485,15 @@ NO → التحقق من الأهلية
   ↓
 NO → إرجاع رسالة خطأ واضحة (400)
   ↓
-YES → إصدار شهادة جديدة
+YES → الشهادة لم تصدر بعد (404)
   ↓
-هل نجح الإصدار؟
+YES (الشهادة موجودة) → هل الصورة PNG موجودة؟
   ↓
-NO → إرجاع خطأ (500)
+NO → توليد الصورة
   ↓
-YES → إرجاع الشهادة الجديدة (newly_issued)
+إرجاع الشهادة (image_generated)
+  ↓
+YES (الصورة موجودة) → إرجاع الشهادة (certificate_ready)
   ↓
 END
 ```
@@ -541,11 +532,12 @@ if (certificate.image_exists) {
 ### 3. حفظ البيانات محلياً
 ```javascript
 // حفظ معلومات الشهادة في Local Storage
-if (result.data.status === 'newly_issued') {
+if (result.data.certificate_status === 'image_generated') {
   localStorage.setItem(
     `certificate_${certificate.certificate_code}`,
     JSON.stringify(certificate)
   );
+  showToast('تم توليد صورة الشهادة بنجاح');
 }
 ```
 
@@ -553,11 +545,12 @@ if (result.data.status === 'newly_issued') {
 
 ## الخلاصة
 
-هذا الـ API يوفر طريقة بسيطة وآمنة للحصول على الشهادات:
+هذا الـ API يوفر طريقة بسيطة وآمنة للتحقق من الشهادات:
 - ✅ رسائل خطأ واضحة ومفصلة لكل حالة
-- ✅ إصدار تلقائي للشهادات عند الأهلية
-- ✅ إرجاع الشهادة الموجودة إذا كانت مُصدرة مسبقاً
-- ✅ معلومات كاملة عن الشهادة (رابط التحقق، الصورة، QR Code)
+- ✅ التحقق من وجود الشهادة وتوليد الصورة تلقائياً
+- ✅ يعمل بنفس طريقة رابط التحقق Web
+- ✅ الاعتماد على صورة PNG فقط (لا يوجد PDF)
+- ✅ معلومات كاملة عن الشهادة بنفس صيغة show
 - ✅ سهولة الاستخدام في التطبيق
 
 ---

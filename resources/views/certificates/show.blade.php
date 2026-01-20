@@ -192,35 +192,31 @@
                 use App\Services\MediaUrlService;
                 $imageUrl = $certificate->image_url ? MediaUrlService::toUrl($certificate->image_url) : null;
                 $qrCodeUrl = $certificate->qr_code ? MediaUrlService::toUrl($certificate->qr_code) : null;
-                $pdfUrl = route('certificates.pdf', $certificate_code);
             @endphp
 
             @if($imageUrl)
             <div class="certificate-image">
-                <img src="{{ $imageUrl }}" alt="صورة الشهادة" onerror="this.parentElement.innerHTML='<iframe src=\'{{ $pdfUrl }}\' style=\'width:100%;height:800px;border:none;\'></iframe>'">
+                <img src="{{ $imageUrl }}" alt="صورة الشهادة" 
+                     onerror="this.parentElement.innerHTML='<div class=\'no-image\' style=\'padding:50px;text-align:center;color:#999;\'>الصورة غير متاحة حالياً</div>'"
+                     style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);">
             </div>
             @else
-            <!-- إذا لم تكن PNG موجودة، عرض PDF مباشرة -->
             <div class="certificate-image">
-                <iframe src="{{ $pdfUrl }}" 
-                        style="width: 100%; height: 800px; border: none; border-radius: 10px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);"
-                        title="صورة الشهادة">
-                    <p>المتصفح لا يدعم عرض PDF. 
-                       <a href="{{ $pdfUrl }}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                           اضغط هنا لتحميل PDF
-                       </a>
-                    </p>
-                </iframe>
+                <div class="no-image" style="padding: 50px; text-align: center; color: #999;">
+                    الصورة غير متاحة حالياً
+                </div>
             </div>
             @endif
 
-            <!-- زر تحميل PDF -->
+            <!-- زر تحميل الصورة -->
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ $pdfUrl }}" target="_blank" 
+                @if($imageUrl)
+                <a href="{{ $imageUrl }}" download="{{ $certificate_code }}.png" 
                    style="display: inline-block; background: #667eea; color: white; padding: 15px 30px; 
                           border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 18px;">
-                    📥 تحميل PDF الشهادة
+                    📥 تحميل الشهادة
                 </a>
+                @endif
             </div>
 
             @if($qrCodeUrl)

@@ -197,20 +197,21 @@ class CertificateController extends Controller
     /**
      * عرض PDF الشهادة مباشرة في المتصفح
      */
-    public function viewPdf(string $certificateCode)
-    {
-        // البحث عن الشهادة باستخدام الكود
-        $certificate = $this->certificateService->verifyCertificate($certificateCode);
-        
-        if (!$certificate['valid']) {
-            \App\Services\MessageService::abort(404, 'messages.certificate.not_found');
-        }
-
-        return $this->certificateService->generateCertificatePdf($certificate['certificate']);
-    }
+    // PDF method removed - using PNG only now
+    // public function viewPdf(string $certificateCode)
+    // {
+    //     // البحث عن الشهادة باستخدام الكود
+    //     $certificate = $this->certificateService->verifyCertificate($certificateCode);
+    //     
+    //     if (!$certificate['valid']) {
+    //         \App\Services\MessageService::abort(404, 'messages.certificate.not_found');
+    //     }
+    //
+    //     return $this->certificateService->generateCertificatePdf($certificate['certificate']);
+    // }
 
     /**
-     * الحصول على شهادة موجودة أو إصدارها تلقائياً
+     * التحقق من الشهادة وتوليد الصورة إذا لم تكن موجودة
      * 
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -224,15 +225,15 @@ class CertificateController extends Controller
             'level_id' => 'nullable|integer|exists:levels,id',
         ]);
 
-        $result = $this->certificateService->getOrIssueCertificate(
+        $result = $this->certificateService->verifyAndGenerateImage(
             $validated['user_id'],
             $validated['course_id'],
             $validated['level_id'] ?? null
         );
 
-        // استخراج الرسالة من النتيجة
-        $message = $result['message'] ?? trans('messages.certificate.issued_successfully');
-        
-        return \App\Services\MessageService::success($message, $result);
+        return \App\Services\MessageService::success(
+            $result['message'] ?? trans('messages.certificate.ready'),
+            $result
+        );
     }
 }

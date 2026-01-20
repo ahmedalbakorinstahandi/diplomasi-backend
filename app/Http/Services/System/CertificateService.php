@@ -12,6 +12,7 @@ use App\Services\ArabicTextRenderer;
 use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -1342,58 +1343,71 @@ class CertificateService
     }
 
     /**
-     * الحصول على شهادة موجودة أو إصدار شهادة جديدة تلقائياً
+     * التحقق من الشهادة وتوليد الصورة إذا لم تكن موجودة
      * 
      * @param int $userId
      * @param int $courseId
      * @param int|null $levelId
      * @return array
      */
-    public function getOrIssueCertificate(int $userId, int $courseId, ?int $levelId = null): array
+    public function verifyAndGenerateImage(int $userId, int $courseId, ?int $levelId = null): array
     {
         try {
-            // 1. التحقق من وجود الشهادة مسبقاً
-            $existingCertificate = Certificate::where('user_id', $userId)
+            // 1. البحث عن الشهادة
+            $certificate = Certificate::where('user_id', $userId)
                 ->where('course_id', $courseId)
                 ->where('level_id', $levelId)
                 ->where('status', 'active')
                 ->first();
 
-            if ($existingCertificate) {
-                // الشهادة موجودة مسبقاً - إرجاع نفس صيغة show
-                $certificateData = $this->show($existingCertificate->id);
-                
-                // إضافة حالة الشهادة
-                $certificateData['certificate_status'] = 'already_exists';
-                $certificateData['message'] = trans('messages.certificate.already_exists');
-                
-                return $certificateData;
-            }
-
-            // 2. التحقق من الأهلية (ستطلق MessageService::abort عند الفشل)
-            $this->checkCertificateEligibility($userId, $courseId, $levelId);
-
-            // 3. إصدار الشهادة (ترجع من show مباشرة)
-            $certificate = $this->issueCertificate($userId, $courseId, $levelId);
-
             if (!$certificate) {
-                MessageService::abort(500, 'messages.certificate.issuance_failed');
+                // 2. التحقق من السبب (غير مؤهل، لم يكمل، إلخ)
+                try {
+                    $this->checkCertificateEligibility($userId, $courseId, $levelId);
+                    // إذا وصلنا هنا، المستخدم مؤهل لكن الشهادة غير موجودة
+                    MessageService::abort(404, 'messages.certificate.not_issued_yet');
+                } catch (HttpResponseException $e) {
+                    // إعادة رمي الـ exception مع رسالة السبب
+                    throw $e;
+                }
             }
 
-            // 4. إرجاع الشهادة الجديدة - نفس صيغة show
+            // 3. تحميل العلاقات
+            $certificate->load(['user', 'course', 'level']);
+
+            // 4. التحقق من وجود الصورة وتوليدها إذا لزم
+            $imageGenerated = false;
+            if (!$certificate->image_url || !file_exists(storage_path('app/public/' . $certificate->image_url))) {
+                try {
+                    $imagePath = $this->generateCertificateImageFromPdf($certificate);
+                    if ($imagePath) {
+                        $certificate->image_url = $imagePath;
+                        $certificate->save();
+                        $certificate->refresh();
+                        $imageGenerated = true;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to generate certificate image", [
+                        'certificate_id' => $certificate->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // 5. إرجاع الشهادة مع الحالة
             $certificateData = $this->show($certificate->id);
-            
-            // إضافة حالة الشهادة
-            $certificateData['certificate_status'] = 'newly_issued';
-            $certificateData['message'] = trans('messages.certificate.issued_successfully');
+            $certificateData['certificate_status'] = $imageGenerated ? 'image_generated' : 'certificate_ready';
+            $certificateData['message'] = $imageGenerated 
+                ? trans('messages.certificate.image_generated') 
+                : trans('messages.certificate.ready');
             
             return $certificateData;
 
-        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+        } catch (HttpResponseException $e) {
             // MessageService::abort تم استدعاؤها - نعيد رمي الاستثناء
             throw $e;
         } catch (\Exception $e) {
-            Log::error("Error in getOrIssueCertificate", [
+            Log::error("Error in verifyAndGenerateImage", [
                 'user_id' => $userId,
                 'course_id' => $courseId,
                 'level_id' => $levelId,
