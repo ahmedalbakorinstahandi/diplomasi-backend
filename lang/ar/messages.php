@@ -265,6 +265,7 @@ return [
         'image_not_created' => 'صورة الشهادة لم يتم إنشاؤها في',
         'user_data_not_found' => 'بيانات المستخدم غير موجودة',
         'course_data_not_found' => 'بيانات الكورس غير موجودة',
+        'image_generated' => 'تم توليد صورة الشهادة بنجاح',
         'eligibility' => [
             'user_not_registered_in_course' => 'المستخدم غير مسجل في هذا الكورس',
             'course_not_completed' => 'الكورس لم يكتمل بعد',

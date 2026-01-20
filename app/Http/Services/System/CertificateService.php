@@ -1345,16 +1345,8 @@ class CertificateService
      */
     public function ensureCertificateImage(Certificate $certificate): Certificate
     {
-
-        Log::info("ensureCertificateImage called", ['certificate_id' => $certificate->id]);
-
         // 1. البحث عن الشهادة
         $certificate->load(['user', 'course', 'level']);
-
-        Log::info("Certificate found", [
-            'certificate_id' => $certificate->id,
-            'certificate_code' => $certificate->certificate_code,
-        ]);
 
         // 2. التحقق من وجود الصورة وتوليدها إذا لزم
         $shouldGenerateImage = false;

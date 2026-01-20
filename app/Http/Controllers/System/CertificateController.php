@@ -232,6 +232,7 @@ class CertificateController extends Controller
         return ResponseService::response([
             'success' => true,
             'data' => $certificate,
+            'message' => 'messages.certificate.verified',
             'resource' => CertificateResource::class,
             'status' => 200,
         ]);
