@@ -208,4 +208,31 @@ class CertificateController extends Controller
 
         return $this->certificateService->generateCertificatePdf($certificate['certificate']);
     }
+
+    /**
+     * الحصول على شهادة موجودة أو إصدارها تلقائياً
+     * 
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getOrIssue(\Illuminate\Http\Request $request)
+    {
+        // التحقق من صحة البيانات
+        $validated = $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+            'level_id' => 'nullable|integer|exists:levels,id',
+        ]);
+
+        $result = $this->certificateService->getOrIssueCertificate(
+            $validated['user_id'],
+            $validated['course_id'],
+            $validated['level_id'] ?? null
+        );
+
+        // استخراج الرسالة من النتيجة
+        $message = $result['message'] ?? trans('messages.certificate.issued_successfully');
+        
+        return \App\Services\MessageService::success($message, $result);
+    }
 }

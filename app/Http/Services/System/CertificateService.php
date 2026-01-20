@@ -1340,4 +1340,68 @@ class CertificateService
         //     'type' => 'certificate_issued',
         // ]);
     }
+
+    /**
+     * الحصول على شهادة موجودة أو إصدار شهادة جديدة تلقائياً
+     * 
+     * @param int $userId
+     * @param int $courseId
+     * @param int|null $levelId
+     * @return array
+     */
+    public function getOrIssueCertificate(int $userId, int $courseId, ?int $levelId = null): array
+    {
+        try {
+            // 1. التحقق من وجود الشهادة مسبقاً
+            $existingCertificate = Certificate::where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->where('level_id', $levelId)
+                ->where('status', 'active')
+                ->first();
+
+            if ($existingCertificate) {
+                // الشهادة موجودة مسبقاً - إرجاع نفس صيغة show
+                $certificateData = $this->show($existingCertificate->id);
+                
+                // إضافة حالة الشهادة
+                $certificateData['certificate_status'] = 'already_exists';
+                $certificateData['message'] = trans('messages.certificate.already_exists');
+                
+                return $certificateData;
+            }
+
+            // 2. التحقق من الأهلية (ستطلق MessageService::abort عند الفشل)
+            $this->checkCertificateEligibility($userId, $courseId, $levelId);
+
+            // 3. إصدار الشهادة (ترجع من show مباشرة)
+            $certificate = $this->issueCertificate($userId, $courseId, $levelId);
+
+            if (!$certificate) {
+                MessageService::abort(500, 'messages.certificate.issuance_failed');
+            }
+
+            // 4. إرجاع الشهادة الجديدة - نفس صيغة show
+            $certificateData = $this->show($certificate->id);
+            
+            // إضافة حالة الشهادة
+            $certificateData['certificate_status'] = 'newly_issued';
+            $certificateData['message'] = trans('messages.certificate.issued_successfully');
+            
+            return $certificateData;
+
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            // MessageService::abort تم استدعاؤها - نعيد رمي الاستثناء
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error("Error in getOrIssueCertificate", [
+                'user_id' => $userId,
+                'course_id' => $courseId,
+                'level_id' => $levelId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            MessageService::abort(500, 'messages.certificate.processing_error');
+        }
+    }
 }
