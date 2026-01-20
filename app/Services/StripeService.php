@@ -12,7 +12,13 @@ class StripeService
 
     public function __construct()
     {
-        $this->stripe = new StripeClient(config('services.stripe.secret'));
+        $secret = config('services.stripe.secret');
+        
+        if (!$secret) {
+            throw new \RuntimeException('Stripe secret key is not configured. Please set STRIPE_SECRET in your .env file.');
+        }
+        
+        $this->stripe = new StripeClient($secret);
     }
 
     /**
