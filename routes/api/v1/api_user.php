@@ -26,7 +26,7 @@ Route::group(['prefix' => 'user'], function () {
     // Public lessons videos url
     Route::get('lessons/videos-url', [LessonController::class, 'getVideosUrl']);
 
-    
+
     // Public lessons
     Route::get('lessons', [LessonController::class, 'index']);
     Route::get('lessons/{id}', [LessonController::class, 'show']);
@@ -59,7 +59,7 @@ Route::group(['prefix' => 'user'], function () {
     Route::get('plans', [PlanController::class, 'index']);
     Route::get('plans/{id}', [PlanController::class, 'show']);
 
-   
+
 
     // Sanctum routes
     Route::group(['middleware' => 'auth:sanctum'], function () {
@@ -102,5 +102,6 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates', [CertificateController::class, 'index']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
+        Route::post('certificates/get-or-issue', [CertificateController::class, 'getOrIssue']);
     });
 });
