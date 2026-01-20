@@ -1343,48 +1343,49 @@ class CertificateService
     }
 
     /**
-     * التحقق من الشهادة وتوليد الصورة إذا لم تكن موجودة
+     * التحقق من صورة الشهادة وتوليدها إذا كانت مفقودة
      * 
-     * @param int $userId
-     * @param int $courseId
-     * @param int|null $levelId
-     * @return array
+     * @param int $certificateId
+     * @return Certificate
      */
-    public function verifyAndGenerateImage(int $userId, int $courseId, ?int $levelId = null): array
+    public function ensureCertificateImage(int $certificateId): Certificate
     {
         try {
             // 1. البحث عن الشهادة
-            $certificate = Certificate::where('user_id', $userId)
-                ->where('course_id', $courseId)
-                ->where('level_id', $levelId)
+            $certificate = Certificate::where('id', $certificateId)
                 ->where('status', 'active')
+                ->with(['user', 'course', 'level'])
                 ->first();
 
             if (!$certificate) {
-                // 2. التحقق من السبب (غير مؤهل، لم يكمل، إلخ)
-                try {
-                    $this->checkCertificateEligibility($userId, $courseId, $levelId);
-                    // إذا وصلنا هنا، المستخدم مؤهل لكن الشهادة غير موجودة
-                    MessageService::abort(404, 'messages.certificate.not_issued_yet');
-                } catch (HttpResponseException $e) {
-                    // إعادة رمي الـ exception مع رسالة السبب
-                    throw $e;
+                MessageService::abort(404, 'messages.certificate.not_found');
+            }
+
+            // 2. التحقق من وجود الصورة وتوليدها إذا لزم
+            $shouldGenerateImage = false;
+            
+            if (!$certificate->image_url) {
+                $shouldGenerateImage = true;
+            } else {
+                $imagePath = storage_path('app/public/' . $certificate->image_url);
+                if (!file_exists($imagePath)) {
+                    $shouldGenerateImage = true;
                 }
             }
 
-            // 3. تحميل العلاقات
-            $certificate->load(['user', 'course', 'level']);
-
-            // 4. التحقق من وجود الصورة وتوليدها إذا لزم
-            $imageGenerated = false;
-            if (!$certificate->image_url || !file_exists(storage_path('app/public/' . $certificate->image_url))) {
+            // 3. توليد الصورة إذا لزم
+            if ($shouldGenerateImage) {
                 try {
                     $imagePath = $this->generateCertificateImageFromPdf($certificate);
                     if ($imagePath) {
                         $certificate->image_url = $imagePath;
                         $certificate->save();
                         $certificate->refresh();
-                        $imageGenerated = true;
+                        
+                        Log::info("Certificate image generated successfully", [
+                            'certificate_id' => $certificate->id,
+                            'certificate_code' => $certificate->certificate_code,
+                        ]);
                     }
                 } catch (\Exception $e) {
                     Log::warning("Failed to generate certificate image", [
@@ -1394,23 +1395,13 @@ class CertificateService
                 }
             }
 
-            // 5. إرجاع الشهادة مع الحالة
-            $certificateData = $this->show($certificate->id);
-            $certificateData['certificate_status'] = $imageGenerated ? 'image_generated' : 'certificate_ready';
-            $certificateData['message'] = $imageGenerated 
-                ? trans('messages.certificate.image_generated') 
-                : trans('messages.certificate.ready');
-            
-            return $certificateData;
+            return $certificate;
 
         } catch (HttpResponseException $e) {
-            // MessageService::abort تم استدعاؤها - نعيد رمي الاستثناء
             throw $e;
         } catch (\Exception $e) {
-            Log::error("Error in verifyAndGenerateImage", [
-                'user_id' => $userId,
-                'course_id' => $courseId,
-                'level_id' => $levelId,
+            Log::error("Error in ensureCertificateImage", [
+                'certificate_id' => $certificateId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

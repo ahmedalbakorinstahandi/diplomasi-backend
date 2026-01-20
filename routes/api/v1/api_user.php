@@ -102,6 +102,6 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates', [CertificateController::class, 'index']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
-        Route::post('certificates/get-or-issue', [CertificateController::class, 'getOrIssue']);
+        Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
     });
 });

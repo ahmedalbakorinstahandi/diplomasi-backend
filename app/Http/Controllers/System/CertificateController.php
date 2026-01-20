@@ -211,29 +211,23 @@ class CertificateController extends Controller
     // }
 
     /**
-     * التحقق من الشهادة وتوليد الصورة إذا لم تكن موجودة
+     * التحقق من صورة الشهادة وتوليدها إذا كانت مفقودة
      * 
-     * @param \Illuminate\Http\Request $request
+     * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getOrIssue(\Illuminate\Http\Request $request)
+    public function verifyImage(int $id)
     {
-        // التحقق من صحة البيانات
-        $validated = $request->validate([
-            'user_id' => 'required|integer|exists:users,id',
-            'course_id' => 'required|integer|exists:courses,id',
-            'level_id' => 'nullable|integer|exists:levels,id',
+        CertificatePermission::canView();
+
+        $certificate = $this->certificateService->ensureCertificateImage($id);
+        CertificatePermission::canShow($certificate);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $certificate,
+            'resource' => CertificateResource::class,
+            'status' => 200,
         ]);
-
-        $result = $this->certificateService->verifyAndGenerateImage(
-            $validated['user_id'],
-            $validated['course_id'],
-            $validated['level_id'] ?? null
-        );
-
-        return \App\Services\MessageService::success(
-            $result['message'] ?? trans('messages.certificate.ready'),
-            $result
-        );
     }
 }

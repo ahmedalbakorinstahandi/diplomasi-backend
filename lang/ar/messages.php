@@ -250,8 +250,6 @@ return [
         'issued_successfully' => 'تم إصدار الشهادة بنجاح',
         'issuance_failed' => 'فشل في إصدار الشهادة',
         'processing_error' => 'حدث خطأ أثناء معالجة الشهادة',
-        'not_issued_yet' => 'الشهادة لم يتم إصدارها بعد',
-        'image_generated' => 'تم توليد صورة الشهادة بنجاح',
         'ready' => 'الشهادة جاهزة',
         'not_eligible' => 'المستخدم غير مؤهل للحصول على الشهادة',
         'template_not_found' => 'صورة القالب غير موجودة',
