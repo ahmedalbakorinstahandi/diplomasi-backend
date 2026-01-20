@@ -1351,6 +1351,8 @@ class CertificateService
     public function ensureCertificateImage(int $certificateId): Certificate
     {
         try {
+            Log::info("ensureCertificateImage called", ['certificate_id' => $certificateId]);
+            
             // 1. البحث عن الشهادة
             $certificate = Certificate::where('id', $certificateId)
                 ->where('status', 'active')
@@ -1358,8 +1360,14 @@ class CertificateService
                 ->first();
 
             if (!$certificate) {
+                Log::warning("Certificate not found", ['certificate_id' => $certificateId]);
                 MessageService::abort(404, 'messages.certificate.not_found');
             }
+            
+            Log::info("Certificate found", [
+                'certificate_id' => $certificate->id,
+                'certificate_code' => $certificate->certificate_code,
+            ]);
 
             // 2. التحقق من وجود الصورة وتوليدها إذا لزم
             $shouldGenerateImage = false;
