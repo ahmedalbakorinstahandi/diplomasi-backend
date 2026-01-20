@@ -71,6 +71,13 @@ class ScenarioService
 
     public function create($data)
     {
+        // التحقق من start_question_id عند محاولة النشر
+        if (isset($data['is_published']) && $data['is_published'] === true) {
+            if (empty($data['start_question_id'])) {
+                MessageService::abort(422, 'messages.scenario.cannot_publish_without_start_question');
+            }
+        }
+        
         $scenario = Scenario::create($data);
 
         OrderHelper::assign($scenario, 'order_index');
@@ -86,6 +93,14 @@ class ScenarioService
     public function update($data, $scenario)
     {
         $oldLevelId = $scenario->level_id;
+        
+        // التحقق من start_question_id عند محاولة النشر
+        if (isset($data['is_published']) && $data['is_published'] === true) {
+            $finalStartQuestionId = $data['start_question_id'] ?? $scenario->start_question_id;
+            if (!$finalStartQuestionId) {
+                MessageService::abort(422, 'messages.scenario.cannot_publish_without_start_question');
+            }
+        }
         
         $scenario->update($data);
 

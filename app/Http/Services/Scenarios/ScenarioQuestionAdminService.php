@@ -263,10 +263,13 @@ class ScenarioQuestionAdminService
 
     /**
      * التحقق من سلامة التدفق في السيناريو
+     * 
+     * ملاحظة: هذا التحقق يركز على منع المشاكل الفعلية فقط (deadlock، next_question_id غير صحيح)
+     * ولا يمنع إضافة أسئلة غير مرتبطة مؤقتاً (يمكن ربطها لاحقاً)
      */
     public function validateScenarioFlow($scenarioId)
     {
-        // 1. جلب السيناريو والتحقق من start_question_id
+        // 1. جلب السيناريو
         $scenario = Scenario::find($scenarioId);
         if (!$scenario) {
             return [
@@ -275,26 +278,20 @@ class ScenarioQuestionAdminService
             ];
         }
 
-        if (!$scenario->start_question_id) {
-            return [
-                'success' => false,
-                'message' => 'messages.scenario.no_start_question',
-            ];
-        }
-
         // 2. جلب جميع الأسئلة والخيارات
         $questions = ScenarioQuestion::where('scenario_id', $scenarioId)->get();
         if ($questions->isEmpty()) {
+            // السماح بسيناريو بدون أسئلة (يمكن إضافتها لاحقاً)
             return [
-                'success' => false,
-                'message' => 'messages.scenario.no_questions',
+                'success' => true,
+                'message' => null,
             ];
         }
 
         // 3. بناء خريطة التدفق والخيارات
         $optionsMap = [];
         $nextQuestionsMap = [];
-        $hasExitPath = false;
+        $allQuestionIds = $questions->pluck('id')->toArray();
 
         foreach ($questions as $question) {
             $options = $question->scenarioQuestionOptions;
@@ -302,45 +299,18 @@ class ScenarioQuestionAdminService
 
             $nextIds = $options->pluck('next_question_id')->filter()->toArray();
             $nextQuestionsMap[$question->id] = $nextIds;
-
-            // التحقق من وجود خيار يؤدي للنهاية (next_question_id = null)
-            if ($options->contains('next_question_id', null)) {
-                $hasExitPath = true;
-            }
         }
 
-        // 4. التحقق من وجود مسار للخروج (end scenario)
-        if (!$hasExitPath) {
-            return [
-                'success' => false,
-                'message' => 'messages.scenario.no_exit_path',
-            ];
-        }
-
-        // 5. DFS للتحقق من الوصول لجميع الأسئلة (السماح بالحلقات)
-        $visited = [];
-        $allQuestionIds = $questions->pluck('id')->toArray();
-
-        $this->dfs($scenario->start_question_id, $visited, $nextQuestionsMap, $allQuestionIds);
-
-        // 6. التحقق من أن جميع الأسئلة قابلة للوصول
-        $unreachable = array_diff($allQuestionIds, $visited);
-        if (!empty($unreachable)) {
-            $unreachableIds = implode(', ', $unreachable);
-            return [
-                'success' => false,
-                'message' => "messages.scenario.unreachable_questions: {$unreachableIds}",
-            ];
-        }
-
-        // 7. التحقق من عدم وجود deadlock (حلقة مغلقة تماماً)
+        // 4. التحقق من عدم وجود deadlock (حلقة مغلقة تماماً)
+        // Deadlock: عندما يكون كل خيارات السؤال تشير لنفس السؤال فقط
         foreach ($allQuestionIds as $questionId) {
             $options = $optionsMap[$questionId];
             $nextIds = $nextQuestionsMap[$questionId];
 
-            // إذا كان السؤال لديه خيارات وكلها تشير لنفس السؤال (loop نفسي)
+            // إذا كان السؤال لديه خيارات وكلها تشير لنفس السؤال (loop نفسي بدون خروج)
             if (count($options) > 0 && count($nextIds) > 0) {
                 $uniqueNextIds = array_unique($nextIds);
+                // إذا كان كل الخيارات تشير لنفس السؤال فقط (deadlock)
                 if (count($uniqueNextIds) === 1 && $uniqueNextIds[0] == $questionId) {
                     return [
                         'success' => false,
@@ -350,7 +320,7 @@ class ScenarioQuestionAdminService
             }
         }
 
-        // 8. التحقق من أن next_question_id يشير لأسئلة في نفس السيناريو
+        // 5. التحقق من أن next_question_id يشير لأسئلة في نفس السيناريو
         foreach ($optionsMap as $questionId => $options) {
             foreach ($options as $option) {
                 if ($option->next_question_id && !in_array($option->next_question_id, $allQuestionIds)) {
@@ -362,36 +332,15 @@ class ScenarioQuestionAdminService
             }
         }
 
+        // ملاحظة: لا نتحقق من:
+        // - وجود start_question_id (يمكن تحديده لاحقاً)
+        // - وجود exit path (يمكن إضافته لاحقاً)
+        // - الأسئلة غير القابلة للوصول (يمكن ربطها لاحقاً)
+
         return [
             'success' => true,
             'message' => null,
         ];
     }
 
-    /**
-     * DFS للتحقق من الوصول لجميع الأسئلة
-     */
-    private function dfs($questionId, &$visited, $nextQuestionsMap, $allQuestionIds)
-    {
-        // إذا تم زيارته مسبقاً، نستمر (السماح بالحلقات)
-        if (in_array($questionId, $visited)) {
-            return;
-        }
-
-        // التحقق من أن السؤال موجود في السيناريو
-        if (!in_array($questionId, $allQuestionIds)) {
-            return;
-        }
-
-        $visited[] = $questionId;
-
-        // زيارة جميع الخيارات التالية
-        if (isset($nextQuestionsMap[$questionId])) {
-            foreach ($nextQuestionsMap[$questionId] as $nextId) {
-                if ($nextId) {
-                    $this->dfs($nextId, $visited, $nextQuestionsMap, $allQuestionIds);
-                }
-            }
-        }
-    }
 }
