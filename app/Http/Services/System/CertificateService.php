@@ -324,18 +324,18 @@ class CertificateService
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
             $fontDir = storage_path('app/fonts');
-            
+
             // الحصول على الإعدادات الافتراضية لـ mPDF
             $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
             $fontDirs = $defaultConfig['fontDir'];
-            
+
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
-            
+
             // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
             // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            
+
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
@@ -364,7 +364,7 @@ class CertificateService
             $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
-            
+
             // dejavusans يدعم العربية بشكل ممتاز - لا حاجة لتسجيل خط إضافي
             Log::info("Using dejavusans font for Arabic support in mPDF", [
                 'note' => 'dejavusans has excellent Arabic support built-in',
@@ -379,7 +379,6 @@ class CertificateService
             return response($pdfContent)
                 ->header('Content-Type', 'application/pdf')
                 ->header('Content-Disposition', 'inline; filename="certificate_' . $certificate->certificate_code . '.pdf"');
-
         } catch (MpdfException $e) {
             Log::error("Error generating certificate PDF (mPDF)", [
                 'certificate_id' => $certificate->id,
@@ -435,18 +434,18 @@ class CertificateService
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
             $fontDir = storage_path('app/fonts');
-            
+
             // الحصول على الإعدادات الافتراضية لـ mPDF
             $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
             $fontDirs = $defaultConfig['fontDir'];
-            
+
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
-            
+
             // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
             // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            
+
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
@@ -465,7 +464,7 @@ class CertificateService
                 'useKashida' => 75,
                 'dpi' => 96,
             ]);
-            
+
             Log::info("Using dejavusans font for Arabic support (PNG conversion)", [
                 'note' => 'dejavusans has excellent Arabic support built-in',
             ]);
@@ -497,13 +496,13 @@ class CertificateService
                         return $imagePath;
                     }
                 }
-                
+
                 // إذا فشل Ghostscript، استخدم Imagick
                 if (!extension_loaded('imagick') || !class_exists('\Imagick')) {
                     Log::warning("Imagick not available, Ghostscript also failed");
                     return null;
                 }
-                
+
                 // Imagick class is available via PHP extension (checked above)
                 // Using variable to avoid static analyzer warnings for extension class
                 $imagickClass = 'Imagick';
@@ -513,7 +512,7 @@ class CertificateService
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_DISK'), 1024);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_FILE'), 384);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30); // 30 ثانية فقط
-                
+
                 $imagick = new $imagickClass();
                 $imagick->setResolution(50, 50); // دقة منخفضة جداً (50 DPI) لتوفير الذاكرة
                 $imagick->readImage($tempPdfPath . '[0]');
@@ -521,7 +520,7 @@ class CertificateService
                 $imagickPixelClass = 'ImagickPixel';
                 $imagick->setImageBackgroundColor(new $imagickPixelClass('white'));
                 $imagick = $imagick->mergeImageLayers(constant('Imagick::LAYERMETHOD_FLATTEN'));
-                
+
                 // تحسين الصورة لتقليل الحجم
                 $imagick->stripImage();
                 $imagick->setImageCompressionQuality(75); // جودة أقل قليلاً
@@ -543,13 +542,12 @@ class CertificateService
                 ]);
 
                 return $imagePath;
-                
             } catch (\Exception $e) {
                 // إذا كان الخطأ من نوع ImagickException، نتعامل معه بشكل خاص
                 $imagickExceptionClass = 'ImagickException';
-                $isImagickException = class_exists($imagickExceptionClass) && 
+                $isImagickException = class_exists($imagickExceptionClass) &&
                     (get_class($e) === $imagickExceptionClass || str_contains(get_class($e), 'ImagickException'));
-                
+
                 if ($isImagickException) {
                     // إذا فشل Imagick، لا مشكلة - PDF يعمل بشكل ممتاز
                     Log::warning("Failed to convert PDF to PNG (optional)", [
@@ -559,7 +557,7 @@ class CertificateService
                     ]);
                     return null;
                 }
-                
+
                 // إذا كان خطأ آخر، نعيده
                 Log::warning("Failed to convert PDF to PNG (optional)", [
                     'certificate_id' => $certificate->id,
@@ -573,7 +571,6 @@ class CertificateService
                     File::delete($tempPdfPath);
                 }
             }
-
         } catch (\Exception $e) {
             // PNG اختياري - إذا فشل، PDF يعمل بشكل ممتاز
             Log::warning("Error converting PDF to PNG (optional)", [
@@ -629,18 +626,18 @@ class CertificateService
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
             $fontDir = storage_path('app/fonts');
-            
+
             // الحصول على الإعدادات الافتراضية لـ mPDF
             $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
             $fontDirs = $defaultConfig['fontDir'];
-            
+
             $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
             $fontData = $defaultFontConfig['fontdata'];
-            
+
             // إعداد fontdata - استخدام dejavusans فقط (يدعم العربية بشكل ممتاز)
             // ملاحظة: mPDF لا يدعم OTF fonts مع PostScript outlines
             $customFontData = $fontData;
-            
+
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
@@ -669,7 +666,7 @@ class CertificateService
             $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
-            
+
             Log::info("Using dejavusans font for Arabic support (generateCertificateImageFromBlade)", [
                 'note' => 'dejavusans has excellent Arabic support built-in',
             ]);
@@ -707,13 +704,13 @@ class CertificateService
                         return $imagePath;
                     }
                 }
-                
+
                 // إذا فشل Ghostscript، استخدم Imagick
                 if (!extension_loaded('imagick') || !class_exists('\Imagick')) {
                     Log::warning("Imagick not available, Ghostscript also failed");
                     return null;
                 }
-                
+
                 // Imagick class is available via PHP extension (checked above)
                 $imagickClass = 'Imagick';
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_MEMORY'), 256);
@@ -722,7 +719,7 @@ class CertificateService
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_DISK'), 1024);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_FILE'), 384);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30);
-                
+
                 $imagick = new $imagickClass();
                 $imagick->setResolution(50, 50); // دقة منخفضة جداً
                 $imagick->readImage($tempPdfPath . '[0]');
@@ -750,7 +747,6 @@ class CertificateService
                 ]);
 
                 return $imagePath;
-                
             } catch (\Exception $e) {
                 Log::warning("Failed to convert PDF to PNG (optional)", [
                     'certificate_id' => $certificate->id,
@@ -764,7 +760,6 @@ class CertificateService
                     File::delete($tempPdfPath);
                 }
             }
-
         } catch (MpdfException $e) {
             Log::error("Error generating certificate image from Blade (mPDF)", [
                 'certificate_id' => $certificate->id,
@@ -792,7 +787,7 @@ class CertificateService
             '/bin/gs',
             'gs', // في PATH
         ];
-        
+
         foreach ($possiblePaths as $path) {
             if ($path === 'gs') {
                 // محاولة استخدام which/whereis
@@ -808,10 +803,10 @@ class CertificateService
                 }
             }
         }
-        
+
         return null;
     }
-    
+
     /**
      * تحويل PDF إلى PNG باستخدام Ghostscript (أخف من Imagick)
      */
@@ -824,7 +819,7 @@ class CertificateService
             if (!File::exists($imageDir)) {
                 File::makeDirectory($imageDir, 0755, true);
             }
-            
+
             // استخدام Ghostscript لتحويل PDF إلى PNG
             // -dNOPAUSE: لا توقف بين الصفحات
             // -dBATCH: إنهاء بعد المعالجة
@@ -832,28 +827,28 @@ class CertificateService
             // -r72: دقة 72 DPI
             // -dFirstPage=1 -dLastPage=1: الصفحة الأولى فقط
             // -sOutputFile: ملف الإخراج
-            $command = escapeshellarg($gsPath) . 
+            $command = escapeshellarg($gsPath) .
                 ' -dNOPAUSE -dBATCH -sDEVICE=png16m' .
                 ' -r72' . // دقة 72 DPI
                 ' -dFirstPage=1 -dLastPage=1' .
                 ' -sOutputFile=' . escapeshellarg($fullImagePath) .
-                ' ' . escapeshellarg($pdfPath) . 
+                ' ' . escapeshellarg($pdfPath) .
                 ' 2>&1';
-            
+
             $output = [];
             $returnVar = 0;
             @exec($command, $output, $returnVar);
-            
+
             if ($returnVar === 0 && file_exists($fullImagePath) && filesize($fullImagePath) > 0) {
                 return true;
             }
-            
+
             Log::warning("Ghostscript conversion failed", [
                 'command' => $command,
                 'output' => implode("\n", $output),
                 'return_var' => $returnVar,
             ]);
-            
+
             return false;
         } catch (\Exception $e) {
             Log::warning("Ghostscript conversion error", [
@@ -872,7 +867,7 @@ class CertificateService
             // محاولة استخدام Imagick أولاً (يدعم العربية بشكل أفضل)
             // إذا لم يكن متاحاً، نستخدم GD
             $useImagick = extension_loaded('imagick');
-            
+
             if ($useImagick) {
                 try {
                     $manager = new ImageManager(new ImagickDriver());
@@ -891,13 +886,13 @@ class CertificateService
             // حجم مناسب للطباعة: 1200x850 بكسل (نسبة 16:11 تقريباً)
             $imageWidth = 1200;
             $imageHeight = 850;
-            
+
             // إنشاء صورة بيضاء جديدة
             $image = $manager->create($imageWidth, $imageHeight);
-            
+
             // رسم خلفية بيضاء
             $image->fill('#FFFFFF');
-            
+
             Log::info("Certificate image created (white background)", [
                 'image_width' => $imageWidth,
                 'image_height' => $imageHeight,
@@ -909,7 +904,7 @@ class CertificateService
 
             // تحديد المواضع بناءً على الأبعاد الجديدة
             $centerX = $imageWidth / 2;
-            
+
             // استخدام الخط العربي الموجود: itfHuwiyaDisplay-Regular.otf
             $arabicFontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
             if (!file_exists($arabicFontPath)) {
@@ -925,13 +920,13 @@ class CertificateService
 
             // بناء نص الشهادة - نص عربي موصول بشكل احترافي
             $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
-            
+
             // دالة مساعدة لكتابة النص العربي بشكل احترافي
             // استخدام Imagick مباشرة إذا كان متاحاً
-            $writeArabicText = function($text, $x, $y, $fontSize, $color) use (&$image, $arabicFontPath, $manager, $useImagick) {
+            $writeArabicText = function ($text, $x, $y, $fontSize, $color) use (&$image, $arabicFontPath, $manager, $useImagick) {
                 // معالجة النص العربي للتأكد من الاتجاه الصحيح
                 $processedText = ArabicTextRenderer::prepareArabicText($text);
-                
+
                 // استخدام خدمة عرض النص العربي
                 $image = ArabicTextRenderer::writeArabicText(
                     $image,
@@ -944,14 +939,14 @@ class CertificateService
                     $manager
                 );
             };
-            
+
             // 1. كتابة نص "تمنح هذه الشهادة الى:" ثم اسم المستخدم
             if (!empty($userName)) {
                 // نص "تمنح هذه الشهادة الى:"
                 $awardText = "تمنح هذه الشهادة الى:";
                 $awardTextY = (int)($imageHeight * 0.30);
                 $writeArabicText($awardText, $centerX, $awardTextY, 32, '#1a1a5e');
-                
+
                 // اسم المستخدم (بخط أكبر)
                 $userNameY = (int)($imageHeight * 0.40);
                 $writeArabicText($userName, $centerX, $userNameY, 60, '#1a1a5e');
@@ -964,11 +959,11 @@ class CertificateService
                 $attendanceText = "وذلك لحضوره / ها الدورة التدريبية بعنوان:";
                 $attendanceTextY = (int)($imageHeight * 0.52);
                 $writeArabicText($attendanceText, $centerX, $attendanceTextY, 28, '#1a1a5e');
-                
+
                 // اسم الكورس (بخط أكبر ولون ذهبي/بني برتقالي)
                 $courseTitleY = (int)($imageHeight * 0.60);
                 $writeArabicText($courseTitle, $centerX, $courseTitleY, 48, '#D4A017');
-                
+
                 // نص "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية"
                 $companyText = "التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية";
                 $companyTextY = (int)($imageHeight * 0.68);
@@ -1028,7 +1023,7 @@ class CertificateService
             if (!File::isDirectory($outputPath)) {
                 File::makeDirectory($outputPath, 0755, true, true);
             }
-            
+
             $outputPath = storage_path("app/public/{$outputFolder}/{$certificate->certificate_code}.png");
             $image->toPng()->save($outputPath);
 
@@ -1071,7 +1066,7 @@ class CertificateService
 
             $qrFolder = 'certificates/qr';
             $qrFolderPath = storage_path("app/public/{$qrFolder}");
-            
+
             // إنشاء المجلد إذا لم يكن موجوداً
             if (!File::isDirectory($qrFolderPath)) {
                 File::makeDirectory($qrFolderPath, 0755, true, true);
@@ -1082,7 +1077,7 @@ class CertificateService
             // توليد QR Code باستخدام SVG (لأن PNG يحتاج imagick extension)
             // SVG يعمل بدون imagick extension
             $qrCodeSvgPath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.svg");
-            
+
             QrCode::format('svg')
                 ->size(300)
                 ->generate($verificationUrl, $qrCodeSvgPath);
@@ -1095,7 +1090,7 @@ class CertificateService
             // استخدام SVG مباشرة (أو يمكن تحويله إلى PNG لاحقاً إذا كان imagick مثبت)
             // حالياً سنستخدم SVG لأنه يعمل بدون imagick
             $qrCodePath = $qrCodeSvgPath;
-            
+
             // تحديث المسار للإرجاع ليشير إلى SVG
             $qrFolder = 'certificates/qr';
             $returnPath = "{$qrFolder}/{$certificate->certificate_code}.svg";
@@ -1348,73 +1343,53 @@ class CertificateService
      * @param int $certificateId
      * @return Certificate
      */
-    public function ensureCertificateImage(int $certificateId): Certificate
+    public function ensureCertificateImage(Certificate $certificate): Certificate
     {
-        try {
-            Log::info("ensureCertificateImage called", ['certificate_id' => $certificateId]);
-            
-            // 1. البحث عن الشهادة
-            $certificate = Certificate::where('id', $certificateId)
-                ->where('status', 'active')
-                ->with(['user', 'course', 'level'])
-                ->first();
 
-            if (!$certificate) {
-                Log::warning("Certificate not found", ['certificate_id' => $certificateId]);
-                MessageService::abort(404, 'messages.certificate.not_found');
-            }
-            
-            Log::info("Certificate found", [
-                'certificate_id' => $certificate->id,
-                'certificate_code' => $certificate->certificate_code,
-            ]);
+        Log::info("ensureCertificateImage called", ['certificate_id' => $certificate->id]);
 
-            // 2. التحقق من وجود الصورة وتوليدها إذا لزم
-            $shouldGenerateImage = false;
-            
-            if (!$certificate->image_url) {
+        // 1. البحث عن الشهادة
+        $certificate->load(['user', 'course', 'level']);
+
+        Log::info("Certificate found", [
+            'certificate_id' => $certificate->id,
+            'certificate_code' => $certificate->certificate_code,
+        ]);
+
+        // 2. التحقق من وجود الصورة وتوليدها إذا لزم
+        $shouldGenerateImage = false;
+
+        if (!$certificate->image_url) {
+            $shouldGenerateImage = true;
+        } else {
+            $imagePath = storage_path('app/public/' . $certificate->image_url);
+            if (!file_exists($imagePath)) {
                 $shouldGenerateImage = true;
-            } else {
-                $imagePath = storage_path('app/public/' . $certificate->image_url);
-                if (!file_exists($imagePath)) {
-                    $shouldGenerateImage = true;
-                }
             }
+        }
 
-            // 3. توليد الصورة إذا لزم
-            if ($shouldGenerateImage) {
-                try {
-                    $imagePath = $this->generateCertificateImageFromPdf($certificate);
-                    if ($imagePath) {
-                        $certificate->image_url = $imagePath;
-                        $certificate->save();
-                        $certificate->refresh();
-                        
-                        Log::info("Certificate image generated successfully", [
-                            'certificate_id' => $certificate->id,
-                            'certificate_code' => $certificate->certificate_code,
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("Failed to generate certificate image", [
+        // 3. توليد الصورة إذا لزم
+        if ($shouldGenerateImage) {
+            try {
+                $imagePath = $this->generateCertificateImageFromPdf($certificate);
+                if ($imagePath) {
+                    $certificate->image_url = $imagePath;
+                    $certificate->save();
+                    $certificate->refresh();
+
+                    Log::info("Certificate image generated successfully", [
                         'certificate_id' => $certificate->id,
-                        'error' => $e->getMessage(),
+                        'certificate_code' => $certificate->certificate_code,
                     ]);
                 }
+            } catch (\Exception $e) {
+                Log::warning("Failed to generate certificate image", [
+                    'certificate_id' => $certificate->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
-
-            return $certificate;
-
-        } catch (HttpResponseException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error("Error in ensureCertificateImage", [
-                'certificate_id' => $certificateId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            
-            MessageService::abort(500, 'messages.certificate.processing_error');
         }
+
+        return $certificate;
     }
 }

@@ -220,7 +220,13 @@ class CertificateController extends Controller
     {
         CertificatePermission::canView();
 
-        $certificate = $this->certificateService->ensureCertificateImage($id);
+
+        $certificate = $this->certificateService->show($id);
+
+
+        $certificate = $this->certificateService->ensureCertificateImage($certificate);
+
+
         CertificatePermission::canShow($certificate);
 
         return ResponseService::response([
