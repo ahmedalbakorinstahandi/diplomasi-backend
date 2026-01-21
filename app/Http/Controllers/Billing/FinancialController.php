@@ -99,4 +99,28 @@ class FinancialController extends Controller
             'status' => 200,
         ]);
     }
+
+    /**
+     * Get user payments/transactions (User route)
+     */
+    public function getUserPayments(Request $request)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $transactions = $this->financialService->getUserTransactions($user, $request->all());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $transactions,
+            'meta' => true,
+            'status' => 200,
+        ]);
+    }
 }

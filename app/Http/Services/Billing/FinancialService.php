@@ -147,4 +147,40 @@ class FinancialService
             'monthly_revenue' => $monthlyRevenue,
         ];
     }
+
+    /**
+     * Get user transactions/payments (for user routes)
+     * 
+     * @param \App\Models\Users\User $user
+     * @param array $filters
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function getUserTransactions($user, $filters = [])
+    {
+        $query = FinancialTransaction::query()
+            ->where('user_id', $user->id)
+            ->with(['subscription', 'subscriptionEvent']);
+
+        $filters['per_page'] = $filters['per_page'] ?? 20;
+        $filters['sort_field'] = $filters['sort_field'] ?? 'created_at';
+        $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
+
+        $searchFields = ['description'];
+        $numericFields = ['amount'];
+        $dateFields = ['created_at', 'processed_at'];
+        $exactMatchFields = ['type', 'status', 'subscription_id'];
+        $inFields = ['type', 'status'];
+
+        $query = FilterService::applyFilters(
+            $query,
+            $filters,
+            $searchFields,
+            $numericFields,
+            $dateFields,
+            $exactMatchFields,
+            $inFields
+        );
+
+        return $query;
+    }
 }

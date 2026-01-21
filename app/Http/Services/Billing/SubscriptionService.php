@@ -935,6 +935,69 @@ class SubscriptionService
     }
 
     /**
+     * Get user subscriptions list (for user routes)
+     * 
+     * @param \App\Models\Users\User $user
+     * @param array $filters
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function getUserSubscriptions($user, $filters = [])
+    {
+        $query = Subscription::query()
+            ->where('user_id', $user->id)
+            ->with(['plan']);
+
+        $filters['per_page'] = $filters['per_page'] ?? 20;
+        $filters['sort_field'] = $filters['sort_field'] ?? 'created_at';
+        $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
+
+        $searchFields = [];
+        $numericFields = ['price'];
+        $dateFields = ['start_date', 'end_date', 'created_at'];
+        $exactMatchFields = ['plan_id', 'status'];
+        $inFields = ['status'];
+
+        $query = FilterService::applyFilters(
+            $query,
+            $filters,
+            $searchFields,
+            $numericFields,
+            $dateFields,
+            $exactMatchFields,
+            $inFields
+        );
+
+        return $query;
+    }
+
+    /**
+     * Get user subscription details (for user routes)
+     * 
+     * @param \App\Models\Users\User $user
+     * @param int $id
+     * @return \App\Models\Billing\Subscription
+     */
+    public function getUserSubscription($user, int $id)
+    {
+        $subscription = Subscription::where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$subscription) {
+            MessageService::abort(404, 'messages.subscription.not_found');
+        }
+
+        $subscription->load([
+            'plan',
+            'subscriptionEvents' => function ($query) {
+                $query->orderBy('created_at', 'desc');
+            },
+        ]);
+
+        return $subscription;
+    }
+
+    /**
      * Get number of days for an interval
      * 
      * @param string $interval

@@ -638,13 +638,173 @@ ZIP: أي 5 أرقام
 - تأكد من أن الدفع تم بنجاح في Stripe Payment Sheet
 - انتظر قليلاً قبل إنشاء الاشتراك (لضمان تحديث Stripe)
 
-## 16. Resources
+## 16. Endpoints الجديدة
+
+### 16.1 قائمة الاشتراكات للمستخدم
+
+#### Endpoint
+```
+GET /api/v1/user/subscriptions
+```
+
+#### Query Parameters
+- `page` (optional): رقم الصفحة (افتراضي: 1)
+- `per_page` (optional): عدد العناصر (افتراضي: 20)
+- `status` (optional): تصفية حسب الحالة (active, expired, cancelled)
+- `sort_field` (optional): حقل الترتيب (افتراضي: created_at)
+- `sort_order` (optional): اتجاه الترتيب (asc, desc) (افتراضي: desc)
+
+#### cURL Example
+```bash
+curl -X GET "https://your-api-domain.com/api/v1/user/subscriptions?page=1&per_page=20&status=active,expired" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept-Language: ar"
+```
+
+#### Response
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 25,
+      "plan_id": 1,
+      "plan": {
+        "id": 1,
+        "name": "Basic",
+        "price": "9.99"
+      },
+      "start_date": "2026-01-21T00:00:00.000000Z",
+      "end_date": "2026-02-20T00:00:00.000000Z",
+      "status": "active",
+      "price": "9.99",
+      "currency": "USD",
+      "auto_renew": true
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 20,
+    "total": 5,
+    "last_page": 1
+  }
+}
+```
+
+### 16.2 تفاصيل اشتراك محدد
+
+#### Endpoint
+```
+GET /api/v1/user/subscriptions/{id}
+```
+
+#### cURL Example
+```bash
+curl -X GET "https://your-api-domain.com/api/v1/user/subscriptions/25" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept-Language: ar"
+```
+
+#### Response
+```json
+{
+  "success": true,
+  "data": {
+    "id": 25,
+    "plan_id": 1,
+    "plan": {
+      "id": 1,
+      "name": "Basic",
+      "price": "9.99"
+    },
+    "start_date": "2026-01-21T00:00:00.000000Z",
+    "end_date": "2026-02-20T00:00:00.000000Z",
+    "status": "active",
+    "subscription_events": [
+      {
+        "id": 1,
+        "event_type": "created",
+        "created_at": "2026-01-21T00:40:18.000000Z"
+      }
+    ]
+  }
+}
+```
+
+### 16.3 تاريخ الدفعات/المعاملات
+
+#### Endpoint
+```
+GET /api/v1/user/payments
+```
+
+#### Query Parameters
+- `page` (optional): رقم الصفحة (افتراضي: 1)
+- `per_page` (optional): عدد العناصر (افتراضي: 20)
+- `type` (optional): تصفية حسب النوع (subscription_payment, upgrade_payment, refund)
+- `status` (optional): تصفية حسب الحالة (completed, pending, failed)
+- `start_date` (optional): تاريخ البداية (YYYY-MM-DD)
+- `end_date` (optional): تاريخ النهاية (YYYY-MM-DD)
+- `sort_field` (optional): حقل الترتيب (افتراضي: created_at)
+- `sort_order` (optional): اتجاه الترتيب (asc, desc) (افتراضي: desc)
+
+#### cURL Example
+```bash
+curl -X GET "https://your-api-domain.com/api/v1/user/payments?page=1&per_page=20&type=subscription_payment,upgrade_payment" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept-Language: ar"
+```
+
+#### Response
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "subscription_id": 25,
+      "type": "subscription_payment",
+      "amount": "9.99",
+      "currency": "USD",
+      "status": "completed",
+      "description": "Subscription payment for plan: Basic",
+      "processed_at": "2026-01-21T00:40:18.000000Z",
+      "created_at": "2026-01-21T00:40:18.000000Z",
+      "subscription": {
+        "id": 25,
+        "plan": {
+          "name": "Basic"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 20,
+    "total": 10,
+    "last_page": 1
+  }
+}
+```
+
+## 17. دليل تجربة المستخدم الكاملة
+
+للدليل الشامل الذي يشرح:
+- تصميم الصفحات المطلوبة
+- تدفقات العمل الكاملة
+- أمثلة كود Flutter مفصلة
+- UI/UX Guidelines
+
+يرجى الرجوع إلى: [FLUTTER_SUBSCRIPTION_EXPERIENCE.md](./FLUTTER_SUBSCRIPTION_EXPERIENCE.md)
+
+## 18. Resources
 
 - [Stripe Flutter SDK Documentation](https://stripe.dev/stripe-flutter/)
 - [Stripe Payment Sheet Guide](https://stripe.com/docs/payments/accept-a-payment?platform=flutter)
 - [Stripe API Reference](https://stripe.com/docs/api)
 - [Diplomasi Backend API Documentation](./SUBSCRIPTIONS_DASHBOARD_GUIDE.md)
+- [دليل تجربة المستخدم الكاملة](./FLUTTER_SUBSCRIPTION_EXPERIENCE.md)
 
-## 17. Support
+## 19. Support
 
 للدعم الفني، يرجى التواصل مع فريق التطوير.

@@ -107,7 +107,9 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
 
         // Subscriptions
+        Route::get('subscriptions', [SubscriptionController::class, 'getUserSubscriptions']);
         Route::get('subscriptions/current', [SubscriptionController::class, 'getCurrent']);
+        Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
         Route::post('subscriptions/prepare-payment', [SubscriptionController::class, 'preparePayment']);
         Route::post('subscriptions', [SubscriptionController::class, 'createWithPayment']);
         Route::post('subscriptions/{id}/cancel-auto-renew', [SubscriptionController::class, 'cancelAutoRenew']);
@@ -119,5 +121,8 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('payment-methods', [PaymentMethodController::class, 'store']);
         Route::post('payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);
         Route::delete('payment-methods/{id}', [PaymentMethodController::class, 'destroy']);
+
+        // Payments/Transactions
+        Route::get('payments', [\App\Http\Controllers\Billing\FinancialController::class, 'getUserPayments']);
     });
 });

@@ -488,5 +488,54 @@ class SubscriptionController extends Controller
             'resource' => SubscriptionResource::class,
         ]);
     }
+
+    /**
+     * Get user subscriptions list (User route)
+     */
+    public function getUserSubscriptions(Request $request)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscriptions = $this->subscriptionService->getUserSubscriptions($user, $request->all());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscriptions,
+            'meta' => true,
+            'resource' => SubscriptionResource::class,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Get user subscription details (User route)
+     */
+    public function getUserSubscription(int $id)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->getUserSubscription($user, $id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'resource' => SubscriptionResource::class,
+            'status' => 200,
+        ]);
+    }
 }
 
