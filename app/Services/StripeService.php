@@ -165,6 +165,74 @@ class StripeService
     }
 
     /**
+     * Get or create Stripe Price from plan ID or price ID
+     */
+    public function getOrCreatePrice(string $planOrPriceId, float $amount, string $currency, string $interval): string
+    {
+        // If it's already a price ID (starts with price_), return it
+        if (str_starts_with($planOrPriceId, 'price_')) {
+            try {
+                // Verify the price exists
+                $this->stripe->prices->retrieve($planOrPriceId);
+                return $planOrPriceId;
+            } catch (\Exception $e) {
+                // Price doesn't exist, will create new one
+            }
+        }
+
+        // Try to find existing price by lookup_key
+        try {
+            $prices = $this->stripe->prices->all([
+                'lookup_keys' => [$planOrPriceId],
+                'limit' => 1,
+            ]);
+
+            if (count($prices->data) > 0) {
+                return $prices->data[0]->id;
+            }
+        } catch (\Exception $e) {
+            // No price found, will create new one
+        }
+
+        // Create new price
+        $stripeInterval = match($interval) {
+            'monthly' => 'month',
+            'semi_annual' => 'month', // 6 months
+            'annual' => 'year',
+            default => 'month',
+        };
+
+        $intervalCount = match($interval) {
+            'semi_annual' => 6,
+            default => 1,
+        };
+
+        try {
+            $price = $this->stripe->prices->create([
+                'unit_amount' => (int)($amount * 100), // Convert to cents
+                'currency' => strtolower($currency),
+                'recurring' => [
+                    'interval' => $stripeInterval,
+                    'interval_count' => $intervalCount,
+                ],
+                'lookup_key' => $planOrPriceId,
+                'metadata' => [
+                    'plan_id' => $planOrPriceId,
+                ],
+            ]);
+
+            return $price->id;
+        } catch (ApiErrorException $e) {
+            \Log::error('Stripe price creation failed', [
+                'plan_or_price_id' => $planOrPriceId,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Create Stripe subscription
      */
     public function createSubscription(string $customerId, string $priceId, string $paymentMethodId, array $options = []): object

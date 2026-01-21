@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\StripeWebhookController;
 use App\Http\Middleware\SetLocaleMiddleware;
 use App\Http\Middleware\RequestContextMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -7,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 request()->headers->set('Accept', 'application/json');
 
 // Public webhook route (no authentication required)
-Route::post('webhooks/stripe', [\App\Http\Controllers\Billing\StripeWebhookController::class, 'handle']);
+Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle']);
 
 // Public routes
 Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddleware::class])->group(function () {

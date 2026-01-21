@@ -276,10 +276,18 @@ class SubscriptionService
             // Update Stripe subscription if exists
             if ($subscription->stripe_subscription_id) {
                 try {
+                    // Get or create Stripe Price
+                    $stripePriceId = $this->stripeService->getOrCreatePrice(
+                        $newPlan->stripe_plan_id,
+                        $newPlan->price,
+                        $subscription->currency ?? 'USD',
+                        $newPlan->interval
+                    );
+
                     $stripeSubscription = $this->stripeService->updateSubscription(
                         $subscription->stripe_subscription_id,
                         [
-                            'price_id' => $newPlan->stripe_plan_id,
+                            'price_id' => $stripePriceId,
                             'proration_behavior' => 'create_prorations',
                         ]
                     );
@@ -441,10 +449,18 @@ class SubscriptionService
             $customerId = $paymentIntent->customer;
             $paymentMethodId = $paymentIntent->payment_method;
 
+            // Get or create Stripe Price
+            $stripePriceId = $this->stripeService->getOrCreatePrice(
+                $plan->stripe_plan_id,
+                $plan->price,
+                'USD',
+                $plan->interval
+            );
+
             // Create Stripe subscription
             $stripeSubscription = $this->stripeService->createSubscription(
                 $customerId,
-                $plan->stripe_plan_id,
+                $stripePriceId,
                 $paymentMethodId,
                 [
                     'metadata' => [
@@ -543,10 +559,18 @@ class SubscriptionService
                 MessageService::abort(400, 'Payment method is required');
             }
 
+            // Get or create Stripe Price
+            $stripePriceId = $this->stripeService->getOrCreatePrice(
+                $plan->stripe_plan_id,
+                $plan->price,
+                'USD',
+                $plan->interval
+            );
+
             // Create Stripe subscription
             $stripeSubscription = $this->stripeService->createSubscription(
                 $customerId,
-                $plan->stripe_plan_id,
+                $stripePriceId,
                 $paymentMethodId,
                 [
                     'metadata' => [
