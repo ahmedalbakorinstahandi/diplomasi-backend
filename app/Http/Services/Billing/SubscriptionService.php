@@ -479,6 +479,15 @@ class SubscriptionService
             $intervalDays = $this->getIntervalDays($plan->interval);
             $endDate = $now->copy()->addDays($intervalDays);
 
+            // Get period dates from Stripe subscription if available, otherwise use calculated dates
+            $currentPeriodStart = isset($stripeSubscription->current_period_start) && $stripeSubscription->current_period_start !== null
+                ? Carbon::createFromTimestamp($stripeSubscription->current_period_start)->toDateString()
+                : $startDate->toDateString();
+
+            $currentPeriodEnd = isset($stripeSubscription->current_period_end) && $stripeSubscription->current_period_end !== null
+                ? Carbon::createFromTimestamp($stripeSubscription->current_period_end)->toDateString()
+                : $endDate->toDateString();
+
             // Prepare subscription data
             $subscriptionData = [
                 'user_id' => $user->id,
@@ -492,8 +501,8 @@ class SubscriptionService
                 'stripe_customer_id' => $customerId,
                 'stripe_payment_method_id' => $paymentMethodId,
                 'auto_renew' => $data['auto_renew'] ?? true,
-                'current_period_start' => Carbon::createFromTimestamp($stripeSubscription->current_period_start)->toDateString(),
-                'current_period_end' => Carbon::createFromTimestamp($stripeSubscription->current_period_end)->toDateString(),
+                'current_period_start' => $currentPeriodStart,
+                'current_period_end' => $currentPeriodEnd,
             ];
 
             // Create subscription
