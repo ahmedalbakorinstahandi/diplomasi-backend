@@ -281,7 +281,8 @@ class SubscriptionService
                         $newPlan->stripe_plan_id,
                         $newPlan->price,
                         $subscription->currency ?? 'USD',
-                        $newPlan->interval
+                        $newPlan->interval,
+                        $newPlan->name
                     );
 
                     $stripeSubscription = $this->stripeService->updateSubscription(
@@ -454,7 +455,8 @@ class SubscriptionService
                 $plan->stripe_plan_id,
                 $plan->price,
                 'USD',
-                $plan->interval
+                $plan->interval,
+                $plan->name
             );
 
             // Create Stripe subscription
@@ -564,7 +566,8 @@ class SubscriptionService
                 $plan->stripe_plan_id,
                 $plan->price,
                 'USD',
-                $plan->interval
+                $plan->interval,
+                $plan->name
             );
 
             // Create Stripe subscription

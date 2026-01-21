@@ -165,9 +165,49 @@ class StripeService
     }
 
     /**
+     * Get or create Stripe Product
+     */
+    public function getOrCreateProduct(string $planName, string $planId): string
+    {
+        // Try to find existing product by metadata
+        try {
+            $products = $this->stripe->products->all([
+                'metadata' => ['plan_id' => $planId],
+                'limit' => 1,
+            ]);
+
+            if (count($products->data) > 0) {
+                return $products->data[0]->id;
+            }
+        } catch (\Exception $e) {
+            // No product found, will create new one
+        }
+
+        // Create new product
+        try {
+            $product = $this->stripe->products->create([
+                'name' => $planName,
+                'metadata' => [
+                    'plan_id' => $planId,
+                    'app' => 'diplomasi',
+                ],
+            ]);
+
+            return $product->id;
+        } catch (ApiErrorException $e) {
+            \Log::error('Stripe product creation failed', [
+                'plan_name' => $planName,
+                'plan_id' => $planId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Get or create Stripe Price from plan ID or price ID
      */
-    public function getOrCreatePrice(string $planOrPriceId, float $amount, string $currency, string $interval): string
+    public function getOrCreatePrice(string $planOrPriceId, float $amount, string $currency, string $interval, string $planName = null): string
     {
         // If it's already a price ID (starts with price_), return it
         if (str_starts_with($planOrPriceId, 'price_')) {
@@ -194,6 +234,9 @@ class StripeService
             // No price found, will create new one
         }
 
+        // Get or create product
+        $productId = $this->getOrCreateProduct($planName ?? $planOrPriceId, $planOrPriceId);
+
         // Create new price
         $stripeInterval = match($interval) {
             'monthly' => 'month',
@@ -209,6 +252,7 @@ class StripeService
 
         try {
             $price = $this->stripe->prices->create([
+                'product' => $productId,
                 'unit_amount' => (int)($amount * 100), // Convert to cents
                 'currency' => strtolower($currency),
                 'recurring' => [
