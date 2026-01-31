@@ -98,20 +98,55 @@ class GeideaService
 
                     if ($response->successful()) {
                         // Handle HTTP 204 (No Content) - Order created but no response body
-                        // In this case, we need to fetch the order using merchantReferenceId
+                        // Check headers for Location or orderId
+                        $headers = $response->headers();
+                        $locationHeader = $headers['Location'] ?? $headers['location'] ?? null;
+                        
+                        Log::info('Geidea response headers', [
+                            'url' => $url,
+                            'status' => $response->status(),
+                            'headers' => $headers,
+                            'location' => $locationHeader,
+                        ]);
+                        
+                        // Extract orderId from Location header if present
+                        $orderIdFromHeader = null;
+                        if ($locationHeader) {
+                            // Location might be: /orders/12345 or https://api.geidea.net/orders/12345
+                            if (preg_match('/\/orders\/([^\/\?]+)/', $locationHeader, $matches)) {
+                                $orderIdFromHeader = $matches[1];
+                                Log::info('Extracted orderId from Location header', [
+                                    'order_id' => $orderIdFromHeader,
+                                    'location' => $locationHeader,
+                                ]);
+                            }
+                        }
+                        
                         if ($response->status() === 204 || empty($responseJson)) {
-                            Log::info('Geidea returned 204 No Content - fetching order by merchantReferenceId', [
+                            Log::info('Geidea returned 204 No Content - attempting to fetch order', [
                                 'url' => $url,
                                 'merchantReferenceId' => $data['merchantReferenceId'] ?? null,
+                                'orderIdFromHeader' => $orderIdFromHeader,
                             ]);
                             
+                            // Try to get order by ID from header first
+                            if ($orderIdFromHeader) {
+                                $order = $this->getOrderById($orderIdFromHeader);
+                                if ($order) {
+                                    Log::info('Successfully fetched order by ID from header', [
+                                        'order_id' => $orderIdFromHeader,
+                                    ]);
+                                    return $order;
+                                }
+                            }
+                            
                             // Wait a bit for order to be available (Geidea might need a moment)
-                            sleep(1);
+                            sleep(2);
                             
                             // Fetch the order we just created using merchantReferenceId
                             if (isset($data['merchantReferenceId'])) {
-                                $maxRetries = 3;
-                                $retryDelay = 1; // seconds
+                                $maxRetries = 5;
+                                $retryDelay = 2; // seconds
                                 
                                 for ($i = 0; $i < $maxRetries; $i++) {
                                     $order = $this->getOrderByMerchantReference($data['merchantReferenceId']);
@@ -139,12 +174,17 @@ class GeideaService
                                     'retries' => $maxRetries,
                                 ]);
                                 
-                                // Return a minimal object with merchantReferenceId
-                                // The order exists, we just can't fetch it yet
-                                return (object) [
+                                // Return a minimal object with merchantReferenceId and orderId if we have it
+                                $result = [
                                     'merchantReferenceId' => $data['merchantReferenceId'],
                                     'status' => 'created',
                                 ];
+                                
+                                if ($orderIdFromHeader) {
+                                    $result['orderId'] = $orderIdFromHeader;
+                                }
+                                
+                                return (object) $result;
                             }
                         }
                         
@@ -256,41 +296,90 @@ class GeideaService
     public function getOrderByMerchantReference(string $merchantReference): ?object
     {
         try {
-            $response = $this->httpClient()
-                ->get("{$this->baseUrl}/orders", [
-                    'merchantReferenceId' => $merchantReference,
-                ]);
-
-            if (!$response->successful()) {
-                if ($response->status() === 404) {
-                    return null;
-                }
-
-                Log::error('Geidea get order by merchant reference failed', [
-                    'merchant_reference' => $merchantReference,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-
-                return null;
-            }
-
-            $data = $response->json();
+            // Try different query parameter names
+            $queryParams = [
+                'merchantReferenceId' => $merchantReference,
+                'merchant_reference_id' => $merchantReference,
+                'merchantReference' => $merchantReference,
+                'reference' => $merchantReference,
+            ];
             
-            // If response is an array, get first item
-            if (is_array($data) && isset($data[0])) {
-                return (object) $data[0];
+            // Try different endpoint formats
+            $endpoints = [
+                "{$this->baseUrl}/orders?merchantReferenceId={$merchantReference}",
+                "{$this->baseUrl}/orders?merchant_reference_id={$merchantReference}",
+                "{$this->baseUrl}/orders?merchantReference={$merchantReference}",
+                "{$this->baseUrl}/orders?reference={$merchantReference}",
+                "{$this->baseUrl}/orders",
+            ];
+            
+            foreach ($endpoints as $endpoint) {
+                try {
+                    if (strpos($endpoint, '?') !== false) {
+                        // URL already has query string
+                        $response = $this->httpClient()->get($endpoint);
+                    } else {
+                        // Use query parameters
+                        $response = $this->httpClient()
+                            ->get($endpoint, $queryParams);
+                    }
+                    
+                    Log::info('Geidea getOrderByMerchantReference attempt', [
+                        'endpoint' => $endpoint,
+                        'merchant_reference' => $merchantReference,
+                        'status' => $response->status(),
+                    ]);
+
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        $body = $response->body();
+                        
+                        Log::info('Geidea getOrderByMerchantReference response', [
+                            'endpoint' => $endpoint,
+                            'status' => $response->status(),
+                            'body' => $body,
+                            'json' => $data,
+                        ]);
+                        
+                        // If response is an array, get first item
+                        if (is_array($data) && isset($data[0])) {
+                            return (object) $data[0];
+                        }
+
+                        // If response is an object with orders array
+                        if (is_array($data) && isset($data['orders']) && count($data['orders']) > 0) {
+                            return (object) $data['orders'][0];
+                        }
+                        
+                        // If response is an object with data array
+                        if (is_array($data) && isset($data['data']) && count($data['data']) > 0) {
+                            return (object) $data['data'][0];
+                        }
+
+                        // If response is already an object
+                        if (is_object($data) || (is_array($data) && !empty($data))) {
+                            return (object) $data;
+                        }
+                    } else {
+                        Log::warning('Geidea getOrderByMerchantReference failed for endpoint', [
+                            'endpoint' => $endpoint,
+                            'status' => $response->status(),
+                            'body' => $response->body(),
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Geidea getOrderByMerchantReference exception for endpoint', [
+                        'endpoint' => $endpoint,
+                        'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
             }
 
-            // If response is an object with orders array
-            if (is_array($data) && isset($data['orders']) && count($data['orders']) > 0) {
-                return (object) $data['orders'][0];
-            }
-
-            // If response is already an object
-            if (is_object($data)) {
-                return $data;
-            }
+            Log::error('Geidea get order by merchant reference failed on all endpoints', [
+                'merchant_reference' => $merchantReference,
+                'endpoints_tried' => $endpoints,
+            ]);
 
             return null;
         } catch (\Exception $e) {
