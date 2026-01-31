@@ -107,12 +107,14 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
 
         // Subscriptions
+        // IMPORTANT: Specific routes must come before parameterized routes
         Route::get('subscriptions', [SubscriptionController::class, 'getUserSubscriptions']);
         Route::get('subscriptions/current', [SubscriptionController::class, 'getCurrent']);
-        Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
         Route::get('subscriptions/payment-status', [SubscriptionController::class, 'getPaymentStatus']);
         Route::post('subscriptions/prepare-payment', [SubscriptionController::class, 'preparePayment']);
         Route::post('subscriptions', [SubscriptionController::class, 'createWithPayment']);
+        // Parameterized routes come after specific routes
+        Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
         Route::post('subscriptions/{id}/cancel-auto-renew', [SubscriptionController::class, 'cancelAutoRenew']);
         Route::post('subscriptions/{id}/resume-auto-renew', [SubscriptionController::class, 'resumeAutoRenew']);
         Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgradeUser']);

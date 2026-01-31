@@ -229,9 +229,12 @@ class SubscriptionController extends Controller
 
             // Log full response for debugging
             \Log::info('Geidea response in preparePayment', [
-                'response' => $geideaResponse,
+                'merchant_reference' => $merchantReference,
+                'response_type' => gettype($geideaResponse),
+                'response_class' => get_class($geideaResponse),
                 'response_array' => (array) $geideaResponse,
                 'response_json' => json_encode($geideaResponse),
+                'all_properties' => array_keys((array) $geideaResponse),
             ]);
 
             // Update PaymentAttempt with Geidea data

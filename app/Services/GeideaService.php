@@ -109,6 +109,18 @@ class GeideaService
                             'has_session_id' => isset($result->session_id),
                             'has_orderId' => isset($result->orderId),
                             'has_order_id' => isset($result->order_id),
+                            'full_response_keys' => array_keys($responseJson ?? []),
+                            'full_response_sample' => json_encode(array_slice($responseJson ?? [], 0, 10)),
+                        ]);
+                        
+                        // Log ALL fields in response for debugging
+                        Log::info('Geidea FULL response for debugging', [
+                            'url' => $url,
+                            'response_type' => gettype($responseJson),
+                            'response_is_array' => is_array($responseJson),
+                            'response_is_object' => is_object($responseJson),
+                            'all_keys' => is_array($responseJson) ? array_keys($responseJson) : (is_object($responseJson) ? array_keys((array)$responseJson) : []),
+                            'response_preview' => substr(json_encode($responseJson), 0, 1000),
                         ]);
 
                         return $result;
