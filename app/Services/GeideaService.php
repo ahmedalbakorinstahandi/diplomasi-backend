@@ -97,6 +97,57 @@ class GeideaService
                     ]);
 
                     if ($response->successful()) {
+                        // Handle HTTP 204 (No Content) - Order created but no response body
+                        // In this case, we need to fetch the order using merchantReferenceId
+                        if ($response->status() === 204 || empty($responseJson)) {
+                            Log::info('Geidea returned 204 No Content - fetching order by merchantReferenceId', [
+                                'url' => $url,
+                                'merchantReferenceId' => $data['merchantReferenceId'] ?? null,
+                            ]);
+                            
+                            // Wait a bit for order to be available (Geidea might need a moment)
+                            sleep(1);
+                            
+                            // Fetch the order we just created using merchantReferenceId
+                            if (isset($data['merchantReferenceId'])) {
+                                $maxRetries = 3;
+                                $retryDelay = 1; // seconds
+                                
+                                for ($i = 0; $i < $maxRetries; $i++) {
+                                    $order = $this->getOrderByMerchantReference($data['merchantReferenceId']);
+                                    
+                                    if ($order) {
+                                        Log::info('Successfully fetched order after creation', [
+                                            'attempt' => $i + 1,
+                                            'order_id' => $order->orderId ?? $order->id ?? null,
+                                            'status' => $order->status ?? null,
+                                        ]);
+                                        return $order;
+                                    }
+                                    
+                                    if ($i < $maxRetries - 1) {
+                                        Log::info('Order not found yet, retrying...', [
+                                            'attempt' => $i + 1,
+                                            'merchantReferenceId' => $data['merchantReferenceId'],
+                                        ]);
+                                        sleep($retryDelay);
+                                    }
+                                }
+                                
+                                Log::warning('Order created but could not be fetched after retries', [
+                                    'merchantReferenceId' => $data['merchantReferenceId'],
+                                    'retries' => $maxRetries,
+                                ]);
+                                
+                                // Return a minimal object with merchantReferenceId
+                                // The order exists, we just can't fetch it yet
+                                return (object) [
+                                    'merchantReferenceId' => $data['merchantReferenceId'],
+                                    'status' => 'created',
+                                ];
+                            }
+                        }
+                        
                         $result = (object) $responseJson;
                         
                         // Log the actual structure for debugging
