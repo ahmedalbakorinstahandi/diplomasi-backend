@@ -41,4 +41,12 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
+    'geidea' => [
+        'public_key' => env('GEIDEA_PUBLIC_KEY'), // Used as Basic Auth username
+        'api_password' => env('GEIDEA_API_PASSWORD'), // Used as Basic Auth password
+        'merchant_id' => env('GEIDEA_MERCHANT_ID'), // Optional
+        'environment' => env('GEIDEA_ENVIRONMENT', 'sandbox'), // sandbox|production
+        'base_url' => env('GEIDEA_BASE_URL'), // No hardcoded default - must be set in .env
+    ],
+
 ];

@@ -1,14 +1,16 @@
 <?php
 
 use App\Http\Controllers\Billing\StripeWebhookController;
+use App\Http\Controllers\Billing\GeideaWebhookController;
 use App\Http\Middleware\SetLocaleMiddleware;
 use App\Http\Middleware\RequestContextMiddleware;
 use Illuminate\Support\Facades\Route;
 
 request()->headers->set('Accept', 'application/json');
 
-// Public webhook route (no authentication required)
+// Public webhook routes (no authentication required)
 Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle']);
+Route::post('webhooks/geidea', [GeideaWebhookController::class, 'handle']);
 
 // Public routes
 Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddleware::class])->group(function () {

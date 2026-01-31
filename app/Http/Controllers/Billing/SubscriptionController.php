@@ -167,12 +167,14 @@ class SubscriptionController extends Controller
 
     /**
      * Prepare payment for subscription (User route)
-     * Returns payment intent data for Stripe SDK
+     * Returns Geidea payment session data
      */
     public function preparePayment(Request $request)
     {
         $request->validate([
             'plan_id' => 'required|exists:plans,id',
+            'type' => 'nullable|in:subscription_create,subscription_upgrade',
+            'context' => 'nullable|in:app,web',
         ]);
 
         $user = \App\Models\Users\User::auth();
@@ -193,56 +195,96 @@ class SubscriptionController extends Controller
             ]);
         }
 
-        $stripeService = app(\App\Services\StripeService::class);
-        
-        // Get or create Stripe customer
-        $customerId = $user->getStripeCustomer();
+        $geideaService = app(\App\Services\GeideaService::class);
 
-        // Create payment intent
-        $paymentIntent = $stripeService->createPaymentIntent(
-            $plan->price,
-            'USD',
-            $customerId,
-            null, // No payment method yet
-            [
-                'type' => 'subscription',
+        // Generate merchant reference
+        $merchantReference = $geideaService->generateMerchantReference();
+
+        // Calculate expires_at (default: +30 minutes)
+        $expiresAt = now()->addMinutes(30);
+
+        // Create PaymentAttempt
+        $paymentAttempt = \App\Models\Billing\PaymentAttempt::create([
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'type' => $request->input('type', 'subscription_create'),
+            'merchant_reference' => $merchantReference,
+            'amount' => $plan->price,
+            'currency' => 'SAR', // Geidea uses SAR
+            'status' => 'initiated',
+            'expires_at' => $expiresAt,
+        ]);
+
+        try {
+            // Create Geidea payment session
+            $sessionData = [
+                'amount' => $plan->price,
+                'currency' => 'SAR',
+                'merchantReferenceId' => $merchantReference,
+                'callbackUrl' => config('app.url') . '/api/v1/webhooks/geidea',
+                'returnUrl' => config('app.url') . '/payment/return', // Optional, Flutter doesn't use it
+            ];
+
+            $geideaResponse = $geideaService->createPaymentSession($sessionData);
+
+            // Update PaymentAttempt with Geidea data
+            $paymentAttempt->update([
+                'geidea_session_id' => $geideaResponse->sessionId ?? $geideaResponse->id ?? null,
+                'geidea_order_id' => $geideaResponse->orderId ?? $geideaResponse->id ?? null,
+                'checkout_url' => $geideaResponse->checkoutUrl ?? $geideaResponse->url ?? null,
+                'status' => 'pending',
+            ]);
+
+            // Update expires_at if returned by Geidea
+            if (isset($geideaResponse->expiresAt)) {
+                $paymentAttempt->update([
+                    'expires_at' => \Carbon\Carbon::parse($geideaResponse->expiresAt),
+                ]);
+            }
+
+            return ResponseService::response([
+                'success' => true,
+                'data' => [
+                    'merchant_reference' => $merchantReference,
+                    'checkout_url' => $paymentAttempt->checkout_url,
+                    'session_id' => $paymentAttempt->geidea_session_id,
+                    'order_id' => $paymentAttempt->geidea_order_id,
+                    'amount' => $plan->price,
+                    'currency' => 'SAR',
+                    'expires_at' => $paymentAttempt->expires_at->toAtomString(),
+                ],
+                'status' => 200,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Geidea prepare payment failed', [
                 'user_id' => $user->id,
                 'plan_id' => $plan->id,
-            ]
-        );
+                'merchant_reference' => $merchantReference,
+                'error' => $e->getMessage(),
+            ]);
 
-        // Create ephemeral key
-        $ephemeralKey = $stripeService->createEphemeralKey($customerId);
+            $paymentAttempt->update([
+                'status' => 'failed',
+                'failure_reason' => $e->getMessage(),
+            ]);
 
-        return ResponseService::response([
-            'success' => true,
-            'data' => [
-                'payment' => [
-                    'client_secret' => $paymentIntent->client_secret,
-                    'customer_id' => $customerId,
-                    'ephemeral_key' => $ephemeralKey->secret,
-                    'amount' => $plan->price,
-                    'currency' => 'USD',
-                ],
-                'plan' => [
-                    'id' => $plan->id,
-                    'name' => $plan->name,
-                    'price' => $plan->price,
-                ],
-            ],
-            'status' => 200,
-        ]);
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Failed to prepare payment. Please try again.',
+                'status' => 500,
+            ]);
+        }
     }
 
     /**
      * Create subscription with payment (User route)
-     * After payment is confirmed in Flutter
+     * Idempotent: returns existing subscription if already created
      */
     public function createWithPayment(Request $request)
     {
         $request->validate([
             'plan_id' => 'required|exists:plans,id',
-            'payment_intent_id' => 'required|string',
+            'merchant_reference' => 'required|string',
             'auto_renew' => 'boolean',
         ]);
 
@@ -255,14 +297,190 @@ class SubscriptionController extends Controller
             ]);
         }
 
-        $subscription = $this->subscriptionService->createWithPaymentIntent($request->all(), $user);
+        // Find PaymentAttempt by merchant_reference and user_id
+        $paymentAttempt = \App\Models\Billing\PaymentAttempt::byMerchantReference($request->merchant_reference)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$paymentAttempt) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Payment attempt not found',
+                'status' => 404,
+            ]);
+        }
+
+        // Idempotency: if subscription already exists, return it
+        if ($paymentAttempt->subscription_id) {
+            $subscription = $this->subscriptionService->show($paymentAttempt->subscription_id);
+            
+            return ResponseService::response([
+                'success' => true,
+                'data' => [
+                    'status' => 'completed',
+                    'subscription' => $subscription,
+                    'message' => 'Subscription already created',
+                ],
+                'status' => 200,
+                'resource' => SubscriptionResource::class,
+            ]);
+        }
+
+        // Check PaymentAttempt status
+        if ($paymentAttempt->status === 'completed') {
+            // Create subscription (idempotent)
+            $subscription = $this->subscriptionService->createFromPaymentAttempt($paymentAttempt, [
+                'auto_renew' => $request->input('auto_renew', true),
+            ]);
+
+            return ResponseService::response([
+                'success' => true,
+                'data' => [
+                    'status' => 'completed',
+                    'subscription' => $subscription,
+                    'message' => 'Subscription created successfully',
+                ],
+                'status' => 201,
+                'resource' => SubscriptionResource::class,
+            ]);
+        } elseif ($paymentAttempt->status === 'pending' || $paymentAttempt->status === 'verifying') {
+            return ResponseService::response([
+                'success' => true,
+                'data' => [
+                    'status' => 'pending',
+                    'message' => 'Payment is still being processed. Please check payment status.',
+                ],
+                'status' => 200,
+            ]);
+        } elseif ($paymentAttempt->status === 'failed') {
+            return ResponseService::response([
+                'success' => false,
+                'data' => [
+                    'status' => 'failed',
+                    'reason' => $paymentAttempt->failure_reason,
+                    'message' => 'Payment failed: ' . ($paymentAttempt->failure_reason ?? 'Unknown error'),
+                ],
+                'status' => 400,
+            ]);
+        } else {
+            return ResponseService::response([
+                'success' => false,
+                'data' => [
+                    'status' => $paymentAttempt->status,
+                    'message' => 'Payment is in ' . $paymentAttempt->status . ' status',
+                ],
+                'status' => 400,
+            ]);
+        }
+    }
+
+    /**
+     * Get payment status (User route)
+     * Self-healing: performs single API verification if attempt is old and still pending
+     */
+    public function getPaymentStatus(Request $request)
+    {
+        $request->validate([
+            'merchant_reference' => 'required|string',
+        ]);
+
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        // Find PaymentAttempt
+        $paymentAttempt = \App\Models\Billing\PaymentAttempt::byMerchantReference($request->merchant_reference)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$paymentAttempt) {
+            return ResponseService::response([
+                'success' => true,
+                'data' => [
+                    'status' => 'not_found',
+                ],
+                'status' => 200,
+            ]);
+        }
+
+        // Self-healing: if status is pending/verifying and attempt is old (>60s), verify once via API
+        if ($paymentAttempt->canBeVerified(60)) {
+            try {
+                $geideaService = app(\App\Services\GeideaService::class);
+                
+                // Perform single API verification
+                $paymentStatus = $geideaService->getPaymentStatus($paymentAttempt->merchant_reference);
+                
+                if ($paymentStatus) {
+                    $normalizedStatus = $paymentStatus['status'];
+                    $verifiedOrder = $paymentStatus['order'];
+                    
+                    // Update PaymentAttempt based on verified status
+                    if ($normalizedStatus === 'completed' && $paymentAttempt->status !== 'completed') {
+                        $paymentAttempt->markCompleted();
+                        $paymentAttempt->markVerified();
+                        $paymentAttempt->update([
+                            'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
+                        ]);
+                        
+                        // Create subscription if not exists
+                        if (!$paymentAttempt->subscription_id) {
+                            try {
+                                $subscription = $this->subscriptionService->createFromPaymentAttempt($paymentAttempt);
+                                $paymentAttempt->update(['subscription_id' => $subscription->id]);
+                            } catch (\Exception $e) {
+                                \Log::error('Failed to create subscription from self-healing verification', [
+                                    'payment_attempt_id' => $paymentAttempt->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                    } elseif ($normalizedStatus === 'failed' && $paymentAttempt->status !== 'failed') {
+                        $paymentAttempt->markFailed($verifiedOrder->message ?? 'Payment failed');
+                        $paymentAttempt->markVerified();
+                    } elseif ($normalizedStatus === 'canceled' && $paymentAttempt->status !== 'canceled') {
+                        $paymentAttempt->update([
+                            'status' => 'canceled',
+                            'verified_at' => now(),
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::error('Self-healing verification failed', [
+                    'payment_attempt_id' => $paymentAttempt->id,
+                    'merchant_reference' => $paymentAttempt->merchant_reference,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with current status from DB
+            }
+            
+            // Refresh attempt from database
+            $paymentAttempt->refresh();
+        }
+
+        // Return current status
+        $responseData = [
+            'status' => $paymentAttempt->status,
+            'updated_at' => $paymentAttempt->updated_at->toAtomString(),
+        ];
+
+        if ($paymentAttempt->status === 'failed' && $paymentAttempt->failure_reason) {
+            $responseData['reason'] = $paymentAttempt->failure_reason;
+        }
+
+        if ($paymentAttempt->status === 'completed' && $paymentAttempt->subscription_id) {
+            $responseData['subscription_id'] = $paymentAttempt->subscription_id;
+        }
 
         return ResponseService::response([
             'success' => true,
-            'data' => $subscription,
-            'message' => 'Subscription created successfully',
-            'status' => 201,
-            'resource' => SubscriptionResource::class,
+            'data' => $responseData,
+            'status' => 200,
         ]);
     }
 

@@ -7,6 +7,7 @@ use App\Models\Billing\Plan;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
 use App\Models\Billing\FinancialTransaction;
+use App\Models\Billing\PaymentAttempt;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\StripeService;
@@ -995,6 +996,113 @@ class SubscriptionService
         ]);
 
         return $subscription;
+    }
+
+    /**
+     * Create subscription from PaymentAttempt (idempotent).
+     * 
+     * @param PaymentAttempt $attempt
+     * @param array $options
+     * @return Subscription
+     */
+    public function createFromPaymentAttempt(PaymentAttempt $attempt, array $options = []): Subscription
+    {
+        // Validate attempt status
+        if ($attempt->status !== 'completed') {
+            MessageService::abort(400, 'Payment attempt must be completed to create subscription');
+        }
+
+        // Idempotency check: if subscription already exists, return it
+        if ($attempt->subscription_id) {
+            $existingSubscription = Subscription::find($attempt->subscription_id);
+            if ($existingSubscription) {
+                Log::info('Subscription already exists for PaymentAttempt', [
+                    'payment_attempt_id' => $attempt->id,
+                    'subscription_id' => $existingSubscription->id,
+                ]);
+                return $existingSubscription;
+            }
+        }
+
+        return DB::transaction(function () use ($attempt, $options) {
+            // Get plan
+            $plan = $attempt->plan;
+            if (!$plan) {
+                MessageService::abort(404, 'Plan not found for payment attempt');
+            }
+
+            // Calculate dates
+            $now = Carbon::now();
+            $startDate = $now->copy();
+            $intervalDays = $this->getIntervalDays($plan->interval);
+            $endDate = $now->copy()->addDays($intervalDays);
+
+            // Prepare subscription data
+            $subscriptionData = [
+                'user_id' => $attempt->user_id,
+                'plan_id' => $plan->id,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
+                'status' => 'active',
+                'price' => $attempt->amount,
+                'currency' => $attempt->currency ?? 'SAR',
+                'auto_renew' => $options['auto_renew'] ?? true,
+            ];
+
+            // Create subscription
+            $subscription = Subscription::create($subscriptionData);
+
+            // Link subscription to payment attempt
+            $attempt->update(['subscription_id' => $subscription->id]);
+
+            // Create subscription event
+            $subscriptionEvent = SubscriptionEvent::create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'created',
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'start_date' => $subscription->start_date,
+                'end_date' => $subscription->end_date,
+                'plan_price' => $attempt->amount,
+                'amount_charged' => $attempt->amount,
+                'amount_refunded' => 0,
+                'currency' => $subscription->currency,
+                'meta' => [
+                    'auto_renew' => $subscription->auto_renew,
+                    'created_via' => 'geidea_payment',
+                    'payment_attempt_id' => $attempt->id,
+                    'merchant_reference' => $attempt->merchant_reference,
+                    'geidea_order_id' => $attempt->geidea_order_id,
+                ],
+                'created_at' => now(),
+            ]);
+
+            // Record financial transaction
+            FinancialTransaction::create([
+                'subscription_id' => $subscription->id,
+                'subscription_event_id' => $subscriptionEvent->id,
+                'user_id' => $attempt->user_id,
+                'type' => 'subscription_payment',
+                'amount' => $attempt->amount,
+                'currency' => $attempt->currency ?? 'SAR',
+                'status' => 'completed',
+                'description' => "Subscription payment for plan: {$plan->name}",
+                'metadata' => [
+                    'payment_attempt_id' => $attempt->id,
+                    'merchant_reference' => $attempt->merchant_reference,
+                    'geidea_order_id' => $attempt->geidea_order_id,
+                ],
+                'processed_at' => now(),
+            ]);
+
+            Log::info('Subscription created from PaymentAttempt', [
+                'payment_attempt_id' => $attempt->id,
+                'subscription_id' => $subscription->id,
+                'merchant_reference' => $attempt->merchant_reference,
+            ]);
+
+            return $this->show($subscription->id);
+        });
     }
 
     /**
