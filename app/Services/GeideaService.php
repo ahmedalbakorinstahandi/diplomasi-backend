@@ -143,6 +143,29 @@ class GeideaService
                                 }
                             }
                             
+                            // Try ONE quick attempt to get order by merchantReferenceId (non-blocking)
+                            // This is optional - if it fails, webhook will provide the data
+                            if (isset($data['merchantReferenceId'])) {
+                                try {
+                                    // Small delay to allow Geidea to process
+                                    usleep(500000); // 0.5 seconds
+                                    
+                                    $order = $this->getOrderByMerchantReference($data['merchantReferenceId']);
+                                    if ($order) {
+                                        Log::info('Successfully fetched order by merchantReferenceId after creation', [
+                                            'merchantReferenceId' => $data['merchantReferenceId'],
+                                        ]);
+                                        return $order;
+                                    }
+                                } catch (\Exception $e) {
+                                    // Ignore - webhook will provide the data
+                                    Log::debug('Quick fetch attempt failed, webhook will provide data', [
+                                        'merchantReferenceId' => $data['merchantReferenceId'],
+                                        'error' => $e->getMessage(),
+                                    ]);
+                                }
+                            }
+                            
                             // Return minimal object - order is created, details will come via webhook
                             $result = [
                                 'merchantReferenceId' => $data['merchantReferenceId'] ?? null,

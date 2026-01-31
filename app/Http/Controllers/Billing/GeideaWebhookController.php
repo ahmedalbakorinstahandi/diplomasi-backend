@@ -88,19 +88,35 @@ class GeideaWebhookController extends Controller
                 return response()->json(['error' => 'PaymentAttempt not found'], 404);
             }
 
+            // Extract checkout_url from verified order if available
+            $checkoutUrl = $verifiedOrder->checkoutUrl 
+                ?? $verifiedOrder->checkout_url 
+                ?? $verifiedOrder->url 
+                ?? $verifiedOrder->redirectUrl 
+                ?? $verifiedOrder->redirect_url 
+                ?? $verifiedOrder->paymentUrl 
+                ?? $verifiedOrder->payment_url 
+                ?? null;
+            
             // Process based on verified status
             if ($normalizedStatus === 'completed') {
-                $this->processPaymentCompleted($paymentAttempt, $verifiedOrder);
+                $this->processPaymentCompleted($paymentAttempt, $verifiedOrder, $checkoutUrl);
             } elseif ($normalizedStatus === 'failed') {
-                $this->processPaymentFailed($paymentAttempt, $verifiedOrder);
+                $this->processPaymentFailed($paymentAttempt, $verifiedOrder, $checkoutUrl);
             } elseif ($normalizedStatus === 'canceled') {
-                $this->processPaymentCanceled($paymentAttempt, $verifiedOrder);
+                $this->processPaymentCanceled($paymentAttempt, $verifiedOrder, $checkoutUrl);
             } else {
-                // pending or other status - just update attempt
-                $paymentAttempt->update([
+                // pending or other status - update attempt with checkout_url if available
+                $updateData = [
                     'status' => 'pending',
                     'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
-                ]);
+                ];
+                
+                if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                    $updateData['checkout_url'] = $checkoutUrl;
+                }
+                
+                $paymentAttempt->update($updateData);
             }
 
             return response()->json(['received' => true], 200);
@@ -117,9 +133,9 @@ class GeideaWebhookController extends Controller
     /**
      * Process completed payment (idempotent).
      */
-    protected function processPaymentCompleted(PaymentAttempt $paymentAttempt, object $verifiedOrder): void
+    protected function processPaymentCompleted(PaymentAttempt $paymentAttempt, object $verifiedOrder, ?string $checkoutUrl = null): void
     {
-        DB::transaction(function () use ($paymentAttempt, $verifiedOrder) {
+        DB::transaction(function () use ($paymentAttempt, $verifiedOrder, $checkoutUrl) {
             // Idempotency check: if already completed and verified, skip
             if ($paymentAttempt->status === 'completed' && $paymentAttempt->isVerified()) {
                 Log::info('Geidea webhook: Payment already completed and verified', [
@@ -131,13 +147,21 @@ class GeideaWebhookController extends Controller
             // Update PaymentAttempt
             $paymentAttempt->markCompleted();
             $paymentAttempt->markVerified();
-            $paymentAttempt->update([
+            
+            $updateData = [
                 'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
                 'metadata' => array_merge($paymentAttempt->metadata ?? [], [
                     'geidea_order' => $verifiedOrder,
                     'webhook_processed_at' => now()->toAtomString(),
                 ]),
-            ]);
+            ];
+            
+            // Update checkout_url if available and not already set
+            if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                $updateData['checkout_url'] = $checkoutUrl;
+            }
+            
+            $paymentAttempt->update($updateData);
 
             // Create subscription if not exists (idempotent)
             if (!$paymentAttempt->subscription_id) {
@@ -163,19 +187,27 @@ class GeideaWebhookController extends Controller
     /**
      * Process failed payment.
      */
-    protected function processPaymentFailed(PaymentAttempt $paymentAttempt, object $verifiedOrder): void
+    protected function processPaymentFailed(PaymentAttempt $paymentAttempt, object $verifiedOrder, ?string $checkoutUrl = null): void
     {
         $failureReason = $verifiedOrder->message ?? $verifiedOrder->error ?? 'Payment failed';
         
         $paymentAttempt->markFailed($failureReason);
         $paymentAttempt->markVerified();
-        $paymentAttempt->update([
+        
+        $updateData = [
             'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
             'metadata' => array_merge($paymentAttempt->metadata ?? [], [
                 'geidea_order' => $verifiedOrder,
-                'webhook_processed_at' => now()->toIso8601String(),
+                'webhook_processed_at' => now()->toAtomString(),
             ]),
-        ]);
+        ];
+        
+        // Update checkout_url if available and not already set
+        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+            $updateData['checkout_url'] = $checkoutUrl;
+        }
+        
+        $paymentAttempt->update($updateData);
 
         Log::info('Geidea webhook: Payment marked as failed', [
             'merchant_reference' => $paymentAttempt->merchant_reference,
@@ -186,17 +218,24 @@ class GeideaWebhookController extends Controller
     /**
      * Process canceled payment.
      */
-    protected function processPaymentCanceled(PaymentAttempt $paymentAttempt, object $verifiedOrder): void
+    protected function processPaymentCanceled(PaymentAttempt $paymentAttempt, object $verifiedOrder, ?string $checkoutUrl = null): void
     {
-        $paymentAttempt->update([
+        $updateData = [
             'status' => 'canceled',
             'verified_at' => now(),
             'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
             'metadata' => array_merge($paymentAttempt->metadata ?? [], [
                 'geidea_order' => $verifiedOrder,
-                'webhook_processed_at' => now()->toIso8601String(),
+                'webhook_processed_at' => now()->toAtomString(),
             ]),
-        ]);
+        ];
+        
+        // Update checkout_url if available and not already set
+        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+            $updateData['checkout_url'] = $checkoutUrl;
+        }
+        
+        $paymentAttempt->update($updateData);
 
         Log::info('Geidea webhook: Payment marked as canceled', [
             'merchant_reference' => $paymentAttempt->merchant_reference,

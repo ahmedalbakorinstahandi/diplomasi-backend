@@ -482,12 +482,29 @@ class SubscriptionController extends Controller
                     $verifiedOrder = $paymentStatus['order'];
                     
                     // Update PaymentAttempt based on verified status
+                    // Also extract checkout_url from verified order if available
+                    $checkoutUrl = $verifiedOrder->checkoutUrl 
+                        ?? $verifiedOrder->checkout_url 
+                        ?? $verifiedOrder->url 
+                        ?? $verifiedOrder->redirectUrl 
+                        ?? $verifiedOrder->redirect_url 
+                        ?? $verifiedOrder->paymentUrl 
+                        ?? $verifiedOrder->payment_url 
+                        ?? null;
+                    
                     if ($normalizedStatus === 'completed' && $paymentAttempt->status !== 'completed') {
                         $paymentAttempt->markCompleted();
                         $paymentAttempt->markVerified();
-                        $paymentAttempt->update([
+                        $updateData = [
                             'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
-                        ]);
+                        ];
+                        
+                        // Update checkout_url if available from verified order
+                        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                            $updateData['checkout_url'] = $checkoutUrl;
+                        }
+                        
+                        $paymentAttempt->update($updateData);
                         
                         // Create subscription if not exists
                         if (!$paymentAttempt->subscription_id) {
@@ -502,13 +519,38 @@ class SubscriptionController extends Controller
                             }
                         }
                     } elseif ($normalizedStatus === 'failed' && $paymentAttempt->status !== 'failed') {
+                        $updateData = [
+                            'verified_at' => now(),
+                        ];
+                        
+                        // Update checkout_url if available
+                        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                            $updateData['checkout_url'] = $checkoutUrl;
+                        }
+                        
                         $paymentAttempt->markFailed($verifiedOrder->message ?? 'Payment failed');
                         $paymentAttempt->markVerified();
+                        $paymentAttempt->update($updateData);
                     } elseif ($normalizedStatus === 'canceled' && $paymentAttempt->status !== 'canceled') {
-                        $paymentAttempt->update([
+                        $updateData = [
                             'status' => 'canceled',
                             'verified_at' => now(),
-                        ]);
+                        ];
+                        
+                        // Update checkout_url if available
+                        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                            $updateData['checkout_url'] = $checkoutUrl;
+                        }
+                        
+                        $paymentAttempt->update($updateData);
+                    } else {
+                        // For pending status, still try to update checkout_url if available
+                        if ($checkoutUrl && !$paymentAttempt->checkout_url) {
+                            $paymentAttempt->update([
+                                'checkout_url' => $checkoutUrl,
+                                'geidea_order_id' => $verifiedOrder->orderId ?? $verifiedOrder->id ?? $paymentAttempt->geidea_order_id,
+                            ]);
+                        }
                     }
                 }
             } catch (\Exception $e) {
@@ -529,6 +571,20 @@ class SubscriptionController extends Controller
             'status' => $paymentAttempt->status,
             'updated_at' => $paymentAttempt->updated_at->toAtomString(),
         ];
+
+        // Add checkout_url if available (may come from webhook or API verification)
+        if ($paymentAttempt->checkout_url) {
+            $responseData['checkout_url'] = $paymentAttempt->checkout_url;
+        }
+        
+        // Add session_id and order_id if available
+        if ($paymentAttempt->geidea_session_id) {
+            $responseData['session_id'] = $paymentAttempt->geidea_session_id;
+        }
+        
+        if ($paymentAttempt->geidea_order_id) {
+            $responseData['order_id'] = $paymentAttempt->geidea_order_id;
+        }
 
         if ($paymentAttempt->status === 'failed' && $paymentAttempt->failure_reason) {
             $responseData['reason'] = $paymentAttempt->failure_reason;
