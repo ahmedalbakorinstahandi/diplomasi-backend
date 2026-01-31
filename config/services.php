@@ -47,6 +47,7 @@ return [
         'merchant_id' => env('GEIDEA_MERCHANT_ID'), // Optional
         'environment' => env('GEIDEA_ENVIRONMENT', 'sandbox'), // sandbox|production
         'base_url' => env('GEIDEA_BASE_URL'), // No hardcoded default - must be set in .env
+        'checkout_base_url' => env('GEIDEA_CHECKOUT_BASE_URL', 'https://checkout.geidea.net'), // Checkout URL base (fallback)
     ],
 
 ];

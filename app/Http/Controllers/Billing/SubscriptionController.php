@@ -264,15 +264,29 @@ class SubscriptionController extends Controller
             // Geidea API returns 204 No Content - order is created but no data in response
             // checkout_url will be available via webhook or Flutter SDK
             if (!$checkoutUrl) {
-                Log::info('Geidea checkout_url not available in response (HTTP 204) - will be provided via webhook or Flutter SDK', [
+                Log::info('Geidea checkout_url not available in response (HTTP 204)', [
                     'merchant_reference' => $merchantReference,
-                    'note' => 'Geidea API returns 204 No Content. Order is created successfully. checkout_url will come from webhook or Flutter SDK.',
+                    'note' => 'Geidea API returns 204 No Content. Order is created successfully.',
                 ]);
                 
-                // For Flutter: We can construct a checkout URL or use merchant_reference with Geidea SDK
-                // Option 1: Use Geidea Flutter SDK with merchant_reference directly
-                // Option 2: Construct checkout URL if we know the pattern
-                // For now, we'll return merchant_reference and let Flutter handle it
+                // IMPORTANT: Flutter should use merchant_reference with Geidea SDK directly
+                // The constructed URL below is a fallback only and may not work
+                // Best practice: Use Geidea Flutter SDK with merchant_reference
+                
+                // Try to construct checkout_url from merchant_reference as fallback
+                // This is experimental - may not work depending on Geidea's actual implementation
+                $baseCheckoutUrl = config('services.geidea.checkout_base_url', 'https://checkout.geidea.net');
+                $constructedUrl = rtrim($baseCheckoutUrl, '/') . '/' . $merchantReference;
+                
+                Log::info('Constructed checkout_url as experimental fallback', [
+                    'merchant_reference' => $merchantReference,
+                    'constructed_url' => $constructedUrl,
+                    'warning' => 'This is experimental. Flutter should use Geidea SDK with merchant_reference directly.',
+                ]);
+                
+                // Use constructed URL as experimental fallback
+                // Flutter should prefer using Geidea SDK with merchant_reference
+                $checkoutUrl = $constructedUrl;
             }
 
             $paymentAttempt->update([
@@ -291,8 +305,7 @@ class SubscriptionController extends Controller
 
             // Prepare response
             // Note: Geidea API returns HTTP 204 (No Content) - order is created but no data in response
-            // checkout_url, session_id, and order_id will be available via webhook
-            // Flutter should use merchant_reference with Geidea SDK or poll payment-status endpoint
+            // checkout_url may be constructed as fallback, but Flutter should use Geidea SDK with merchant_reference
             $responseData = [
                 'merchant_reference' => $merchantReference,
                 'amount' => $plan->price,
@@ -300,10 +313,18 @@ class SubscriptionController extends Controller
                 'expires_at' => $paymentAttempt->expires_at->toAtomString(),
             ];
             
-            // Add optional fields if available (will be null initially, populated via webhook)
+            // Always include checkout_url (may be constructed fallback or from API)
+            // Flutter should prefer using Geidea SDK with merchant_reference if checkout_url doesn't work
             if ($paymentAttempt->checkout_url) {
                 $responseData['checkout_url'] = $paymentAttempt->checkout_url;
+                
+                // Mark if it's a constructed URL (experimental fallback)
+                if (strpos($paymentAttempt->checkout_url, $merchantReference) !== false) {
+                    $responseData['checkout_url_note'] = 'Constructed URL - prefer Geidea SDK with merchant_reference if available';
+                }
             }
+            
+            // Add optional fields if available
             if ($paymentAttempt->geidea_session_id) {
                 $responseData['session_id'] = $paymentAttempt->geidea_session_id;
             }
