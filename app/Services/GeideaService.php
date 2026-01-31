@@ -123,13 +123,16 @@ class GeideaService
                         }
                         
                         if ($response->status() === 204 || empty($responseJson)) {
-                            Log::info('Geidea returned 204 No Content - attempting to fetch order', [
+                            // Geidea API returns HTTP 204 (No Content) - order is created successfully
+                            // but no data in response. Order details will come via webhook.
+                            Log::info('Geidea returned 204 No Content - order created successfully', [
                                 'url' => $url,
                                 'merchantReferenceId' => $data['merchantReferenceId'] ?? null,
                                 'orderIdFromHeader' => $orderIdFromHeader,
+                                'note' => 'Order details (checkout_url, order_id, etc.) will be provided via webhook',
                             ]);
                             
-                            // Try to get order by ID from header first
+                            // Try to get order by ID from header if available (quick check only)
                             if ($orderIdFromHeader) {
                                 $order = $this->getOrderById($orderIdFromHeader);
                                 if ($order) {
@@ -140,52 +143,17 @@ class GeideaService
                                 }
                             }
                             
-                            // Wait a bit for order to be available (Geidea might need a moment)
-                            sleep(2);
+                            // Return minimal object - order is created, details will come via webhook
+                            $result = [
+                                'merchantReferenceId' => $data['merchantReferenceId'] ?? null,
+                                'status' => 'created',
+                            ];
                             
-                            // Fetch the order we just created using merchantReferenceId
-                            if (isset($data['merchantReferenceId'])) {
-                                $maxRetries = 5;
-                                $retryDelay = 2; // seconds
-                                
-                                for ($i = 0; $i < $maxRetries; $i++) {
-                                    $order = $this->getOrderByMerchantReference($data['merchantReferenceId']);
-                                    
-                                    if ($order) {
-                                        Log::info('Successfully fetched order after creation', [
-                                            'attempt' => $i + 1,
-                                            'order_id' => $order->orderId ?? $order->id ?? null,
-                                            'status' => $order->status ?? null,
-                                        ]);
-                                        return $order;
-                                    }
-                                    
-                                    if ($i < $maxRetries - 1) {
-                                        Log::info('Order not found yet, retrying...', [
-                                            'attempt' => $i + 1,
-                                            'merchantReferenceId' => $data['merchantReferenceId'],
-                                        ]);
-                                        sleep($retryDelay);
-                                    }
-                                }
-                                
-                                Log::warning('Order created but could not be fetched after retries', [
-                                    'merchantReferenceId' => $data['merchantReferenceId'],
-                                    'retries' => $maxRetries,
-                                ]);
-                                
-                                // Return a minimal object with merchantReferenceId and orderId if we have it
-                                $result = [
-                                    'merchantReferenceId' => $data['merchantReferenceId'],
-                                    'status' => 'created',
-                                ];
-                                
-                                if ($orderIdFromHeader) {
-                                    $result['orderId'] = $orderIdFromHeader;
-                                }
-                                
-                                return (object) $result;
+                            if ($orderIdFromHeader) {
+                                $result['orderId'] = $orderIdFromHeader;
                             }
+                            
+                            return (object) $result;
                         }
                         
                         $result = (object) $responseJson;

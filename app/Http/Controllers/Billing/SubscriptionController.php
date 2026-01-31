@@ -12,6 +12,7 @@ use App\Http\Resources\Billing\SubscriptionResource;
 use App\Http\Services\Billing\SubscriptionService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class SubscriptionController extends Controller
 {
@@ -228,7 +229,7 @@ class SubscriptionController extends Controller
             $geideaResponse = $geideaService->createPaymentSession($sessionData);
 
             // Log full response for debugging
-            \Log::info('Geidea response in preparePayment', [
+            Log::info('Geidea response in preparePayment', [
                 'merchant_reference' => $merchantReference,
                 'response_type' => gettype($geideaResponse),
                 'response_class' => get_class($geideaResponse),
@@ -263,7 +264,7 @@ class SubscriptionController extends Controller
             // Geidea API returns 204 No Content - order is created but no data in response
             // checkout_url will be available via webhook or Flutter SDK
             if (!$checkoutUrl) {
-                \Log::info('Geidea checkout_url not available in response (HTTP 204) - will be provided via webhook or Flutter SDK', [
+                Log::info('Geidea checkout_url not available in response (HTTP 204) - will be provided via webhook or Flutter SDK', [
                     'merchant_reference' => $merchantReference,
                     'note' => 'Geidea API returns 204 No Content. Order is created successfully. checkout_url will come from webhook or Flutter SDK.',
                 ]);
@@ -316,7 +317,7 @@ class SubscriptionController extends Controller
                 'status' => 200,
             ]);
         } catch (\Exception $e) {
-            \Log::error('Geidea prepare payment failed', [
+            Log::error('Geidea prepare payment failed', [
                 'user_id' => $user->id,
                 'plan_id' => $plan->id,
                 'merchant_reference' => $merchantReference,
@@ -494,7 +495,7 @@ class SubscriptionController extends Controller
                                 $subscription = $this->subscriptionService->createFromPaymentAttempt($paymentAttempt);
                                 $paymentAttempt->update(['subscription_id' => $subscription->id]);
                             } catch (\Exception $e) {
-                                \Log::error('Failed to create subscription from self-healing verification', [
+                                Log::error('Failed to create subscription from self-healing verification', [
                                     'payment_attempt_id' => $paymentAttempt->id,
                                     'error' => $e->getMessage(),
                                 ]);
@@ -511,7 +512,7 @@ class SubscriptionController extends Controller
                     }
                 }
             } catch (\Exception $e) {
-                \Log::error('Self-healing verification failed', [
+                Log::error('Self-healing verification failed', [
                     'payment_attempt_id' => $paymentAttempt->id,
                     'merchant_reference' => $paymentAttempt->merchant_reference,
                     'error' => $e->getMessage(),
