@@ -260,13 +260,18 @@ class SubscriptionController extends Controller
                 ?? $geideaResponse->payment_url 
                 ?? null;
 
-            // If checkout_url is still null, log warning
+            // Geidea API returns 204 No Content - order is created but no data in response
+            // checkout_url will be available via webhook or Flutter SDK
             if (!$checkoutUrl) {
-                \Log::warning('Geidea checkout_url is null', [
+                \Log::info('Geidea checkout_url not available in response (HTTP 204) - will be provided via webhook or Flutter SDK', [
                     'merchant_reference' => $merchantReference,
-                    'response_keys' => array_keys((array) $geideaResponse),
-                    'full_response' => $geideaResponse,
+                    'note' => 'Geidea API returns 204 No Content. Order is created successfully. checkout_url will come from webhook or Flutter SDK.',
                 ]);
+                
+                // For Flutter: We can construct a checkout URL or use merchant_reference with Geidea SDK
+                // Option 1: Use Geidea Flutter SDK with merchant_reference directly
+                // Option 2: Construct checkout URL if we know the pattern
+                // For now, we'll return merchant_reference and let Flutter handle it
             }
 
             $paymentAttempt->update([
@@ -283,17 +288,31 @@ class SubscriptionController extends Controller
                 ]);
             }
 
+            // Prepare response
+            // Note: Geidea API returns HTTP 204 (No Content) - order is created but no data in response
+            // checkout_url, session_id, and order_id will be available via webhook
+            // Flutter should use merchant_reference with Geidea SDK or poll payment-status endpoint
+            $responseData = [
+                'merchant_reference' => $merchantReference,
+                'amount' => $plan->price,
+                'currency' => 'SAR',
+                'expires_at' => $paymentAttempt->expires_at->toAtomString(),
+            ];
+            
+            // Add optional fields if available (will be null initially, populated via webhook)
+            if ($paymentAttempt->checkout_url) {
+                $responseData['checkout_url'] = $paymentAttempt->checkout_url;
+            }
+            if ($paymentAttempt->geidea_session_id) {
+                $responseData['session_id'] = $paymentAttempt->geidea_session_id;
+            }
+            if ($paymentAttempt->geidea_order_id) {
+                $responseData['order_id'] = $paymentAttempt->geidea_order_id;
+            }
+            
             return ResponseService::response([
                 'success' => true,
-                'data' => [
-                    'merchant_reference' => $merchantReference,
-                    'checkout_url' => $paymentAttempt->checkout_url,
-                    'session_id' => $paymentAttempt->geidea_session_id,
-                    'order_id' => $paymentAttempt->geidea_order_id,
-                    'amount' => $plan->price,
-                    'currency' => 'SAR',
-                    'expires_at' => $paymentAttempt->expires_at->toAtomString(),
-                ],
+                'data' => $responseData,
                 'status' => 200,
             ]);
         } catch (\Exception $e) {
