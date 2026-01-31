@@ -16,15 +16,19 @@ class GeideaService
 
     public function __construct()
     {
-        $this->publicKey = config('services.geidea.public_key');
-        $this->apiPassword = config('services.geidea.api_password');
-        $this->merchantId = config('services.geidea.merchant_id');
-        $this->baseUrl = config('services.geidea.base_url');
-        $this->environment = config('services.geidea.environment', 'sandbox');
+        $publicKey = config('services.geidea.public_key');
+        $apiPassword = config('services.geidea.api_password');
+        $baseUrl = config('services.geidea.base_url');
 
-        if (!$this->publicKey || !$this->apiPassword || !$this->baseUrl) {
+        if (!$publicKey || !$apiPassword || !$baseUrl) {
             throw new \RuntimeException('Geidea credentials are not configured. Please set GEIDEA_PUBLIC_KEY, GEIDEA_API_PASSWORD, and GEIDEA_BASE_URL in your .env file.');
         }
+
+        $this->publicKey = $publicKey;
+        $this->apiPassword = $apiPassword;
+        $this->merchantId = config('services.geidea.merchant_id');
+        $this->baseUrl = $baseUrl;
+        $this->environment = config('services.geidea.environment', 'sandbox');
     }
 
     /**
@@ -61,23 +65,83 @@ class GeideaService
     public function createPaymentSession(array $data): object
     {
         try {
-            $response = $this->httpClient()
-                ->post("{$this->baseUrl}/payment-intents", $data);
+            // Try different possible endpoints (Geidea API may vary)
+            // Common endpoints: /orders, /payment-intents, /payments, /checkout
+            $possibleEndpoints = [
+                "{$this->baseUrl}/orders",
+                "{$this->baseUrl}/payment-intents",
+                "{$this->baseUrl}/payments",
+                "{$this->baseUrl}/checkout",
+            ];
+            
+            $lastError = null;
+            
+            foreach ($possibleEndpoints as $url) {
+                try {
+                    Log::info('Geidea createPaymentSession attempt', [
+                        'url' => $url,
+                        'data' => $data,
+                    ]);
 
-            if (!$response->successful()) {
-                Log::error('Geidea payment session creation failed', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'data' => $data,
-                ]);
+                    $response = $this->httpClient()
+                        ->post($url, $data);
 
-                throw new \RuntimeException('Failed to create Geidea payment session: ' . $response->body());
+                    $responseBody = $response->body();
+                    $responseJson = $response->json();
+
+                    Log::info('Geidea createPaymentSession response', [
+                        'url' => $url,
+                        'status' => $response->status(),
+                        'body' => $responseBody,
+                        'json' => $responseJson,
+                    ]);
+
+                    if ($response->successful()) {
+                        $result = (object) $responseJson;
+                        
+                        // Log the actual structure for debugging
+                        Log::info('Geidea response structure', [
+                            'url' => $url,
+                            'keys' => array_keys($responseJson ?? []),
+                            'has_checkoutUrl' => isset($result->checkoutUrl),
+                            'has_checkout_url' => isset($result->checkout_url),
+                            'has_sessionId' => isset($result->sessionId),
+                            'has_session_id' => isset($result->session_id),
+                            'has_orderId' => isset($result->orderId),
+                            'has_order_id' => isset($result->order_id),
+                        ]);
+
+                        return $result;
+                    } else {
+                        $lastError = "Status {$response->status()}: {$responseBody}";
+                        Log::warning('Geidea endpoint failed, trying next', [
+                            'url' => $url,
+                            'error' => $lastError,
+                        ]);
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    $lastError = $e->getMessage();
+                    Log::warning('Geidea endpoint exception, trying next', [
+                        'url' => $url,
+                        'error' => $lastError,
+                    ]);
+                    continue;
+                }
             }
 
-            return (object) $response->json();
+            // All endpoints failed
+            Log::error('Geidea payment session creation failed on all endpoints', [
+                'endpoints_tried' => $possibleEndpoints,
+                'last_error' => $lastError,
+                'data' => $data,
+            ]);
+
+            throw new \RuntimeException('Failed to create Geidea payment session. Tried multiple endpoints. Last error: ' . $lastError);
         } catch (\Exception $e) {
             Log::error('Geidea payment session creation exception', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'data' => $data,
             ]);
             throw $e;

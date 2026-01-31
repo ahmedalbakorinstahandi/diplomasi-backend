@@ -227,11 +227,49 @@ class SubscriptionController extends Controller
 
             $geideaResponse = $geideaService->createPaymentSession($sessionData);
 
+            // Log full response for debugging
+            \Log::info('Geidea response in preparePayment', [
+                'response' => $geideaResponse,
+                'response_array' => (array) $geideaResponse,
+                'response_json' => json_encode($geideaResponse),
+            ]);
+
             // Update PaymentAttempt with Geidea data
+            // Try multiple possible field names (Geidea API may use different naming)
+            $sessionId = $geideaResponse->sessionId 
+                ?? $geideaResponse->session_id 
+                ?? $geideaResponse->id 
+                ?? $geideaResponse->sessionId 
+                ?? null;
+            
+            $orderId = $geideaResponse->orderId 
+                ?? $geideaResponse->order_id 
+                ?? $geideaResponse->orderId 
+                ?? $geideaResponse->id 
+                ?? null;
+            
+            $checkoutUrl = $geideaResponse->checkoutUrl 
+                ?? $geideaResponse->checkout_url 
+                ?? $geideaResponse->url 
+                ?? $geideaResponse->redirectUrl 
+                ?? $geideaResponse->redirect_url 
+                ?? $geideaResponse->paymentUrl 
+                ?? $geideaResponse->payment_url 
+                ?? null;
+
+            // If checkout_url is still null, log warning
+            if (!$checkoutUrl) {
+                \Log::warning('Geidea checkout_url is null', [
+                    'merchant_reference' => $merchantReference,
+                    'response_keys' => array_keys((array) $geideaResponse),
+                    'full_response' => $geideaResponse,
+                ]);
+            }
+
             $paymentAttempt->update([
-                'geidea_session_id' => $geideaResponse->sessionId ?? $geideaResponse->id ?? null,
-                'geidea_order_id' => $geideaResponse->orderId ?? $geideaResponse->id ?? null,
-                'checkout_url' => $geideaResponse->checkoutUrl ?? $geideaResponse->url ?? null,
+                'geidea_session_id' => $sessionId,
+                'geidea_order_id' => $orderId,
+                'checkout_url' => $checkoutUrl,
                 'status' => 'pending',
             ]);
 
