@@ -302,26 +302,72 @@ class GeideaService
                     // Handle Orders API response (204 No Content or minimal response)
                     if ($response->status() === 204 || empty($responseJson)) {
                         // Orders API returns 204 - order created but no data
-                        // We need to construct checkout URL from merchant_reference
-                        // This is a fallback - checkout_url may not work perfectly
-                        Log::info('Geidea Orders API returned 204 - order created', [
+                        // Try to fetch order immediately to get session.id or checkout_url
+                        Log::info('Geidea Orders API returned 204 - order created, attempting to fetch order', [
                             'merchant_reference' => $merchantReferenceId,
-                            'note' => 'Using fallback checkout URL construction',
                         ]);
                         
-                        // Construct checkout URL as fallback (may not work perfectly)
-                        $checkoutBaseUrl = $this->getCheckoutBaseUrl();
-                        // Note: This is experimental - actual checkout URL should come from webhook
-                        $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$merchantReferenceId}";
+                        // Wait a bit for Geidea to process the order
+                        usleep(1000000); // 1 second
                         
+                        // Try to get order by merchant reference
+                        $order = $this->getOrderByMerchantReference($merchantReferenceId);
+                        
+                        if ($order) {
+                            // Extract session ID or order ID from fetched order
+                            $sessionId = $order->sessionId 
+                                ?? $order->session_id 
+                                ?? $order->id 
+                                ?? $order->orderId 
+                                ?? $order->order_id 
+                                ?? null;
+                            
+                            $checkoutUrl = $order->checkoutUrl 
+                                ?? $order->checkout_url 
+                                ?? null;
+                            
+                            // Build checkout URL from session ID if available
+                            if ($sessionId && !$checkoutUrl) {
+                                $checkoutBaseUrl = $this->getCheckoutBaseUrl();
+                                $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$sessionId}";
+                            }
+                            
+                            // If we have checkout_url, return it
+                            if ($checkoutUrl) {
+                                Log::info('Geidea order fetched successfully with checkout_url', [
+                                    'merchant_reference' => $merchantReferenceId,
+                                    'session_id' => $sessionId,
+                                    'checkout_url' => $checkoutUrl,
+                                ]);
+                                
+                                return (object) [
+                                    'merchantReferenceId' => $merchantReferenceId,
+                                    'sessionId' => $sessionId,
+                                    'session_id' => $sessionId,
+                                    'id' => $sessionId,
+                                    'checkoutUrl' => $checkoutUrl,
+                                    'checkout_url' => $checkoutUrl,
+                                    'amount' => $amount,
+                                    'currency' => $currency,
+                                    'order' => $order,
+                                ];
+                            }
+                        }
+                        
+                        // If order fetch failed or no checkout_url, return minimal response
+                        // checkout_url will come from webhook
+                        Log::warning('Geidea order fetch failed or no checkout_url - will come from webhook', [
+                            'merchant_reference' => $merchantReferenceId,
+                            'order_fetched' => $order !== null,
+                        ]);
+                        
+                        // Return minimal response - checkout_url will be updated via webhook
                         return (object) [
                             'merchantReferenceId' => $merchantReferenceId,
                             'status' => 'created',
-                            'checkoutUrl' => $checkoutUrl,
-                            'checkout_url' => $checkoutUrl,
                             'amount' => $amount,
                             'currency' => $currency,
-                            'note' => 'Fallback mode - checkout_url may need to be updated via webhook',
+                            'note' => 'Order created but checkout_url not available yet - will be updated via webhook',
                         ];
                     }
                     

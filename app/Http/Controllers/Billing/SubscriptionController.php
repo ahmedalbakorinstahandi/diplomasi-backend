@@ -267,14 +267,19 @@ class SubscriptionController extends Controller
                 }
             }
 
-            // checkout_url is required, sessionId is optional (may not be available in fallback mode)
+            // checkout_url is required for Flutter to open payment page
+            // If not available, we cannot proceed - user needs to wait for webhook
             if (!$checkoutUrl) {
-                Log::error('Geidea Create Session missing checkout_url', [
+                Log::warning('Geidea Create Session missing checkout_url - will be available via webhook', [
                     'merchant_reference' => $merchantReference,
                     'has_session_id' => !is_null($sessionId),
                     'has_checkout_url' => !is_null($checkoutUrl),
+                    'note' => 'checkout_url will be updated when webhook arrives',
                 ]);
-                throw new \RuntimeException('Geidea Create Session response missing checkout_url');
+                
+                // Return response without checkout_url - Flutter will need to poll or wait
+                // Or we can throw error to force retry
+                throw new \RuntimeException('Payment session created but checkout URL not available yet. Please try again in a moment or contact support.');
             }
             
             // Log if we're in fallback mode (no sessionId)
@@ -282,7 +287,7 @@ class SubscriptionController extends Controller
                 Log::info('Geidea Create Session in fallback mode (no sessionId)', [
                     'merchant_reference' => $merchantReference,
                     'checkout_url' => $checkoutUrl,
-                    'note' => 'Using Orders API fallback - checkout_url may need to be updated via webhook',
+                    'note' => 'Using Orders API fallback - checkout_url obtained from order fetch',
                 ]);
             }
 
