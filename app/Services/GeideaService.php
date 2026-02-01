@@ -337,58 +337,75 @@ class GeideaService
                             'merchant_reference' => $merchantReferenceId,
                         ]);
                         
-                        // Wait a bit for Geidea to process the order
-                        usleep(1000000); // 1 second
+                        // Wait longer for Geidea to process the order (Orders API may need more time)
+                        // Try multiple times with increasing delays
+                        $order = null;
+                        $maxRetries = 3;
+                        $delayMs = 1000000; // Start with 1 second
                         
-                        // Try to get order by merchant reference
-                        $order = $this->getOrderByMerchantReference($merchantReferenceId);
-                        
-                        if ($order) {
-                            // Extract session ID or order ID from fetched order
-                            $sessionId = $order->sessionId 
-                                ?? $order->session_id 
-                                ?? $order->id 
-                                ?? $order->orderId 
-                                ?? $order->order_id 
-                                ?? null;
+                        for ($i = 0; $i < $maxRetries; $i++) {
+                            usleep($delayMs);
                             
-                            $checkoutUrl = $order->checkoutUrl 
-                                ?? $order->checkout_url 
-                                ?? null;
+                            // Try to get order by merchant reference
+                            $order = $this->getOrderByMerchantReference($merchantReferenceId);
                             
-                            // Build checkout URL from session ID if available
-                            if ($sessionId && !$checkoutUrl) {
-                                $checkoutBaseUrl = $this->getCheckoutBaseUrl();
-                                $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$sessionId}";
-                            }
-                            
-                            // If we have checkout_url, return it
-                            if ($checkoutUrl) {
-                                Log::info('Geidea order fetched successfully with checkout_url', [
-                                    'merchant_reference' => $merchantReferenceId,
-                                    'session_id' => $sessionId,
-                                    'checkout_url' => $checkoutUrl,
-                                ]);
+                            if ($order) {
+                                // Extract session ID or order ID from fetched order
+                                $sessionId = $order->sessionId 
+                                    ?? $order->session_id 
+                                    ?? $order->id 
+                                    ?? $order->orderId 
+                                    ?? $order->order_id 
+                                    ?? null;
                                 
-                                return (object) [
-                                    'merchantReferenceId' => $merchantReferenceId,
-                                    'sessionId' => $sessionId,
-                                    'session_id' => $sessionId,
-                                    'id' => $sessionId,
-                                    'checkoutUrl' => $checkoutUrl,
-                                    'checkout_url' => $checkoutUrl,
-                                    'amount' => $amount,
-                                    'currency' => $currency,
-                                    'order' => $order,
-                                ];
+                                $checkoutUrl = $order->checkoutUrl 
+                                    ?? $order->checkout_url 
+                                    ?? $order->url 
+                                    ?? $order->redirectUrl 
+                                    ?? $order->redirect_url 
+                                    ?? $order->paymentUrl 
+                                    ?? $order->payment_url 
+                                    ?? null;
+                                
+                                // Build checkout URL from session ID if available
+                                if ($sessionId && !$checkoutUrl) {
+                                    $checkoutBaseUrl = $this->getCheckoutBaseUrl();
+                                    $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$sessionId}";
+                                }
+                                
+                                // If we have checkout_url, return it
+                                if ($checkoutUrl) {
+                                    Log::info('Geidea order fetched successfully with checkout_url', [
+                                        'merchant_reference' => $merchantReferenceId,
+                                        'session_id' => $sessionId,
+                                        'checkout_url' => $checkoutUrl,
+                                        'attempt' => $i + 1,
+                                    ]);
+                                    
+                                    return (object) [
+                                        'merchantReferenceId' => $merchantReferenceId,
+                                        'sessionId' => $sessionId,
+                                        'session_id' => $sessionId,
+                                        'id' => $sessionId,
+                                        'checkoutUrl' => $checkoutUrl,
+                                        'checkout_url' => $checkoutUrl,
+                                        'amount' => $amount,
+                                        'currency' => $currency,
+                                        'order' => $order,
+                                    ];
+                                }
                             }
+                            
+                            // Increase delay for next attempt
+                            $delayMs *= 2; // Exponential backoff: 1s, 2s, 4s
                         }
                         
-                        // If order fetch failed or no checkout_url, return minimal response
+                        // If order fetch failed or no checkout_url after retries, return minimal response
                         // checkout_url will come from webhook
-                        Log::warning('Geidea order fetch failed or no checkout_url - will come from webhook', [
+                        Log::warning('Geidea order fetch failed or no checkout_url after retries - will come from webhook', [
                             'merchant_reference' => $merchantReferenceId,
                             'order_fetched' => $order !== null,
+                            'retries' => $maxRetries,
                         ]);
                         
                         // Return minimal response - checkout_url will be updated via webhook
@@ -479,30 +496,31 @@ class GeideaService
     public function getOrderByMerchantReference(string $merchantReference): ?object
     {
         try {
-            // Try different query parameter names
-            $queryParams = [
-                'merchantReferenceId' => $merchantReference,
-                'merchant_reference_id' => $merchantReference,
-                'merchantReference' => $merchantReference,
-                'reference' => $merchantReference,
-            ];
-            
+            // According to Geidea API Reference:
+            // Endpoint: GET /orders?merchantReferenceId={merchantReferenceId}
             // Try different endpoint formats
             $endpoints = [
-                "{$this->baseUrl}/orders?merchantReferenceId={$merchantReference}",
-                "{$this->baseUrl}/orders?merchant_reference_id={$merchantReference}",
-                "{$this->baseUrl}/orders?merchantReference={$merchantReference}",
-                "{$this->baseUrl}/orders?reference={$merchantReference}",
+                // Standard format from Geidea docs
+                "{$this->baseUrl}/orders?merchantReferenceId=" . urlencode($merchantReference),
+                // Alternative formats
+                "{$this->baseUrl}/orders?merchant_reference_id=" . urlencode($merchantReference),
+                "{$this->baseUrl}/orders?merchantReference=" . urlencode($merchantReference),
+                "{$this->baseUrl}/orders?reference=" . urlencode($merchantReference),
+                // Try with query parameters object
                 "{$this->baseUrl}/orders",
+            ];
+            
+            $queryParams = [
+                'merchantReferenceId' => $merchantReference,
             ];
             
             foreach ($endpoints as $endpoint) {
                 try {
-                    if (strpos($endpoint, '?') !== false) {
+                    if (strpos($endpoint, '?') !== false && strpos($endpoint, '=') !== false) {
                         // URL already has query string
                         $response = $this->httpClient()->get($endpoint);
                     } else {
-                        // Use query parameters
+                        // Use query parameters object
                         $response = $this->httpClient()
                             ->get($endpoint, $queryParams);
                     }
@@ -512,6 +530,16 @@ class GeideaService
                         'merchant_reference' => $merchantReference,
                         'status' => $response->status(),
                     ]);
+
+                    // Handle 204 No Content (order exists but no data returned yet)
+                    if ($response->status() === 204) {
+                        Log::info('Geidea getOrderByMerchantReference returned 204', [
+                            'endpoint' => $endpoint,
+                            'merchant_reference' => $merchantReference,
+                            'note' => 'Order exists but details not available yet - may need to wait for webhook',
+                        ]);
+                        continue; // Try next endpoint
+                    }
 
                     if ($response->successful()) {
                         $data = $response->json();
@@ -523,6 +551,11 @@ class GeideaService
                             'body' => $body,
                             'json' => $data,
                         ]);
+                        
+                        // Skip if response is empty or null
+                        if (empty($data) || $data === null) {
+                            continue;
+                        }
                         
                         // If response is an array, get first item
                         if (is_array($data) && isset($data[0])) {
