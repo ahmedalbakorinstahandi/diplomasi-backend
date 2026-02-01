@@ -238,7 +238,8 @@ class SubscriptionController extends Controller
                 'all_properties' => array_keys((array) $geideaResponse),
             ]);
 
-            // Extract session data from Geidea HPP Checkout Create Session response
+            // Extract session data from Geidea response
+            // Note: In fallback mode (Orders API), sessionId may not be available
             $sessionId = $geideaResponse->sessionId 
                 ?? $geideaResponse->session_id 
                 ?? $geideaResponse->id 
@@ -266,13 +267,23 @@ class SubscriptionController extends Controller
                 }
             }
 
-            if (!$sessionId || !$checkoutUrl) {
-                Log::error('Geidea Create Session missing required data', [
+            // checkout_url is required, sessionId is optional (may not be available in fallback mode)
+            if (!$checkoutUrl) {
+                Log::error('Geidea Create Session missing checkout_url', [
                     'merchant_reference' => $merchantReference,
                     'has_session_id' => !is_null($sessionId),
                     'has_checkout_url' => !is_null($checkoutUrl),
                 ]);
-                throw new \RuntimeException('Geidea Create Session response missing session_id or checkout_url');
+                throw new \RuntimeException('Geidea Create Session response missing checkout_url');
+            }
+            
+            // Log if we're in fallback mode (no sessionId)
+            if (!$sessionId) {
+                Log::info('Geidea Create Session in fallback mode (no sessionId)', [
+                    'merchant_reference' => $merchantReference,
+                    'checkout_url' => $checkoutUrl,
+                    'note' => 'Using Orders API fallback - checkout_url may need to be updated via webhook',
+                ]);
             }
 
             // Update PaymentAttempt with Geidea session data
