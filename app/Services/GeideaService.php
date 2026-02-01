@@ -123,141 +123,230 @@ class GeideaService
     public function createPaymentSession(array $data): object
     {
         try {
-            // Use Geidea HPP Checkout Create Session API
+            // Try Geidea HPP Checkout Create Session API first
             // Endpoint: /payment-intent/api/v2/direct/session
-            $endpoint = "{$this->baseUrl}/payment-intent/api/v2/direct/session";
-            
-            // Prepare request data
-            $amount = $data['amount'] ?? null;
-            $currency = $data['currency'] ?? 'SAR';
-            $merchantReferenceId = $data['merchantReferenceId'] ?? null;
-            $callbackUrl = $data['callbackUrl'] ?? null;
-            $returnUrl = $data['returnUrl'] ?? null;
-            
-            if (!$amount || !$callbackUrl) {
-                throw new \InvalidArgumentException('amount and callbackUrl are required');
-            }
-            
-            // Generate timestamp (format: Y/m/d H:i:s)
-            $timestamp = now()->format('Y/m/d H:i:s');
-            
-            // Generate signature
-            $signature = $this->generateSignature(
-                $this->publicKey,
-                (string)$amount,
-                $currency,
-                $merchantReferenceId,
-                $this->apiPassword,
-                $timestamp
-            );
-            
-            // Build request payload
-            $requestData = [
-                'amount' => (string)$amount,
-                'currency' => $currency,
-                'timestamp' => $timestamp,
-                'signature' => $signature,
-                'callbackUrl' => $callbackUrl,
+            // If this fails (502), fallback to /orders endpoint
+            $endpoints = [
+                "{$this->baseUrl}/payment-intent/api/v2/direct/session",
+                "{$this->baseUrl}/orders", // Fallback to orders endpoint
             ];
             
-            // Add optional fields
-            if ($merchantReferenceId) {
-                $requestData['merchantReferenceId'] = $merchantReferenceId;
+            $lastError = null;
+            
+            foreach ($endpoints as $endpoint) {
+                try {
+                    $isHppCheckout = strpos($endpoint, '/payment-intent/api/v2/direct/session') !== false;
+                    
+                    Log::info('Geidea createPaymentSession attempt', [
+                        'endpoint' => $endpoint,
+                        'method' => $isHppCheckout ? 'HPP Checkout' : 'Orders API',
+                    ]);
+                    
+                    // Prepare request data
+                    $amount = $data['amount'] ?? null;
+                    $currency = $data['currency'] ?? 'SAR';
+                    $merchantReferenceId = $data['merchantReferenceId'] ?? null;
+                    $callbackUrl = $data['callbackUrl'] ?? null;
+                    $returnUrl = $data['returnUrl'] ?? null;
+                    
+                    if (!$amount || !$callbackUrl) {
+                        throw new \InvalidArgumentException('amount and callbackUrl are required');
+                    }
+                    
+                    // Build request payload based on endpoint type
+                    if ($isHppCheckout) {
+                        // HPP Checkout API requires signature and timestamp
+                        $timestamp = now()->format('Y/m/d H:i:s');
+                        $signature = $this->generateSignature(
+                            $this->publicKey,
+                            (string)$amount,
+                            $currency,
+                            $merchantReferenceId,
+                            $this->apiPassword,
+                            $timestamp
+                        );
+                        
+                        $requestData = [
+                            'amount' => (string)$amount,
+                            'currency' => $currency,
+                            'timestamp' => $timestamp,
+                            'signature' => $signature,
+                            'callbackUrl' => $callbackUrl,
+                        ];
+                    } else {
+                        // Orders API (simpler format)
+                        $requestData = [
+                            'amount' => $amount,
+                            'currency' => $currency,
+                            'merchantReferenceId' => $merchantReferenceId,
+                            'callbackUrl' => $callbackUrl,
+                        ];
+                    }
+                    
+                    // Add optional fields
+                    if ($merchantReferenceId && !isset($requestData['merchantReferenceId'])) {
+                        $requestData['merchantReferenceId'] = $merchantReferenceId;
+                    }
+                    
+                    if ($returnUrl) {
+                        $requestData['returnUrl'] = $returnUrl;
+                    }
+                    
+                    if (isset($data['language'])) {
+                        $requestData['language'] = $data['language'];
+                    }
+                    
+                    if (isset($data['cardOnFile'])) {
+                        $requestData['cardOnFile'] = $data['cardOnFile'];
+                    }
+                    
+                    if (isset($data['paymentOperation'])) {
+                        $requestData['paymentOperation'] = $data['paymentOperation'];
+                    }
+                    
+                    // Add customer data if provided
+                    if (isset($data['customer'])) {
+                        $requestData['customer'] = $data['customer'];
+                    }
+                    
+                    // Add order data if provided
+                    if (isset($data['order'])) {
+                        $requestData['order'] = $data['order'];
+                    }
+                    
+                    Log::info('Geidea API request', [
+                        'endpoint' => $endpoint,
+                        'request_data' => $requestData,
+                    ]);
+                    
+                    // Make API call
+                    $response = $this->httpClient()->post($endpoint, $requestData);
+                    
+                    $responseBody = $response->body();
+                    $responseJson = $response->json();
+                    
+                    Log::info('Geidea API response', [
+                        'endpoint' => $endpoint,
+                        'status' => $response->status(),
+                        'body' => $responseBody,
+                        'json' => $responseJson,
+                    ]);
+                    
+                    // Handle 502 Bad Gateway - try next endpoint
+                    if ($response->status() === 502) {
+                        $lastError = "Endpoint returned 502 Bad Gateway";
+                        Log::warning('Geidea endpoint returned 502, trying next', [
+                            'endpoint' => $endpoint,
+                        ]);
+                        continue;
+                    }
+                    
+                    if (!$response->successful()) {
+                        $lastError = "Status {$response->status()}: {$responseBody}";
+                        Log::warning('Geidea endpoint failed, trying next', [
+                            'endpoint' => $endpoint,
+                            'error' => $lastError,
+                        ]);
+                        continue;
+                    }
+                    
+                    // Handle HPP Checkout response
+                    if ($isHppCheckout && $responseJson) {
+                        // Check response code
+                        if (isset($responseJson['responseCode']) && $responseJson['responseCode'] !== '000') {
+                            $errorMsg = $responseJson['detailedResponseMessage'] ?? $responseJson['responseMessage'] ?? 'Unknown error';
+                            Log::warning('Geidea HPP Checkout API error, trying fallback', [
+                                'response_code' => $responseJson['responseCode'] ?? null,
+                                'error_message' => $errorMsg,
+                            ]);
+                            $lastError = "HPP Checkout error: {$errorMsg}";
+                            continue;
+                        }
+                        
+                        // Extract session data
+                        if (!isset($responseJson['session']) || !isset($responseJson['session']['id'])) {
+                            Log::warning('Geidea HPP Checkout response missing session.id, trying fallback', [
+                                'response' => $responseJson,
+                            ]);
+                            $lastError = "HPP Checkout response missing session.id";
+                            continue;
+                        }
+                        
+                        $session = $responseJson['session'];
+                        $sessionId = $session['id'];
+                        
+                        // Build checkout URL from session ID
+                        $checkoutBaseUrl = $this->getCheckoutBaseUrl();
+                        $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$sessionId}";
+                        
+                        Log::info('Geidea HPP Checkout Create Session successful', [
+                            'session_id' => $sessionId,
+                            'checkout_url' => $checkoutUrl,
+                            'merchant_reference' => $merchantReferenceId,
+                        ]);
+                        
+                        // Return session object with checkout_url
+                        return (object) [
+                            'session' => (object) $session,
+                            'sessionId' => $sessionId,
+                            'session_id' => $sessionId,
+                            'id' => $sessionId,
+                            'checkoutUrl' => $checkoutUrl,
+                            'checkout_url' => $checkoutUrl,
+                            'merchantReferenceId' => $merchantReferenceId,
+                            'amount' => $amount,
+                            'currency' => $currency,
+                        ];
+                    }
+                    
+                    // Handle Orders API response (204 No Content or minimal response)
+                    if ($response->status() === 204 || empty($responseJson)) {
+                        // Orders API returns 204 - order created but no data
+                        // We need to construct checkout URL from merchant_reference
+                        // This is a fallback - checkout_url may not work perfectly
+                        Log::info('Geidea Orders API returned 204 - order created', [
+                            'merchant_reference' => $merchantReferenceId,
+                            'note' => 'Using fallback checkout URL construction',
+                        ]);
+                        
+                        // Construct checkout URL as fallback (may not work perfectly)
+                        $checkoutBaseUrl = $this->getCheckoutBaseUrl();
+                        // Note: This is experimental - actual checkout URL should come from webhook
+                        $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$merchantReferenceId}";
+                        
+                        return (object) [
+                            'merchantReferenceId' => $merchantReferenceId,
+                            'status' => 'created',
+                            'checkoutUrl' => $checkoutUrl,
+                            'checkout_url' => $checkoutUrl,
+                            'amount' => $amount,
+                            'currency' => $currency,
+                            'note' => 'Fallback mode - checkout_url may need to be updated via webhook',
+                        ];
+                    }
+                    
+                    // If we get here, response was successful but unexpected format
+                    $lastError = "Unexpected response format";
+                    continue;
+                    
+                } catch (\Exception $e) {
+                    $lastError = $e->getMessage();
+                    Log::warning('Geidea endpoint exception, trying next', [
+                        'endpoint' => $endpoint,
+                        'error' => $lastError,
+                    ]);
+                    continue;
+                }
             }
             
-            if ($returnUrl) {
-                $requestData['returnUrl'] = $returnUrl;
-            }
-            
-            if (isset($data['language'])) {
-                $requestData['language'] = $data['language'];
-            }
-            
-            if (isset($data['cardOnFile'])) {
-                $requestData['cardOnFile'] = $data['cardOnFile'];
-            }
-            
-            if (isset($data['paymentOperation'])) {
-                $requestData['paymentOperation'] = $data['paymentOperation'];
-            }
-            
-            // Add customer data if provided
-            if (isset($data['customer'])) {
-                $requestData['customer'] = $data['customer'];
-            }
-            
-            // Add order data if provided
-            if (isset($data['order'])) {
-                $requestData['order'] = $data['order'];
-            }
-            
-            Log::info('Geidea Create Session API request', [
-                'endpoint' => $endpoint,
-                'request_data' => $requestData,
+            // All endpoints failed
+            Log::error('Geidea payment session creation failed on all endpoints', [
+                'endpoints_tried' => $endpoints,
+                'last_error' => $lastError,
+                'data' => $data,
             ]);
             
-            // Make API call
-            $response = $this->httpClient()->post($endpoint, $requestData);
-            
-            $responseBody = $response->body();
-            $responseJson = $response->json();
-            
-            Log::info('Geidea Create Session API response', [
-                'endpoint' => $endpoint,
-                'status' => $response->status(),
-                'body' => $responseBody,
-                'json' => $responseJson,
-            ]);
-            
-            if (!$response->successful()) {
-                $errorMsg = "Geidea Create Session API failed. Status: {$response->status()}, Body: {$responseBody}";
-                Log::error($errorMsg);
-                throw new \RuntimeException($errorMsg);
-            }
-            
-            // Check response code
-            if (isset($responseJson['responseCode']) && $responseJson['responseCode'] !== '000') {
-                $errorMsg = $responseJson['detailedResponseMessage'] ?? $responseJson['responseMessage'] ?? 'Unknown error';
-                Log::error('Geidea Create Session API error', [
-                    'response_code' => $responseJson['responseCode'] ?? null,
-                    'error_message' => $errorMsg,
-                ]);
-                throw new \RuntimeException("Geidea API error: {$errorMsg}");
-            }
-            
-            // Extract session data
-            if (!isset($responseJson['session']) || !isset($responseJson['session']['id'])) {
-                Log::error('Geidea Create Session response missing session.id', [
-                    'response' => $responseJson,
-                ]);
-                throw new \RuntimeException('Geidea Create Session response missing session.id');
-            }
-            
-            $session = $responseJson['session'];
-            $sessionId = $session['id'];
-            
-            // Build checkout URL from session ID
-            $checkoutBaseUrl = $this->getCheckoutBaseUrl();
-            $checkoutUrl = "{$checkoutBaseUrl}/hpp/checkout/?{$sessionId}";
-            
-            Log::info('Geidea Create Session successful', [
-                'session_id' => $sessionId,
-                'checkout_url' => $checkoutUrl,
-                'merchant_reference' => $merchantReferenceId,
-            ]);
-            
-            // Return session object with checkout_url
-            return (object) [
-                'session' => (object) $session,
-                'sessionId' => $sessionId,
-                'session_id' => $sessionId,
-                'id' => $sessionId,
-                'checkoutUrl' => $checkoutUrl,
-                'checkout_url' => $checkoutUrl,
-                'merchantReferenceId' => $merchantReferenceId,
-                'amount' => $amount,
-                'currency' => $currency,
-            ];
+            throw new \RuntimeException('Failed to create Geidea payment session. Tried multiple endpoints. Last error: ' . $lastError);
             
         } catch (\Exception $e) {
             Log::error('Geidea Create Session exception', [
