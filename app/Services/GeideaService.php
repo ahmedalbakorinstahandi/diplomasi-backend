@@ -19,16 +19,68 @@ class GeideaService
         $publicKey = config('services.geidea.public_key');
         $apiPassword = config('services.geidea.api_password');
         $baseUrl = config('services.geidea.base_url');
+        $environment = config('services.geidea.environment', 'sandbox');
 
-        if (!$publicKey || !$apiPassword || !$baseUrl) {
-            throw new \RuntimeException('Geidea credentials are not configured. Please set GEIDEA_PUBLIC_KEY, GEIDEA_API_PASSWORD, and GEIDEA_BASE_URL in your .env file.');
+        if (!$publicKey || !$apiPassword) {
+            throw new \RuntimeException('Geidea credentials are not configured. Please set GEIDEA_PUBLIC_KEY and GEIDEA_API_PASSWORD in your .env file.');
         }
 
         $this->publicKey = $publicKey;
         $this->apiPassword = $apiPassword;
         $this->merchantId = config('services.geidea.merchant_id');
-        $this->baseUrl = $baseUrl;
-        $this->environment = config('services.geidea.environment', 'sandbox');
+        $this->environment = $environment;
+        
+        // Determine base URL based on environment if not explicitly set
+        // According to Geidea API Reference docs:
+        // KSA: https://api.ksamerchant.geidea.net
+        // Egypt: https://api.merchant.geidea.net
+        // UAE: https://api.geidea.ae
+        if ($baseUrl) {
+            $this->baseUrl = $baseUrl;
+            
+            // Validate and auto-fix base URL if incorrect
+            // According to Geidea API Reference: https://docs.geidea.net/reference/create-session-v2-1
+            // Valid base URLs:
+            // - KSA: https://api.ksamerchant.geidea.net
+            // - Egypt: https://api.merchant.geidea.net
+            // - UAE: https://api.geidea.ae
+            $baseUrlLower = strtolower($baseUrl);
+            if ($baseUrlLower === 'https://api.geidea.net' || 
+                (strpos($baseUrlLower, 'api.geidea.net') !== false && 
+                 strpos($baseUrlLower, 'ksamerchant') === false && 
+                 strpos($baseUrlLower, 'merchant') === false && 
+                 strpos($baseUrlLower, 'geidea.ae') === false)) {
+                // Invalid base URL - auto-fix based on environment
+                Log::warning('Geidea base URL is incorrect, auto-fixing', [
+                    'current_base_url' => $baseUrl,
+                    'environment' => $environment,
+                ]);
+                
+                $this->baseUrl = match(strtolower($environment)) {
+                    'ksa', 'saudi' => 'https://api.ksamerchant.geidea.net',
+                    'uae', 'emirates' => 'https://api.geidea.ae',
+                    default => 'https://api.merchant.geidea.net', // Egypt (default)
+                };
+                
+                Log::info('Geidea base URL auto-fixed', [
+                    'old_base_url' => $baseUrl,
+                    'new_base_url' => $this->baseUrl,
+                    'environment' => $environment,
+                ]);
+            }
+        } else {
+            // Auto-detect base URL based on environment
+            $this->baseUrl = match(strtolower($environment)) {
+                'ksa', 'saudi' => 'https://api.ksamerchant.geidea.net',
+                'uae', 'emirates' => 'https://api.geidea.ae',
+                default => 'https://api.merchant.geidea.net', // Egypt (default)
+            };
+            
+            Log::info('Geidea base URL auto-detected', [
+                'environment' => $environment,
+                'base_url' => $this->baseUrl,
+            ]);
+        }
     }
 
     /**
