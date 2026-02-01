@@ -38,36 +38,14 @@ class GeideaService
         if ($baseUrl) {
             $this->baseUrl = $baseUrl;
             
-            // Validate and auto-fix base URL if incorrect
-            // According to Geidea API Reference: https://docs.geidea.net/reference/create-session-v2-1
-            // Valid base URLs:
-            // - KSA: https://api.ksamerchant.geidea.net
-            // - Egypt: https://api.merchant.geidea.net
-            // - UAE: https://api.geidea.ae
-            $baseUrlLower = strtolower($baseUrl);
-            if ($baseUrlLower === 'https://api.geidea.net' || 
-                (strpos($baseUrlLower, 'api.geidea.net') !== false && 
-                 strpos($baseUrlLower, 'ksamerchant') === false && 
-                 strpos($baseUrlLower, 'merchant') === false && 
-                 strpos($baseUrlLower, 'geidea.ae') === false)) {
-                // Invalid base URL - auto-fix based on environment
-                Log::warning('Geidea base URL is incorrect, auto-fixing', [
-                    'current_base_url' => $baseUrl,
-                    'environment' => $environment,
-                ]);
-                
-                $this->baseUrl = match(strtolower($environment)) {
-                    'ksa', 'saudi' => 'https://api.ksamerchant.geidea.net',
-                    'uae', 'emirates' => 'https://api.geidea.ae',
-                    default => 'https://api.merchant.geidea.net', // Egypt (default)
-                };
-                
-                Log::info('Geidea base URL auto-fixed', [
-                    'old_base_url' => $baseUrl,
-                    'new_base_url' => $this->baseUrl,
-                    'environment' => $environment,
-                ]);
-            }
+            // Use base URL as configured - don't auto-fix
+            // Some Geidea accounts use https://api.geidea.net which is valid
+            // Credentials are tied to the configured base URL
+            Log::info('Geidea base URL configured', [
+                'base_url' => $baseUrl,
+                'environment' => $environment,
+                'note' => 'Using configured base URL - ensure credentials match this URL',
+            ]);
         } else {
             // Auto-detect base URL based on environment
             $this->baseUrl = match(strtolower($environment)) {
