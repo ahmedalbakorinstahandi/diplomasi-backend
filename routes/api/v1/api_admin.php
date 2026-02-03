@@ -32,6 +32,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::post('users', [UserController::class, 'create']);
         Route::put('users/{id}', [UserController::class, 'update']);
         Route::delete('users/{id}', [UserController::class, 'delete']);
+        Route::put('users/{id}/roles', [UserController::class, 'syncRoles']);
 
         // User profile
         Route::get('me', [UserController::class, 'getProfile']);

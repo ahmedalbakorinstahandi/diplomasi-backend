@@ -3,7 +3,9 @@
 namespace App\Http\Services\Users;
 
 use App\Http\Permissions\Users\UserPermission;
+use App\Models\Users\Role;
 use App\Models\Users\User;
+use App\Models\Users\UserRole;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\Hash;
@@ -127,5 +129,56 @@ class UserService
         $user->update($data);
 
         return $this->getProfile();
+    }
+
+    /**
+     * Sync user roles by role IDs.
+     * Uses soft-delete behavior on user_roles pivot.
+     */
+    public function syncRoles(User $user, array $roleIds): User
+    {
+        // Validate that all role IDs exist and are not deleted
+        $validRoleIds = Role::query()
+            ->whereIn('id', $roleIds)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->values()
+            ->all();
+
+        if (count($validRoleIds) !== count($roleIds)) {
+            MessageService::abort(400, 'messages.role.invalid_ids');
+        }
+
+        $currentRoleIds = UserRole::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->pluck('role_id')
+            ->values()
+            ->all();
+
+        $toAdd = array_values(array_diff($roleIds, $currentRoleIds));
+        $toRemove = array_values(array_diff($currentRoleIds, $roleIds));
+
+        foreach ($toAdd as $roleId) {
+            UserRole::withTrashed()->updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'role_id' => $roleId,
+                ],
+                [
+                    'deleted_at' => null,
+                ]
+            );
+        }
+
+        if (!empty($toRemove)) {
+            UserRole::query()
+                ->where('user_id', $user->id)
+                ->whereIn('role_id', $toRemove)
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => now()]);
+        }
+
+        return $this->show($user->id);
     }
 }

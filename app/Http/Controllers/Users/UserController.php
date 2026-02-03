@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Users;
 use App\Http\Controllers\Controller;
 use App\Http\Permissions\Users\UserPermission;
 use App\Http\Requests\Users\CreateUserRequest;
+use App\Http\Requests\Users\SyncUserRolesRequest;
 use App\Http\Requests\Users\UpdateProfileRequest;
 use App\Http\Requests\Users\UpdateUserRequest;
 use App\Http\Resources\Users\UserResource;
@@ -123,6 +124,22 @@ class UserController extends Controller
             'success' => true,
             'data' => $user,
             'message' => 'messages.profile.updated',
+            'status' => 200,
+            'resource' => UserResource::class,
+        ]);
+    }
+
+    public function syncRoles(SyncUserRolesRequest $request, int $id)
+    {
+        UserPermission::canUpdate();
+
+        $user = $this->userService->show($id);
+        $user = $this->userService->syncRoles($user, $request->validated()['role_ids'] ?? []);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $user,
+            'message' => 'messages.user.roles_synced',
             'status' => 200,
             'resource' => UserResource::class,
         ]);
