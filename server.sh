@@ -5,8 +5,6 @@ ssh root@45.132.241.51
 
 
 cd /
-
-
 cd /home/ahmed-albakor-diplomasi-backend/htdocs/diplomasi-backend.ahmed-albakor.com
 git pull
 

@@ -11,7 +11,7 @@ class LevelTrackPermission
 {
     public static function filterIndex($query)
     {
-        self::canView();
+        // self::canView();
 
         // For app context, only show tracks for published levels and published trackables
         if (RequestContext::isApp()) {
@@ -46,10 +46,14 @@ class LevelTrackPermission
 
     public static function canView(): void
     {
+        // Dashboard context: require permission
         if (RequestContext::isDashboard()) {
             AuthorizationService::authorize('level_track.view');
+            return;
         }
-        // App context: allow viewing (public)
+        
+        // App context: public access, no permission required
+        // This endpoint is accessible to all users (authenticated or not) in app context
     }
 
     public static function canShow($levelTrack): void
