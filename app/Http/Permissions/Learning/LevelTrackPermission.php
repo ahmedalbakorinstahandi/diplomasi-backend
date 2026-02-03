@@ -58,7 +58,7 @@ class LevelTrackPermission
 
     public static function canShow($levelTrack): void
     {
-        self::canView();
+        // self::canView();
     }
 
     public static function canCreate(): void
