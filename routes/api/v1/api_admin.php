@@ -70,6 +70,15 @@ Route::group(['prefix' => 'admin'], function () {
         Route::delete('levels/{id}', [LevelController::class, 'delete']);
         Route::put('levels/{id}/reorder', [LevelController::class, 'reorder']);
 
+        // Level Tracks
+        Route::get('level-tracks', [LevelTrackController::class, 'index']);
+        // Route::get('level-tracks/{id}', [LevelTrackController::class, 'show']);
+        // Route::post('level-tracks', [LevelTrackController::class, 'create']);
+        // Route::put('level-tracks/{id}', [LevelTrackController::class, 'update']);
+        // Route::delete('level-tracks/{id}', [LevelTrackController::class, 'delete']);
+        Route::put('level-tracks/{id}/reorder', [LevelTrackController::class, 'reorder']);
+        // Route::post('levels/{levelId}/sync-level-tracks', [LevelTrackController::class, 'syncForLevel']);
+
         // Scenarios
         Route::get('scenarios', [ScenarioController::class, 'index']);
         Route::get('scenarios/{id}', [ScenarioController::class, 'show']);
