@@ -53,12 +53,12 @@ class PermissionSeeder extends Seeder
             ['name' => 'level.delete', 'description' => 'Delete levels'],
             ['name' => 'level.reorder', 'description' => 'Reorder levels'],
 
-            // Level Tracks
-            ['name' => 'level_track.view', 'description' => 'View level tracks'],
-            ['name' => 'level_track.create', 'description' => 'Create level tracks'],
-            ['name' => 'level_track.update', 'description' => 'Update level tracks'],
-            ['name' => 'level_track.delete', 'description' => 'Delete level tracks'],
-            ['name' => 'level_track.reorder', 'description' => 'Reorder level tracks'],
+            // // Level Tracks
+            // ['name' => 'level_track.view', 'description' => 'View level tracks'],
+            // ['name' => 'level_track.create', 'description' => 'Create level tracks'],
+            // ['name' => 'level_track.update', 'description' => 'Update level tracks'],
+            // ['name' => 'level_track.delete', 'description' => 'Delete level tracks'],
+            // ['name' => 'level_track.reorder', 'description' => 'Reorder level tracks'],
 
             // Scenarios
             ['name' => 'scenario.view', 'description' => 'View scenarios'],
