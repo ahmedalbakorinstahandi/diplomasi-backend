@@ -23,7 +23,7 @@ class LevelTrackController extends Controller
 
     public function index(Request $request, $message = null)
     {
-        LevelTrackPermission::canView();
+        // LevelTrackPermission::canView();
 
         $query = $this->levelTrackService->index($request->all());
         
