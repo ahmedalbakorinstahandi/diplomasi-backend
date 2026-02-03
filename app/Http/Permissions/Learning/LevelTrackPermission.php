@@ -46,14 +46,14 @@ class LevelTrackPermission
 
     public static function canView(): void
     {
-        // Dashboard context: require permission
-        if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('level_track.view');
-            return;
-        }
+        // // Dashboard context: require permission
+        // if (RequestContext::isDashboard()) {
+        //     AuthorizationService::authorize('level_track.view');
+        //     return;
+        // }
         
-        // App context: public access, no permission required
-        // This endpoint is accessible to all users (authenticated or not) in app context
+        // // App context: public access, no permission required
+        // // This endpoint is accessible to all users (authenticated or not) in app context
     }
 
     public static function canShow($levelTrack): void
