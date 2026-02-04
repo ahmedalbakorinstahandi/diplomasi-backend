@@ -15,7 +15,7 @@ class FaqService
         $query = Faq::query();
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
-        $filters['sort_field'] = $filters['sort_field'] ?? 'created_at';
+        $filters['sort_field'] = $filters['sort_field'] ?? 'order_index';
         $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
 
         $searchFields = ['question', 'answer'];
@@ -53,7 +53,7 @@ class FaqService
     {
         $faq = Faq::create($data);
 
-        // OrderHelper::assign($faq, 'order_index'); // If order_index exists
+        OrderHelper::assign($faq, 'order_index');
 
         $faq = $this->show($faq->id);
 
@@ -79,7 +79,7 @@ class FaqService
     public function reorder($faq, $validatedData)
     {
         // Reorder functionality if order_index is added to the table
-        // OrderHelper::reorder($faq, $validatedData['new_order_index'], 'order_index');
+        OrderHelper::reorder($faq, $validatedData['new_order_index'], 'order_index');
 
         return $this->show($faq->id);
     }
