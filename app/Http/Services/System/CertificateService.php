@@ -1304,7 +1304,7 @@ class CertificateService
     /**
      * إلغاء شهادة (للمسؤولين فقط)
      */
-    public function revokeCertificate(int $id, string $reason = null): Certificate
+    public function revokeCertificate(int $id, ?string $reason = null): Certificate
     {
         $certificate = $this->show($id);
 

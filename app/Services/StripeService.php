@@ -207,7 +207,7 @@ class StripeService
     /**
      * Get or create Stripe Price from plan ID or price ID
      */
-    public function getOrCreatePrice(string $planOrPriceId, float $amount, string $currency, string $interval, string $planName = null): string
+    public function getOrCreatePrice(string $planOrPriceId, float $amount, string $currency, string $interval, ?string $planName = null): string
     {
         // If it's already a price ID (starts with price_), return it
         if (str_starts_with($planOrPriceId, 'price_')) {
@@ -406,7 +406,7 @@ class StripeService
     /**
      * Create payment intent for subscription
      */
-    public function createPaymentIntent(float $amount, string $currency, string $customerId, string $paymentMethodId = null, array $metadata = []): object
+    public function createPaymentIntent(float $amount, string $currency, string $customerId, ?string $paymentMethodId = null, array $metadata = []): object
     {
         try {
             $paymentIntentData = [
