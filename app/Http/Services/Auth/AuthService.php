@@ -76,7 +76,7 @@ class AuthService
             'wallet_balance' => 0.0,
             'avatar' => $data['avatar'] ?? null,
             'email' => $data['email'],
-            'phone' => $data['phone'],
+            'phone' => $data['phone'] ?? '',
             'phone_verified' => false,
             'email_verified' => false,
             'password' => Hash::make($data['password']),
@@ -268,9 +268,11 @@ class AuthService
         // } else
 
         // Verify deletion code using existing otp and otp_expire_at fields
-        if ($user->otp !== $code || 
-            !$user->otp_expire_at || 
-            $user->otp_expire_at < now()) {
+        if (
+            $user->otp !== $code ||
+            !$user->otp_expire_at ||
+            $user->otp_expire_at < now()
+        ) {
             MessageService::abort(401, 'auth.account_deletion_code_invalid_or_expired');
         }
 

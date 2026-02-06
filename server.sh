@@ -15,7 +15,13 @@ ssh root@45.132.241.51 'cd /; cd /home/ahmed-albakor-diplomasi-backend/htdocs/di
 
 
 https://backend.diplomasi.app/
+
 ssh root@76.13.143.214
+
+cd /
+cd home/diplomasi-backend/htdocs/backend.diplomasi.app
+git pull
+
 ssh root@76.13.143.214 'cd /; cd /home/diplomasi-backend/htdocs/backend.diplomasi.app; git pull;'
 
 
