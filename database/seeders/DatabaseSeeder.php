@@ -19,43 +19,43 @@ class DatabaseSeeder extends Seeder
             // Users/RBAC
             UserSeeder::class,
 
-            // Learning
-            CourseSeeder::class,
-            LevelSeeder::class,
-            LessonSeeder::class,
-            LessonQuestionSeeder::class,
-            LessonQuestionOptionSeeder::class,
-            LessonSummarySeeder::class,
-            GlossaryTermSeeder::class,
+            // // Learning
+            // CourseSeeder::class,
+            // LevelSeeder::class,
+            // LessonSeeder::class,
+            // LessonQuestionSeeder::class,
+            // LessonQuestionOptionSeeder::class,
+            // LessonSummarySeeder::class,
+            // GlossaryTermSeeder::class,
 
-            // Scenarios
-            ScenarioSeeder::class,
-            ScenarioQuestionSeeder::class,
-            ScenarioQuestionOptionSeeder::class,
-            LevelTrackSeeder::class,
+            // // Scenarios
+            // ScenarioSeeder::class,
+            // ScenarioQuestionSeeder::class,
+            // ScenarioQuestionOptionSeeder::class,
+            // LevelTrackSeeder::class,
 
-            // Billing
-            PlanSeeder::class,
-            DiscountCouponSeeder::class,
-            SubscriptionSeeder::class,
+            // // Billing
+            // PlanSeeder::class,
+            // DiscountCouponSeeder::class,
+            // SubscriptionSeeder::class,
 
-            // Progress
-            UserCourseSeeder::class,
-            UserLevelProgressSeeder::class,
-            UserLessonProgressSeeder::class,
-            UserLessonAttemptSeeder::class,
-            UserScenarioAttemptSeeder::class,
+            // // Progress
+            // UserCourseSeeder::class,
+            // UserLevelProgressSeeder::class,
+            // UserLessonProgressSeeder::class,
+            // UserLessonAttemptSeeder::class,
+            // UserScenarioAttemptSeeder::class,
 
-            // Content
-            ArticleSeeder::class,
-            PageSeeder::class,
-            FaqSeeder::class,
+            // // Content
+            // ArticleSeeder::class,
+            // PageSeeder::class,
+            // FaqSeeder::class,
 
-            // System
-            SettingSeeder::class,
-            NotificationSeeder::class,
-            CertificateSeeder::class,
-            ActivityLogSeeder::class,
+            // // System
+            // SettingSeeder::class,
+            // NotificationSeeder::class,
+            // CertificateSeeder::class,
+            // ActivityLogSeeder::class,
         ]);
     }
 }

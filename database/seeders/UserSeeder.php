@@ -12,23 +12,23 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Ensure extra dashboard roles exist (besides user/super_admin/admin)
-        $roles = [
-            ['name' => 'editor', 'description' => 'Content editor', 'is_default' => false],
-            ['name' => 'learning_manager', 'description' => 'Learning content manager', 'is_default' => false],
-            ['name' => 'support', 'description' => 'Support agent', 'is_default' => false],
-        ];
+        // // Ensure extra dashboard roles exist (besides user/super_admin/admin)
+        // $roles = [
+        //     ['name' => 'editor', 'description' => 'Content editor', 'is_default' => false],
+        //     ['name' => 'learning_manager', 'description' => 'Learning content manager', 'is_default' => false],
+        //     ['name' => 'support', 'description' => 'Support agent', 'is_default' => false],
+        // ];
 
-        foreach ($roles as $role) {
-            Role::withTrashed()->updateOrCreate(
-                ['name' => $role['name']],
-                [
-                    'description' => $role['description'],
-                    'is_default' => $role['is_default'],
-                    'deleted_at' => null,
-                ]
-            );
-        }
+        // foreach ($roles as $role) {
+        //     Role::withTrashed()->updateOrCreate(
+        //         ['name' => $role['name']],
+        //         [
+        //             'description' => $role['description'],
+        //             'is_default' => $role['is_default'],
+        //             'deleted_at' => null,
+        //         ]
+        //     );
+        // }
 
         $userRole = Role::where('name', 'user')->first();
         $adminRole = Role::where('name', 'admin')->first();
@@ -83,7 +83,7 @@ class UserSeeder extends Seeder
         }
 
         // Demo app users
-        for ($i = 1; $i <= 50; $i++) {
+        for ($i = 1; $i <= 5; $i++) {
             $email = sprintf('user%02d@demo.test', $i);
             $phone = '+201' . str_pad((string) (100000000 + $i), 9, '0', STR_PAD_LEFT);
 
