@@ -28,10 +28,6 @@ class SubscriptionEvent extends Model
         'amount_charged',
         'amount_refunded',
         'currency',
-        'stripe_invoice_id',
-        'stripe_payment_intent_id',
-        'stripe_charge_id',
-        'stripe_event_id',
         'meta',
     ];
 

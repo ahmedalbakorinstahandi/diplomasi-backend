@@ -10,7 +10,6 @@ class CreatePlanRequest extends BaseFormRequest
     {
         return [
             'name' => 'required|string|max:100',
-            'stripe_plan_id' => 'required|string|max:100|unique:plans,stripe_plan_id',
             'price' => 'required|numeric|min:0',
             'interval' => 'required|in:monthly,semi_annual,annual',
             'description' => 'nullable|string',

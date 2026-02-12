@@ -24,7 +24,7 @@ class PlanService
         $searchFields = ['name', 'description'];
         $numericFields = ['price'];
         $dateFields = ['created_at'];
-        $exactMatchFields = ['interval', 'stripe_plan_id'];
+        $exactMatchFields = ['interval'];
         $inFields = ['interval'];
 
         $query = PlanPermission::filterIndex($query);

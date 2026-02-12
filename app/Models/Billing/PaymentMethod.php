@@ -19,7 +19,6 @@ class PaymentMethod extends Model
      */
     protected $fillable = [
         'user_id',
-        'stripe_payment_method_id',
         'type',
         'card_brand',
         'card_last4',

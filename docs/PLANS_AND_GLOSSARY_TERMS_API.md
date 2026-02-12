@@ -49,7 +49,6 @@ GET /api/v1/user/plans
 - `search`: البحث في الحقول (`name`, `description`)
 - `price`: فلترة حسب السعر
 - `interval`: فلترة حسب نوع الفترة (`monthly`, `semi_annual`, `annual`)
-- `stripe_plan_id`: البحث الدقيق في معرف Stripe
 - `created_at`: فلترة حسب تاريخ الإنشاء
 
 **Response** (200 OK):
@@ -60,7 +59,6 @@ GET /api/v1/user/plans
     {
       "id": 1,
       "name": "الخطة الأساسية",
-      "stripe_plan_id": "plan_123456",
       "price": 99.99,
       "interval": "monthly",
       "description": "وصف الخطة",
@@ -109,7 +107,6 @@ GET /api/v1/user/plans/{id}
   "data": {
     "id": 1,
     "name": "الخطة الأساسية",
-    "stripe_plan_id": "plan_123456",
     "price": 99.99,
     "interval": "monthly",
     "description": "وصف الخطة",
@@ -142,7 +139,6 @@ POST /api/v1/admin/plans
 ```json
 {
   "name": "الخطة الأساسية",
-  "stripe_plan_id": "plan_123456",
   "price": 99.99,
   "interval": "monthly",
   "description": "وصف الخطة (اختياري)",
@@ -153,7 +149,6 @@ POST /api/v1/admin/plans
 
 **Validation Rules**:
 - `name` (required): اسم الخطة، نص، أقصى 100 حرف
-- `stripe_plan_id` (required): معرف Stripe، نص، أقصى 100 حرف، يجب أن يكون فريد
 - `price` (required): السعر، رقم، يجب أن يكون أكبر من أو يساوي 0
 - `interval` (required): نوع الفترة، يجب أن يكون أحد: `monthly`, `semi_annual`, `annual`
 - `description` (optional): وصف الخطة، نص
@@ -168,7 +163,6 @@ POST /api/v1/admin/plans
   "data": {
     "id": 1,
     "name": "الخطة الأساسية",
-    "stripe_plan_id": "plan_123456",
     "price": 99.99,
     "interval": "monthly",
     "description": "وصف الخطة",
@@ -203,7 +197,6 @@ PUT /api/v1/admin/plans/{id}
 ```json
 {
   "name": "الخطة المحدثة",
-  "stripe_plan_id": "plan_789012",
   "price": 149.99,
   "interval": "annual",
   "description": "وصف محدث",
@@ -214,7 +207,6 @@ PUT /api/v1/admin/plans/{id}
 
 **Validation Rules**:
 - جميع الحقول نفس قواعد الإنشاء، لكنها اختيارية (`sometimes`)
-- `stripe_plan_id`: يجب أن يكون فريداً باستثناء الخطة الحالية
 
 **Response** (200 OK):
 ```json
@@ -224,7 +216,6 @@ PUT /api/v1/admin/plans/{id}
   "data": {
     "id": 1,
     "name": "الخطة المحدثة",
-    "stripe_plan_id": "plan_789012",
     "price": 149.99,
     "interval": "annual",
     "description": "وصف محدث",

@@ -25,7 +25,6 @@ class Subscription extends Model
         'status',
         'price',
         'currency',
-        'stripe_subscription_id',
         'auto_renew',
     ];
 

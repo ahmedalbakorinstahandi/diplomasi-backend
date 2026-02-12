@@ -7,22 +7,14 @@ use App\Models\Billing\Plan;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
 use App\Models\Billing\FinancialTransaction;
-use App\Models\Billing\PaymentAttempt;
 use App\Services\FilterService;
 use App\Services\MessageService;
-use App\Services\StripeService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SubscriptionService
 {
-    protected StripeService $stripeService;
-
-    public function __construct(StripeService $stripeService)
-    {
-        $this->stripeService = $stripeService;
-    }
 
     public function index($filters = [])
     {
@@ -106,9 +98,8 @@ class SubscriptionService
                 'end_date' => $endDate->format('Y-m-d'),
                 'status' => 'active',
                 'price' => $plan->price,
-                'currency' => 'USD', // Default currency
-                'stripe_subscription_id' => $data['stripe_subscription_id'] ?? null,
-                'auto_renew' => $data['auto_renew'] ?? true, // Default to true
+                'currency' => $data['currency'] ?? 'USD',
+                'auto_renew' => $data['auto_renew'] ?? true,
             ];
 
             // Create subscription
@@ -126,13 +117,6 @@ class SubscriptionService
                 'amount_charged' => $plan->price,
                 'amount_refunded' => 0,
                 'currency' => $subscription->currency,
-                // ============================================================
-                // 🔴 TODO: إضافة معلومات الدفع هنا بعد تنفيذ الدفع
-                // ============================================================
-                // 'stripe_invoice_id' => $stripeInvoice->id ?? null,
-                // 'stripe_payment_intent_id' => $paymentIntent->id ?? null,
-                // 'stripe_charge_id' => $paymentIntent->charges->data[0]->id ?? null,
-                // ============================================================
                 'meta' => [
                     'auto_renew' => $subscription->auto_renew,
                     'created_via' => 'api',
@@ -270,75 +254,6 @@ class SubscriptionService
             // Calculate amount to charge (new price - credit)
             $amountToCharge = max(0, $newPlanPrice - $credit);
 
-            $stripeInvoiceId = null;
-            $stripePaymentIntentId = null;
-            $stripeChargeId = null;
-
-            // Update Stripe subscription if exists
-            if ($subscription->stripe_subscription_id) {
-                try {
-                    // Get or create Stripe Price
-                    $stripePriceId = $this->stripeService->getOrCreatePrice(
-                        $newPlan->stripe_plan_id,
-                        $newPlan->price,
-                        $subscription->currency ?? 'USD',
-                        $newPlan->interval,
-                        $newPlan->name
-                    );
-
-                    $stripeSubscription = $this->stripeService->updateSubscription(
-                        $subscription->stripe_subscription_id,
-                        [
-                            'price_id' => $stripePriceId,
-                            'proration_behavior' => 'create_prorations',
-                        ]
-                    );
-
-                    // Get invoice and payment intent from latest invoice
-                    if (isset($stripeSubscription->latest_invoice)) {
-                        $invoice = $stripeSubscription->latest_invoice;
-                        $stripeInvoiceId = $invoice->id ?? null;
-                        $stripePaymentIntentId = $invoice->payment_intent->id ?? null;
-                        $stripeChargeId = $invoice->payment_intent->charges->data[0]->id ?? null;
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Stripe subscription upgrade failed', [
-                        'subscription_id' => $subscription->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                    // Continue with local update even if Stripe fails
-                }
-            } elseif ($amountToCharge > 0) {
-                // If no Stripe subscription, create payment intent
-                $customerId = $subscription->user->getStripeCustomer();
-                $paymentMethodId = $subscription->stripe_payment_method_id ?? $subscription->user->stripe_default_payment_method_id;
-                
-                if ($paymentMethodId) {
-                    try {
-                        $paymentIntent = $this->stripeService->createPaymentIntent(
-                            $amountToCharge,
-                            $subscription->currency ?? 'USD',
-                            $customerId,
-                            $paymentMethodId,
-                            [
-                                'subscription_id' => $subscription->id,
-                                'upgrade' => 'true',
-                                'old_plan_id' => $currentPlan->id,
-                                'new_plan_id' => $newPlan->id,
-                            ]
-                        );
-                        $stripePaymentIntentId = $paymentIntent->id;
-                        $stripeChargeId = $paymentIntent->charges->data[0]->id ?? null;
-                    } catch (\Exception $e) {
-                        Log::error('Payment intent creation failed for upgrade', [
-                            'subscription_id' => $subscription->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                        MessageService::abort(400, 'Payment processing failed');
-                    }
-                }
-            }
-
             // Calculate new end date based on new plan interval
             $intervalDays = $this->getIntervalDays($newPlan->interval);
             $newEndDate = $now->copy()->addDays($intervalDays);
@@ -365,7 +280,7 @@ class SubscriptionService
             $subscription->save();
 
             // Create upgrade event
-            SubscriptionEvent::create([
+            $subscriptionEvent = SubscriptionEvent::create([
                 'subscription_id' => $subscription->id,
                 'event_type' => 'upgraded',
                 'plan_id' => $newPlan->id,
@@ -376,9 +291,6 @@ class SubscriptionService
                 'amount_charged' => $amountToCharge,
                 'amount_refunded' => 0,
                 'currency' => $subscription->currency ?? 'USD',
-                'stripe_invoice_id' => $stripeInvoiceId,
-                'stripe_payment_intent_id' => $stripePaymentIntentId,
-                'stripe_charge_id' => $stripeChargeId,
                 'meta' => [
                     'old_plan_id' => $oldPlanId,
                     'old_price' => $oldPrice,
@@ -395,7 +307,7 @@ class SubscriptionService
                 'created_at' => now(),
             ]);
 
-            // Record financial transaction
+            // Record financial transaction (local only; no payment gateway)
             if ($amountToCharge > 0) {
                 FinancialTransaction::create([
                     'subscription_id' => $subscription->id,
@@ -405,10 +317,7 @@ class SubscriptionService
                     'amount' => $amountToCharge,
                     'currency' => $subscription->currency ?? 'USD',
                     'status' => 'completed',
-                    'stripe_payment_intent_id' => $stripePaymentIntentId,
-                    'stripe_invoice_id' => $stripeInvoiceId,
-                    'stripe_charge_id' => $stripeChargeId,
-                    'description' => "Upgrade payment from {$currentPlan->name} to {$newPlan->name}",
+                    'description' => "Upgrade from {$currentPlan->name} to {$newPlan->name}",
                     'metadata' => [
                         'old_plan_id' => $oldPlanId,
                         'new_plan_id' => $newPlan->id,
@@ -424,261 +333,13 @@ class SubscriptionService
     }
 
     /**
-     * Create subscription with payment intent (after payment confirmed in Flutter)
-     */
-    public function createWithPaymentIntent($data, $user)
-    {
-        return DB::transaction(function () use ($data, $user) {
-            // Get plan
-            $plan = Plan::find($data['plan_id']);
-            if (!$plan) {
-                MessageService::abort(404, 'messages.plan.not_found');
-            }
-
-            // Get payment intent
-            $paymentIntentId = $data['payment_intent_id'] ?? null;
-            if (!$paymentIntentId) {
-                MessageService::abort(400, 'Payment intent ID is required');
-            }
-
-            // Retrieve payment intent from Stripe
-            $paymentIntent = $this->stripeService->getClient()->paymentIntents->retrieve($paymentIntentId);
-            
-            if ($paymentIntent->status !== 'succeeded') {
-                MessageService::abort(400, 'Payment intent not succeeded');
-            }
-
-            $customerId = $paymentIntent->customer;
-            $paymentMethodId = $paymentIntent->payment_method;
-
-            // Get or create Stripe Price
-            $stripePriceId = $this->stripeService->getOrCreatePrice(
-                $plan->stripe_plan_id,
-                $plan->price,
-                'USD',
-                $plan->interval,
-                $plan->name
-            );
-
-            // Create Stripe subscription
-            $stripeSubscription = $this->stripeService->createSubscription(
-                $customerId,
-                $stripePriceId,
-                $paymentMethodId,
-                [
-                    'metadata' => [
-                        'user_id' => $user->id,
-                        'plan_id' => $plan->id,
-                        'app' => 'diplomasi',
-                    ],
-                ]
-            );
-
-            // Calculate dates
-            $now = Carbon::now();
-            $startDate = $now->copy();
-            $intervalDays = $this->getIntervalDays($plan->interval);
-            $endDate = $now->copy()->addDays($intervalDays);
-
-            // Get period dates from Stripe subscription if available, otherwise use calculated dates
-            $currentPeriodStart = isset($stripeSubscription->current_period_start) && $stripeSubscription->current_period_start !== null
-                ? Carbon::createFromTimestamp($stripeSubscription->current_period_start)->toDateString()
-                : $startDate->toDateString();
-
-            $currentPeriodEnd = isset($stripeSubscription->current_period_end) && $stripeSubscription->current_period_end !== null
-                ? Carbon::createFromTimestamp($stripeSubscription->current_period_end)->toDateString()
-                : $endDate->toDateString();
-
-            // Prepare subscription data
-            $subscriptionData = [
-                'user_id' => $user->id,
-                'plan_id' => $plan->id,
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString(),
-                'status' => 'active',
-                'price' => $plan->price,
-                'currency' => 'USD',
-                'stripe_subscription_id' => $stripeSubscription->id,
-                'stripe_customer_id' => $customerId,
-                'stripe_payment_method_id' => $paymentMethodId,
-                'auto_renew' => $data['auto_renew'] ?? true,
-                'current_period_start' => $currentPeriodStart,
-                'current_period_end' => $currentPeriodEnd,
-            ];
-
-            // Create subscription
-            $subscription = Subscription::create($subscriptionData);
-
-            // Create subscription event
-            $subscriptionEvent = SubscriptionEvent::create([
-                'subscription_id' => $subscription->id,
-                'event_type' => 'created',
-                'plan_id' => $plan->id,
-                'status' => 'active',
-                'start_date' => $subscription->start_date,
-                'end_date' => $subscription->end_date,
-                'plan_price' => $plan->price,
-                'amount_charged' => $plan->price,
-                'amount_refunded' => 0,
-                'currency' => $subscription->currency,
-                'stripe_invoice_id' => $stripeSubscription->latest_invoice->id ?? null,
-                'stripe_payment_intent_id' => $paymentIntentId,
-                'meta' => [
-                    'auto_renew' => $subscription->auto_renew,
-                    'created_via' => 'api',
-                    'stripe_subscription_id' => $stripeSubscription->id,
-                ],
-                'created_at' => now(),
-            ]);
-
-            // Record financial transaction
-            FinancialTransaction::create([
-                'subscription_id' => $subscription->id,
-                'subscription_event_id' => $subscriptionEvent->id,
-                'user_id' => $user->id,
-                'type' => 'subscription_payment',
-                'amount' => $plan->price,
-                'currency' => 'USD',
-                'status' => 'completed',
-                'stripe_payment_intent_id' => $paymentIntentId,
-                'stripe_invoice_id' => $stripeSubscription->latest_invoice->id ?? null,
-                'description' => "Subscription payment for plan: {$plan->name}",
-                'processed_at' => now(),
-            ]);
-
-            return $this->show($subscription->id);
-        });
-    }
-
-    /**
-     * Create subscription with payment (legacy method - kept for compatibility)
-     */
-    public function createWithPayment($data, $user)
-    {
-        return DB::transaction(function () use ($data, $user) {
-            // Get plan
-            $plan = Plan::find($data['plan_id']);
-            if (!$plan) {
-                MessageService::abort(404, 'messages.plan.not_found');
-            }
-
-            // Get or create Stripe customer
-            $customerId = $user->getStripeCustomer();
-
-            // Payment method ID is required
-            $paymentMethodId = $data['payment_method_id'] ?? null;
-            if (!$paymentMethodId) {
-                MessageService::abort(400, 'Payment method is required');
-            }
-
-            // Get or create Stripe Price
-            $stripePriceId = $this->stripeService->getOrCreatePrice(
-                $plan->stripe_plan_id,
-                $plan->price,
-                'USD',
-                $plan->interval,
-                $plan->name
-            );
-
-            // Create Stripe subscription
-            $stripeSubscription = $this->stripeService->createSubscription(
-                $customerId,
-                $stripePriceId,
-                $paymentMethodId,
-                [
-                    'metadata' => [
-                        'user_id' => $user->id,
-                        'plan_id' => $plan->id,
-                        'app' => 'diplomasi',
-                    ],
-                ]
-            );
-
-            // Calculate dates
-            $now = Carbon::now();
-            $startDate = $now->copy();
-            $intervalDays = $this->getIntervalDays($plan->interval);
-            $endDate = $now->copy()->addDays($intervalDays);
-
-            // Prepare subscription data
-            $subscriptionData = [
-                'user_id' => $user->id,
-                'plan_id' => $plan->id,
-                'start_date' => $startDate->format('Y-m-d'),
-                'end_date' => $endDate->format('Y-m-d'),
-                'status' => 'active',
-                'price' => $plan->price,
-                'currency' => 'USD',
-                'stripe_subscription_id' => $stripeSubscription->id,
-                'stripe_customer_id' => $customerId,
-                'stripe_payment_method_id' => $paymentMethodId,
-                'auto_renew' => $data['auto_renew'] ?? true,
-                'current_period_start' => Carbon::createFromTimestamp($stripeSubscription->current_period_start)->format('Y-m-d'),
-                'current_period_end' => Carbon::createFromTimestamp($stripeSubscription->current_period_end)->format('Y-m-d'),
-            ];
-
-            // Create subscription
-            $subscription = Subscription::create($subscriptionData);
-
-            // Create subscription event
-            $subscriptionEvent = SubscriptionEvent::create([
-                'subscription_id' => $subscription->id,
-                'event_type' => 'created',
-                'plan_id' => $plan->id,
-                'status' => 'active',
-                'start_date' => $subscription->start_date,
-                'end_date' => $subscription->end_date,
-                'plan_price' => $plan->price,
-                'amount_charged' => $plan->price,
-                'amount_refunded' => 0,
-                'currency' => $subscription->currency,
-                'stripe_invoice_id' => $stripeSubscription->latest_invoice->id ?? null,
-                'stripe_payment_intent_id' => $stripeSubscription->latest_invoice->payment_intent->id ?? null,
-                'meta' => [
-                    'auto_renew' => $subscription->auto_renew,
-                    'created_via' => 'api',
-                    'stripe_subscription_id' => $stripeSubscription->id,
-                ],
-                'created_at' => now(),
-            ]);
-
-            // Record financial transaction
-            FinancialTransaction::create([
-                'subscription_id' => $subscription->id,
-                'subscription_event_id' => $subscriptionEvent->id,
-                'user_id' => $user->id,
-                'type' => 'subscription_payment',
-                'amount' => $plan->price,
-                'currency' => 'USD',
-                'status' => 'completed',
-                'stripe_payment_intent_id' => $stripeSubscription->latest_invoice->payment_intent->id ?? null,
-                'stripe_invoice_id' => $stripeSubscription->latest_invoice->id ?? null,
-                'description' => "Subscription payment for plan: {$plan->name}",
-                'processed_at' => now(),
-            ]);
-
-            return $this->show($subscription->id);
-        });
-    }
-
-    /**
-     * Cancel auto-renewal
+     * Cancel auto-renewal (local only; no payment gateway)
      */
     public function cancelAutoRenew(Subscription $subscription)
     {
-        if (!$subscription->stripe_subscription_id) {
-            MessageService::abort(400, 'Subscription does not have Stripe ID');
-        }
-
         return DB::transaction(function () use ($subscription) {
-            // Update Stripe
-            $this->stripeService->cancelSubscription($subscription->stripe_subscription_id, true);
-
-            // Update local subscription
             $subscription->update([
                 'auto_renew' => false,
-                'cancel_at_period_end' => true,
-                'canceled_at' => now(),
             ]);
 
             return $this->show($subscription->id);
@@ -686,23 +347,13 @@ class SubscriptionService
     }
 
     /**
-     * Resume auto-renewal
+     * Resume auto-renewal (local only; no payment gateway)
      */
     public function resumeAutoRenew(Subscription $subscription)
     {
-        if (!$subscription->stripe_subscription_id) {
-            MessageService::abort(400, 'Subscription does not have Stripe ID');
-        }
-
         return DB::transaction(function () use ($subscription) {
-            // Update Stripe
-            $this->stripeService->resumeSubscription($subscription->stripe_subscription_id);
-
-            // Update local subscription
             $subscription->update([
                 'auto_renew' => true,
-                'cancel_at_period_end' => false,
-                'canceled_at' => null,
             ]);
 
             return $this->show($subscription->id);
@@ -793,7 +444,6 @@ class SubscriptionService
             $subscription->update([
                 'status' => 'active',
                 'end_date' => $newEndDate->format('Y-m-d'),
-                'current_period_end' => $newEndDate->format('Y-m-d'),
             ]);
 
             // Create renewal event
@@ -851,7 +501,6 @@ class SubscriptionService
 
             $subscription->update([
                 'end_date' => $newEndDate->format('Y-m-d'),
-                'current_period_end' => $newEndDate->format('Y-m-d'),
             ]);
 
             // Record financial transaction for transparency
@@ -909,29 +558,7 @@ class SubscriptionService
             return false;
         }
 
-        // Stripe handles automatic renewal, we just need to sync
-        if ($subscription->stripe_subscription_id) {
-            try {
-                $stripeSubscription = $this->stripeService->getSubscription($subscription->stripe_subscription_id);
-                
-                // Update local subscription based on Stripe data
-                $subscription->update([
-                    'current_period_start' => Carbon::createFromTimestamp($stripeSubscription->current_period_start)->format('Y-m-d'),
-                    'current_period_end' => Carbon::createFromTimestamp($stripeSubscription->current_period_end)->format('Y-m-d'),
-                    'end_date' => Carbon::createFromTimestamp($stripeSubscription->current_period_end)->format('Y-m-d'),
-                    'status' => $stripeSubscription->status === 'active' ? 'active' : $subscription->status,
-                ]);
-
-                return true;
-            } catch (\Exception $e) {
-                Log::error('Failed to sync subscription renewal', [
-                    'subscription_id' => $subscription->id,
-                    'error' => $e->getMessage(),
-                ]);
-                return false;
-            }
-        }
-
+        // No payment gateway: automatic renewal not implemented
         return false;
     }
 
@@ -996,113 +623,6 @@ class SubscriptionService
         ]);
 
         return $subscription;
-    }
-
-    /**
-     * Create subscription from PaymentAttempt (idempotent).
-     * 
-     * @param PaymentAttempt $attempt
-     * @param array $options
-     * @return Subscription
-     */
-    public function createFromPaymentAttempt(PaymentAttempt $attempt, array $options = []): Subscription
-    {
-        // Validate attempt status
-        if ($attempt->status !== 'completed') {
-            MessageService::abort(400, 'Payment attempt must be completed to create subscription');
-        }
-
-        // Idempotency check: if subscription already exists, return it
-        if ($attempt->subscription_id) {
-            $existingSubscription = Subscription::find($attempt->subscription_id);
-            if ($existingSubscription) {
-                Log::info('Subscription already exists for PaymentAttempt', [
-                    'payment_attempt_id' => $attempt->id,
-                    'subscription_id' => $existingSubscription->id,
-                ]);
-                return $existingSubscription;
-            }
-        }
-
-        return DB::transaction(function () use ($attempt, $options) {
-            // Get plan
-            $plan = $attempt->plan;
-            if (!$plan) {
-                MessageService::abort(404, 'Plan not found for payment attempt');
-            }
-
-            // Calculate dates
-            $now = Carbon::now();
-            $startDate = $now->copy();
-            $intervalDays = $this->getIntervalDays($plan->interval);
-            $endDate = $now->copy()->addDays($intervalDays);
-
-            // Prepare subscription data
-            $subscriptionData = [
-                'user_id' => $attempt->user_id,
-                'plan_id' => $plan->id,
-                'start_date' => $startDate->format('Y-m-d'),
-                'end_date' => $endDate->format('Y-m-d'),
-                'status' => 'active',
-                'price' => $attempt->amount,
-                'currency' => $attempt->currency ?? 'SAR',
-                'auto_renew' => $options['auto_renew'] ?? true,
-            ];
-
-            // Create subscription
-            $subscription = Subscription::create($subscriptionData);
-
-            // Link subscription to payment attempt
-            $attempt->update(['subscription_id' => $subscription->id]);
-
-            // Create subscription event
-            $subscriptionEvent = SubscriptionEvent::create([
-                'subscription_id' => $subscription->id,
-                'event_type' => 'created',
-                'plan_id' => $plan->id,
-                'status' => 'active',
-                'start_date' => $subscription->start_date,
-                'end_date' => $subscription->end_date,
-                'plan_price' => $attempt->amount,
-                'amount_charged' => $attempt->amount,
-                'amount_refunded' => 0,
-                'currency' => $subscription->currency,
-                'meta' => [
-                    'auto_renew' => $subscription->auto_renew,
-                    'created_via' => 'geidea_payment',
-                    'payment_attempt_id' => $attempt->id,
-                    'merchant_reference' => $attempt->merchant_reference,
-                    'geidea_order_id' => $attempt->geidea_order_id,
-                ],
-                'created_at' => now(),
-            ]);
-
-            // Record financial transaction
-            FinancialTransaction::create([
-                'subscription_id' => $subscription->id,
-                'subscription_event_id' => $subscriptionEvent->id,
-                'user_id' => $attempt->user_id,
-                'type' => 'subscription_payment',
-                'amount' => $attempt->amount,
-                'currency' => $attempt->currency ?? 'SAR',
-                'status' => 'completed',
-                'description' => "Subscription payment for plan: {$plan->name}",
-                'metadata' => [
-                    'payment_attempt_id' => $attempt->id,
-                    'merchant_reference' => $attempt->merchant_reference,
-                    'geidea_order_id' => $attempt->geidea_order_id,
-                ],
-                'processed_at' => now(),
-            ]);
-
-            Log::info('Subscription created from PaymentAttempt', [
-                'payment_attempt_id' => $attempt->id,
-                'subscription_id' => $subscription->id,
-                'merchant_reference' => $attempt->merchant_reference,
-            ]);
-
-            return $this->show($subscription->id);
-        });
     }
 
     /**

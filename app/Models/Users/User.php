@@ -35,8 +35,6 @@ class User extends Authenticatable
         'status',
         'otp',
         'otp_expire_at',
-        'stripe_customer_id',
-        'stripe_default_payment_method_id',
     ];
 
     /**
@@ -296,20 +294,6 @@ class User extends Authenticatable
             ->with(['plan'])
             ->orderBy('created_at', 'desc')
             ->first();
-    }
-
-    /**
-     * Get Stripe customer ID or create one.
-     */
-    public function getStripeCustomer()
-    {
-        if (!$this->stripe_customer_id) {
-            $stripeService = app(\App\Services\StripeService::class);
-            $this->stripe_customer_id = $stripeService->createOrGetCustomer($this);
-            $this->save();
-        }
-
-        return $this->stripe_customer_id;
     }
 
     /**
