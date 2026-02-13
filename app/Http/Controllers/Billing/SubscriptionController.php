@@ -449,6 +449,71 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * Prepare payment (Geidea): create attempt, optional subscription, session; return session_id and checkout_url.
+     */
+    public function preparePayment(Request $request)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+        $request->validate([
+            'plan_id' => 'required|exists:plans,id',
+            'auto_renew' => 'boolean',
+        ]);
+        $result = $this->subscriptionService->preparePayment(
+            (int) $request->plan_id,
+            $user,
+            $request->boolean('auto_renew', false)
+        );
+        if (!empty($result['error'])) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => $result['error'],
+                'data' => $result,
+                'status' => 422,
+            ]);
+        }
+        return ResponseService::response([
+            'success' => true,
+            'data' => $result,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Get payment status by merchant_reference (User route).
+     */
+    public function getPaymentStatus(string $merchantReference)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+        $status = $this->subscriptionService->getPaymentStatus($merchantReference, $user);
+        if ($status === null) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Payment attempt not found',
+                'status' => 404,
+            ]);
+        }
+        return ResponseService::response([
+            'success' => true,
+            'data' => $status,
+            'status' => 200,
+        ]);
+    }
+
+    /**
      * Get user subscription details (User route)
      */
     public function getUserSubscription(int $id)

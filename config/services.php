@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'geidea' => [
+        'public_key' => env('GEIDEA_PUBLIC_KEY'),
+        'api_password' => env('GEIDEA_API_PASSWORD'),
+        'base_url' => env('GEIDEA_BASE_URL', 'https://api.merchant.geidea.net'),
+        'hpp_script_url' => env('GEIDEA_HPP_SCRIPT_URL', 'https://www.merchant.geidea.net/hpp/geideaCheckout.min.js'),
+        'callback_url' => env('GEIDEA_CALLBACK_URL'),
+        'return_url' => env('GEIDEA_RETURN_URL'),
+        'currency' => env('GEIDEA_CURRENCY', 'EGP'),
+    ],
+
 ];

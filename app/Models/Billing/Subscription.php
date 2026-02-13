@@ -26,6 +26,8 @@ class Subscription extends Model
         'price',
         'currency',
         'auto_renew',
+        'geidea_subscription_id',
+        'geidea_order_id',
     ];
 
     /**

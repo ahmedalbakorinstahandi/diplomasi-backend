@@ -3,11 +3,13 @@
 namespace App\Http\Services\Billing;
 
 use App\Http\Permissions\Billing\SubscriptionPermission;
+use App\Models\Billing\PaymentAttempt;
 use App\Models\Billing\Plan;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
 use App\Models\Billing\FinancialTransaction;
 use App\Services\FilterService;
+use App\Services\GeideaService;
 use App\Services\MessageService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -333,11 +335,15 @@ class SubscriptionService
     }
 
     /**
-     * Cancel auto-renewal (local only; no payment gateway)
+     * Cancel auto-renewal. If subscription has geidea_subscription_id, cancel at Geidea first.
      */
     public function cancelAutoRenew(Subscription $subscription)
     {
         return DB::transaction(function () use ($subscription) {
+            if (!empty($subscription->geidea_subscription_id)) {
+                $geidea = new GeideaService();
+                $geidea->cancelSubscription($subscription->geidea_subscription_id);
+            }
             $subscription->update([
                 'auto_renew' => false,
             ]);
@@ -626,8 +632,127 @@ class SubscriptionService
     }
 
     /**
+     * Prepare payment: create PaymentAttempt, optionally Create Subscription at Geidea, Create Session, return session_id and merchant_reference.
+     *
+     * @param int $planId
+     * @param \App\Models\Users\User $user
+     * @param bool $autoRenew
+     * @return array{session_id: string|null, merchant_reference: string, checkout_url: string|null, hpp_script_url: string, error?: string}
+     */
+    public function preparePayment(int $planId, $user, bool $autoRenew = false): array
+    {
+        $plan = Plan::find($planId);
+        if (!$plan) {
+            MessageService::abort(404, 'messages.plan.not_found');
+        }
+
+        $merchantReference = (string) \Illuminate\Support\Str::uuid();
+        $amount = (float) $plan->price;
+        $currency = config('services.geidea.currency', 'EGP') ?: 'EGP';
+
+        $attempt = PaymentAttempt::create([
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'merchant_reference' => $merchantReference,
+            'amount' => $amount,
+            'currency' => $currency,
+            'status' => 'initiated',
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        $geidea = new GeideaService();
+        $geideaSubscriptionId = null;
+
+        if ($autoRenew) {
+            $intervalMap = GeideaService::planIntervalToGeidea($plan->interval ?? 'monthly');
+            $customerRequest = [
+                'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Customer',
+                'email' => $user->email ?? '',
+                'phone' => $user->phone ?? '',
+                'phoneCountryCode' => $user->phone_country_code ?? '+20',
+            ];
+            $startDate = now()->format('Y-m-d\TH:i:s.v\Z');
+            $result = $geidea->createSubscription([
+                'recurring_payment_amount' => $amount,
+                'currency' => $currency,
+                'cycle_interval' => $intervalMap['cycle_interval'],
+                'cycle_frequency' => $intervalMap['cycle_frequency'],
+                'type_of_payment' => 'RecurringPayment',
+                'customer_request' => $customerRequest,
+                'description' => 'Subscription ' . $plan->name,
+                'start_date' => $startDate,
+                'is_first_pmt_pbl' => false,
+            ]);
+            if ($result && !empty($result['subscription']['subscriptionId'])) {
+                $geideaSubscriptionId = $result['subscription']['subscriptionId'];
+                $attempt->geidea_subscription_id = $geideaSubscriptionId;
+                $attempt->save();
+            }
+        }
+
+        $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/webhooks/geidea/callback');
+        $returnUrl = config('services.geidea.return_url') ?: url('/');
+
+        $sessionResult = $geidea->createSession([
+            'amount' => $amount,
+            'currency' => $currency,
+            'merchant_reference_id' => $merchantReference,
+            'callback_url' => $callbackUrl,
+            'return_url' => $returnUrl,
+            'subscription_id' => $geideaSubscriptionId,
+        ]);
+
+        if (!$sessionResult || empty($sessionResult['session']['id'])) {
+            $attempt->update(['status' => 'failed', 'failure_reason' => 'Failed to create Geidea session']);
+            return [
+                'session_id' => null,
+                'merchant_reference' => $merchantReference,
+                'checkout_url' => null,
+                'hpp_script_url' => config('services.geidea.hpp_script_url'),
+                'error' => 'Failed to create payment session',
+            ];
+        }
+
+        $sessionId = $sessionResult['session']['id'];
+        $hppBaseUrl = rtrim(str_replace(['https://api.', 'http://api.'], ['https://www.', 'http://www.'], config('services.geidea.base_url')), '/');
+        $checkoutUrl = $hppBaseUrl . '/hpp/checkout/?' . $sessionId;
+
+        $attempt->update([
+            'geidea_session_id' => $sessionId,
+            'checkout_url' => $checkoutUrl,
+            'status' => 'pending',
+        ]);
+
+        return [
+            'session_id' => $sessionId,
+            'merchant_reference' => $merchantReference,
+            'checkout_url' => $checkoutUrl,
+            'hpp_script_url' => config('services.geidea.hpp_script_url'),
+        ];
+    }
+
+    /**
+     * Get payment attempt status by merchant_reference.
+     */
+    public function getPaymentStatus(string $merchantReference, $user): ?array
+    {
+        $attempt = PaymentAttempt::where('merchant_reference', $merchantReference)
+            ->where('user_id', $user->id)
+            ->first();
+        if (!$attempt) {
+            return null;
+        }
+        return [
+            'merchant_reference' => $attempt->merchant_reference,
+            'status' => $attempt->status,
+            'subscription_id' => $attempt->subscription_id,
+            'verified_at' => $attempt->verified_at?->toIso8601String(),
+        ];
+    }
+
+    /**
      * Get number of days for an interval
-     * 
+     *
      * @param string $interval
      * @return int
      */

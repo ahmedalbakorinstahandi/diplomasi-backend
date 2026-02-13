@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\InvoiceController;
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
@@ -110,6 +111,8 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('subscriptions', [SubscriptionController::class, 'getUserSubscriptions']);
         Route::get('subscriptions/current', [SubscriptionController::class, 'getCurrent']);
         Route::post('subscriptions', [SubscriptionController::class, 'createForUser']);
+        Route::post('subscriptions/prepare-payment', [SubscriptionController::class, 'preparePayment']);
+        Route::get('subscriptions/payment-status/{merchantReference}', [SubscriptionController::class, 'getPaymentStatus']);
         // Parameterized routes come after specific routes
         Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
         Route::post('subscriptions/{id}/cancel-auto-renew', [SubscriptionController::class, 'cancelAutoRenew']);
@@ -118,5 +121,9 @@ Route::group(['prefix' => 'user'], function () {
 
         // Payments/Transactions (user's transaction history)
         Route::get('payments', [\App\Http\Controllers\Billing\FinancialController::class, 'getUserPayments']);
+
+        // Invoices (display HTML + download PDF)
+        Route::get('invoices/{id}', [InvoiceController::class, 'show']);
+        Route::get('invoices/{id}/download', [InvoiceController::class, 'download']);
     });
 });
