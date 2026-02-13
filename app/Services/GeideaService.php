@@ -142,19 +142,45 @@ class GeideaService
         }
 
         $url = $this->baseUrl . '/payment-intent/api/v2/direct/session';
+
+        // Log full request for debugging (no password)
+        Log::channel('single')->info('Geidea Create Session REQUEST', [
+            'url' => $url,
+            'body' => $body,
+            'amount_raw' => $amount,
+            'amount_formatted' => $body['amount'],
+        ]);
+
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'Authorization' => $this->authHeader(),
         ])->post($url, $body);
 
+        // Log full response (status + raw body + parsed) to see exact Geidea reply
+        $responseStatus = $response->status();
+        $responseBodyRaw = $response->body();
+        $responseBodyJson = $response->json();
+        Log::channel('single')->info('Geidea Create Session RESPONSE', [
+            'status' => $responseStatus,
+            'body_raw' => $responseBodyRaw,
+            'body_json' => $responseBodyJson,
+        ]);
+
         if (!$response->successful()) {
-            Log::warning('Geidea Create Session failed', ['status' => $response->status(), 'body' => $response->json()]);
+            Log::warning('Geidea Create Session failed', [
+                'status' => $responseStatus,
+                'body_raw' => $responseBodyRaw,
+                'body_json' => $responseBodyJson,
+            ]);
             return null;
         }
 
-        $data = $response->json();
+        $data = $responseBodyJson ?? [];
         if (($data['responseCode'] ?? '') !== '000') {
-            Log::warning('Geidea Create Session error', ['response' => $data]);
+            Log::warning('Geidea Create Session error', [
+                'response' => $data,
+                'body_raw' => $responseBodyRaw,
+            ]);
             return null;
         }
 
