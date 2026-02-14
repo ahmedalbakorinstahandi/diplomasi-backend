@@ -468,7 +468,7 @@ class SubscriptionController extends Controller
         $result = $this->subscriptionService->preparePayment(
             (int) $request->plan_id,
             $user,
-            $request->boolean('auto_renew', false)
+            $request->boolean('auto_renew', true)
         );
         if (!empty($result['error'])) {
             return ResponseService::response([

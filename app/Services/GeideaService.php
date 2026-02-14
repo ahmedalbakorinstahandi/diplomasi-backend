@@ -143,18 +143,20 @@ class GeideaService
 
         $url = $this->baseUrl . '/payment-intent/api/v2/direct/session';
 
-        // Log full request for debugging (no password)
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Authorization' => $this->authHeader(),
+        ];
+        // Log full request for debugging (no password); confirm headers are sent
         Log::channel('single')->info('Geidea Create Session REQUEST', [
             'url' => $url,
+            'headers_sent' => ['Content-Type' => 'application/json', 'Authorization' => 'Basic ***'],
             'body' => $body,
             'amount_raw' => $amount,
             'amount_formatted' => $body['amount'],
         ]);
 
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'Authorization' => $this->authHeader(),
-        ])->post($url, $body);
+        $response = Http::withHeaders($headers)->post($url, $body);
 
         // Log full response (status + raw body + parsed) to see exact Geidea reply
         $responseStatus = $response->status();

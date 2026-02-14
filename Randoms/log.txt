@@ -1,0 +1,41 @@
+[2026-02-13 10:23:37] local.INFO: Geidea Create Session REQUEST {"url":"https://api.geidea.net/payment-intent/api/v2/direct/session","body":{"amount":"9.99","currency":"EGP","timestamp":"2026/02/13 10:23:37","merchantReferenceId":"a4330876-14f0-46b9-9882-e06765f1ee9e","signature":"74xkPH74ivjUkoANfuwQn4QMxX83ZveWpG/xl9kQT70=","callbackUrl":"https://diplomasi-backend.ahmed-albakor.com/api/v1/webhooks/geidea/callback","returnUrl":"https://diplomasi-backend.ahmed-albakor.com","language":"en"},"amount_raw":9.99,"amount_formatted":"9.99"} 
+[2026-02-13 10:23:38] local.INFO: Geidea Create Session RESPONSE {"status":502,"body_raw":"<!DOCTYPE html>
+<html>
+<head>
+<title>Error</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>An error occurred.</h1>
+<p>Sorry, the page you are looking for is currently unavailable.<br/>
+Please try again later.</p>
+<p>If you are the system administrator of this resource then you should check
+the error log for details.</p>
+<p><em>Faithfully yours, nginx.</em></p>
+</body>
+</html>
+","body_json":null} 
+[2026-02-13 10:23:38] local.WARNING: Geidea Create Session failed {"status":502,"body_raw":"<!DOCTYPE html>
+<html>
+<head>
+<title>Error</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>An error occurred.</h1>
+<p>Sorry, the page you are looking for is currently unavailable.<br/>
+Please try again later.</p>
+<p>If you are the system administrator of this resource then you should check
+the error log for details.</p>
+<p><em>Faithfully yours, nginx.</em></p>
+</body>
+</html>
+","body_json":null} 

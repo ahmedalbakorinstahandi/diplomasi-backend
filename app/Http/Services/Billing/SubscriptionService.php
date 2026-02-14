@@ -335,7 +335,7 @@ class SubscriptionService
     }
 
     /**
-     * Cancel auto-renewal. If subscription has geidea_subscription_id, cancel at Geidea first.
+     * Cancel auto-renewal (إلغاء الاشتراك). Calls Geidea Cancel Subscription only when geidea_subscription_id exists; current period stays active until end_date. See docs/SUBSCRIPTION_MODEL_FINAL.md
      */
     public function cancelAutoRenew(Subscription $subscription)
     {
@@ -632,14 +632,15 @@ class SubscriptionService
     }
 
     /**
-     * Prepare payment: create PaymentAttempt, optionally Create Subscription at Geidea, Create Session, return session_id and merchant_reference.
+     * Prepare payment: create PaymentAttempt, Create Subscription at Geidea, Create Session, return session_id and merchant_reference.
+     * Per SUBSCRIPTION_MODEL_FINAL: every subscription is with auto-renew; we always call Create Subscription then Create Session with subscriptionId.
      *
      * @param int $planId
      * @param \App\Models\Users\User $user
-     * @param bool $autoRenew
+     * @param bool $autoRenew Ignored; kept for backward compatibility. We always create a Geidea subscription (auto-renew).
      * @return array{session_id: string|null, merchant_reference: string, checkout_url: string|null, hpp_script_url: string, error?: string}
      */
-    public function preparePayment(int $planId, $user, bool $autoRenew = false): array
+    public function preparePayment(int $planId, $user, bool $autoRenew = true): array
     {
         $plan = Plan::find($planId);
         if (!$plan) {
@@ -663,31 +664,30 @@ class SubscriptionService
         $geidea = new GeideaService();
         $geideaSubscriptionId = null;
 
-        if ($autoRenew) {
-            $intervalMap = GeideaService::planIntervalToGeidea($plan->interval ?? 'monthly');
-            $customerRequest = [
-                'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Customer',
-                'email' => $user->email ?? '',
-                'phone' => $user->phone ?? '',
-                'phoneCountryCode' => $user->phone_country_code ?? '+20',
-            ];
-            $startDate = now()->format('Y-m-d\TH:i:s.v\Z');
-            $result = $geidea->createSubscription([
-                'recurring_payment_amount' => $amount,
-                'currency' => $currency,
-                'cycle_interval' => $intervalMap['cycle_interval'],
-                'cycle_frequency' => $intervalMap['cycle_frequency'],
-                'type_of_payment' => 'RecurringPayment',
-                'customer_request' => $customerRequest,
-                'description' => 'Subscription ' . $plan->name,
-                'start_date' => $startDate,
-                'is_first_pmt_pbl' => false,
-            ]);
-            if ($result && !empty($result['subscription']['subscriptionId'])) {
-                $geideaSubscriptionId = $result['subscription']['subscriptionId'];
-                $attempt->geidea_subscription_id = $geideaSubscriptionId;
-                $attempt->save();
-            }
+        // Always create Geidea subscription (subscription model: auto-renew by default). See docs/SUBSCRIPTION_MODEL_FINAL.md
+        $intervalMap = GeideaService::planIntervalToGeidea($plan->interval ?? 'monthly');
+        $customerRequest = [
+            'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Customer',
+            'email' => $user->email ?? '',
+            'phone' => $user->phone ?? '',
+            'phoneCountryCode' => $user->phone_country_code ?? '+20',
+        ];
+        $startDate = now()->format('Y-m-d\TH:i:s.v\Z');
+        $result = $geidea->createSubscription([
+            'recurring_payment_amount' => $amount,
+            'currency' => $currency,
+            'cycle_interval' => $intervalMap['cycle_interval'],
+            'cycle_frequency' => $intervalMap['cycle_frequency'],
+            'type_of_payment' => 'RecurringPayment',
+            'customer_request' => $customerRequest,
+            'description' => 'Subscription ' . $plan->name,
+            'start_date' => $startDate,
+            'is_first_pmt_pbl' => false,
+        ]);
+        if ($result && !empty($result['subscription']['subscriptionId'])) {
+            $geideaSubscriptionId = $result['subscription']['subscriptionId'];
+            $attempt->geidea_subscription_id = $geideaSubscriptionId;
+            $attempt->save();
         }
 
         $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/webhooks/geidea/callback');
@@ -714,7 +714,16 @@ class SubscriptionService
         }
 
         $sessionId = $sessionResult['session']['id'];
-        $hppBaseUrl = rtrim(str_replace(['https://api.', 'http://api.'], ['https://www.', 'http://www.'], config('services.geidea.base_url')), '/');
+        $hppBaseUrl = config('services.geidea.hpp_base_url');
+        if (empty($hppBaseUrl)) {
+            $baseUrl = config('services.geidea.base_url');
+            $hppBaseUrl = rtrim(str_replace(['https://api.', 'http://api.'], ['https://www.', 'http://www.'], $baseUrl), '/');
+            if (str_contains($baseUrl, 'geidea.ae')) {
+                $hppBaseUrl = 'https://payments.geidea.ae';
+            }
+        }
+        $hppBaseUrl = rtrim($hppBaseUrl, '/');
+        // Geidea doc: window.open(".../hpp/checkout/?" + sessionId). Session expires in 15 min.
         $checkoutUrl = $hppBaseUrl . '/hpp/checkout/?' . $sessionId;
 
         $attempt->update([
