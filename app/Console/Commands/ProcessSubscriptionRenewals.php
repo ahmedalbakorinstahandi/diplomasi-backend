@@ -20,7 +20,7 @@ class ProcessSubscriptionRenewals extends Command
      *
      * @var string
      */
-    protected $description = 'Process automatic subscription renewals';
+    protected $description = 'Process Geidea subscription housekeeping jobs';
 
     protected SubscriptionService $subscriptionService;
 
@@ -35,10 +35,14 @@ class ProcessSubscriptionRenewals extends Command
      */
     public function handle()
     {
-        $this->info('Processing subscription renewals...');
+        $this->info('Processing subscription housekeeping jobs...');
+
+        $periodEndResult = $this->subscriptionService->processPeriodEndCancellations();
+        $this->info("Processed period-end cancellations: {$periodEndResult['processed']}, Failed: {$periodEndResult['failed']}");
 
         $subscriptions = Subscription::where('status', 'active')
             ->where('auto_renew', true)
+            ->where('cancel_at_period_end', false)
             ->where('end_date', '<=', now()->addDays(3)->toDateString())
             ->where('end_date', '>=', now()->toDateString())
             ->get();
@@ -59,7 +63,7 @@ class ProcessSubscriptionRenewals extends Command
             }
         }
 
-        $this->info("Renewal processing completed. Processed: {$processed}, Failed: {$failed}");
+        $this->info("Renewal pre-check completed. Processed: {$processed}, Failed: {$failed}");
 
         return Command::SUCCESS;
     }

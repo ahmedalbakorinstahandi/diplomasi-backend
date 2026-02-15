@@ -26,6 +26,8 @@ class Subscription extends Model
         'price',
         'currency',
         'auto_renew',
+        'cancel_at_period_end',
+        'canceled_at',
         'geidea_subscription_id',
         'geidea_order_id',
     ];
@@ -42,6 +44,8 @@ class Subscription extends Model
             'end_date' => 'date',
             'price' => 'decimal:2',
             'auto_renew' => 'boolean',
+            'cancel_at_period_end' => 'boolean',
+            'canceled_at' => 'datetime',
         ];
     }
 

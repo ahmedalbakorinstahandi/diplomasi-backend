@@ -106,17 +106,15 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
 
-        // Subscriptions
-        // IMPORTANT: Specific routes must come before parameterized routes
+        // Subscriptions (Geidea)
+        Route::post('plans/{plan}/subscribe', [SubscriptionController::class, 'startSubscribe']);
+        Route::get('me/subscription', [SubscriptionController::class, 'mySubscription']);
+        Route::get('me/subscription/payment-status/{merchantReference}', [SubscriptionController::class, 'mySubscriptionPaymentStatus']);
+        Route::post('me/subscription/cancel-renewal', [SubscriptionController::class, 'cancelMyRenewal']);
+
+        // Subscription history/details
         Route::get('subscriptions', [SubscriptionController::class, 'getUserSubscriptions']);
-        Route::get('subscriptions/current', [SubscriptionController::class, 'getCurrent']);
-        Route::post('subscriptions', [SubscriptionController::class, 'createForUser']);
-        Route::post('subscriptions/prepare-payment', [SubscriptionController::class, 'preparePayment']);
-        Route::get('subscriptions/payment-status/{merchantReference}', [SubscriptionController::class, 'getPaymentStatus']);
-        // Parameterized routes come after specific routes
         Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
-        Route::post('subscriptions/{id}/cancel-auto-renew', [SubscriptionController::class, 'cancelAutoRenew']);
-        Route::post('subscriptions/{id}/resume-auto-renew', [SubscriptionController::class, 'resumeAutoRenew']);
         Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgradeUser']);
 
         // Payments/Transactions (user's transaction history)

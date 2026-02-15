@@ -117,7 +117,7 @@ class GeideaService
     public function createSession(array $params): ?array
     {
         $amount = (float) ($params['amount'] ?? 0);
-        $currency = $params['currency'] ?? 'EGP';
+        $currency = $params['currency'] ?? 'USD';
         $merchantReferenceId = $params['merchant_reference_id'] ?? (string) \Illuminate\Support\Str::uuid();
         $timestamp = $params['timestamp'] ?? $this->timestamp();
         $callbackUrl = $params['callback_url'] ?? config('services.geidea.callback_url');
@@ -195,7 +195,7 @@ class GeideaService
     public function createSubscription(array $params): ?array
     {
         $amount = (float) ($params['recurring_payment_amount'] ?? 0);
-        $currency = $params['currency'] ?? 'EGP';
+        $currency = $params['currency'] ?? 'USD';
         $cycleInterval = $params['cycle_interval'] ?? 'month';
         $cycleFrequency = (int) ($params['cycle_frequency'] ?? 1);
         $typeOfPayment = $params['type_of_payment'] ?? 'RecurringPayment';

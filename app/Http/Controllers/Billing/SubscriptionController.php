@@ -225,6 +225,87 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * Start subscription checkout flow by plan.
+     */
+    public function startSubscribe(Request $request, int $plan)
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $result = $this->subscriptionService->preparePayment($plan, $user, true);
+        if (!empty($result['error'])) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => $result['error'],
+                'data' => $result,
+                'status' => 422,
+            ]);
+        }
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $result,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Get current user subscription (new me endpoint).
+     */
+    public function mySubscription()
+    {
+        return $this->getCurrent();
+    }
+
+    /**
+     * Get current user payment status by merchant reference (new me endpoint).
+     */
+    public function mySubscriptionPaymentStatus(string $merchantReference)
+    {
+        return $this->getPaymentStatus($merchantReference);
+    }
+
+    /**
+     * Cancel renewal for the current active subscription.
+     */
+    public function cancelMyRenewal()
+    {
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->getCurrent($user);
+        if (!$subscription) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'No active subscription found',
+                'status' => 404,
+            ]);
+        }
+
+        $subscription = $this->subscriptionService->cancelAutoRenew($subscription);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $subscription,
+            'message' => 'Renewal will be cancelled at period end',
+            'status' => 200,
+            'resource' => SubscriptionResource::class,
+        ]);
+    }
+
+    /**
      * Cancel auto-renewal (User route)
      */
     public function cancelAutoRenew(int $id)

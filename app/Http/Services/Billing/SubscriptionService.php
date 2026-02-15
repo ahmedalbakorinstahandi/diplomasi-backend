@@ -340,12 +340,10 @@ class SubscriptionService
     public function cancelAutoRenew(Subscription $subscription)
     {
         return DB::transaction(function () use ($subscription) {
-            if (!empty($subscription->geidea_subscription_id)) {
-                $geidea = new GeideaService();
-                $geidea->cancelSubscription($subscription->geidea_subscription_id);
-            }
             $subscription->update([
                 'auto_renew' => false,
+                'cancel_at_period_end' => true,
+                'canceled_at' => now(),
             ]);
 
             return $this->show($subscription->id);
@@ -360,6 +358,8 @@ class SubscriptionService
         return DB::transaction(function () use ($subscription) {
             $subscription->update([
                 'auto_renew' => true,
+                'cancel_at_period_end' => false,
+                'canceled_at' => null,
             ]);
 
             return $this->show($subscription->id);
@@ -564,8 +564,53 @@ class SubscriptionService
             return false;
         }
 
-        // No payment gateway: automatic renewal not implemented
+        // Geidea recurring payments are auto-collected and should be reflected via callbacks.
         return false;
+    }
+
+    /**
+     * Cancel subscriptions at period end when user previously requested cancel-renewal.
+     */
+    public function processPeriodEndCancellations(): array
+    {
+        $subscriptions = Subscription::query()
+            ->where('status', 'active')
+            ->where('cancel_at_period_end', true)
+            ->whereDate('end_date', '<=', now()->toDateString())
+            ->get();
+
+        $processed = 0;
+        $failed = 0;
+
+        foreach ($subscriptions as $subscription) {
+            try {
+                DB::transaction(function () use ($subscription) {
+                    if (!empty($subscription->geidea_subscription_id)) {
+                        $geidea = new GeideaService();
+                        $geidea->cancelSubscription($subscription->geidea_subscription_id);
+                    }
+
+                    $subscription->update([
+                        'status' => 'cancelled',
+                        'auto_renew' => false,
+                        'cancel_at_period_end' => true,
+                        'canceled_at' => $subscription->canceled_at ?? now(),
+                    ]);
+                });
+                $processed++;
+            } catch (\Throwable $e) {
+                $failed++;
+                Log::warning('Failed to process period-end subscription cancellation', [
+                    'subscription_id' => $subscription->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return [
+            'processed' => $processed,
+            'failed' => $failed,
+        ];
     }
 
     /**
@@ -649,7 +694,7 @@ class SubscriptionService
 
         $merchantReference = (string) \Illuminate\Support\Str::uuid();
         $amount = (float) $plan->price;
-        $currency = config('services.geidea.currency', 'EGP') ?: 'EGP';
+        $currency = config('services.geidea.currency', 'USD') ?: 'USD';
 
         $attempt = PaymentAttempt::create([
             'user_id' => $user->id,
@@ -690,7 +735,7 @@ class SubscriptionService
             $attempt->save();
         }
 
-        $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/webhooks/geidea/callback');
+        $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/payments/geidea/callback');
         $returnUrl = config('services.geidea.return_url') ?: url('/');
 
         $sessionResult = $geidea->createSession([
@@ -735,6 +780,9 @@ class SubscriptionService
         return [
             'session_id' => $sessionId,
             'merchant_reference' => $merchantReference,
+            'subscription_id' => $geideaSubscriptionId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'currency' => $currency,
             'checkout_url' => $checkoutUrl,
             'hpp_script_url' => config('services.geidea.hpp_script_url'),
         ];

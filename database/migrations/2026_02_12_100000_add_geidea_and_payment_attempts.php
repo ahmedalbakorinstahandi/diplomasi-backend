@@ -26,7 +26,7 @@ return new class extends Migration
                 $table->string('geidea_subscription_id', 255)->nullable();
                 $table->text('checkout_url')->nullable();
                 $table->decimal('amount', 10, 2);
-                $table->string('currency', 10)->default('EGP');
+                $table->string('currency', 10)->default('USD');
                 $table->enum('status', ['initiated', 'pending', 'verifying', 'completed', 'failed', 'canceled', 'expired'])->default('initiated');
                 $table->text('failure_reason')->nullable();
                 $table->unsignedBigInteger('subscription_id')->nullable();

@@ -26,7 +26,7 @@ return new class extends Migration
             $table->text('checkout_url')->nullable();
             $table->string('token_id', 255)->nullable(); // For tokenization
             $table->decimal('amount', 10, 2);
-            $table->string('currency', 10)->default('SAR');
+            $table->string('currency', 10)->default('USD');
             $table->enum('status', ['initiated', 'pending', 'verifying', 'completed', 'failed', 'canceled', 'expired'])->default('initiated');
             $table->text('failure_reason')->nullable();
             $table->unsignedBigInteger('subscription_id')->nullable();

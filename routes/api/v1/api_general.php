@@ -7,6 +7,7 @@ use App\Http\Controllers\System\SettingController;
 use Illuminate\Support\Facades\Route;
 
 // Geidea webhook (public, no auth)
+Route::post('payments/geidea/callback', [GeideaWebhookController::class, 'callback']);
 Route::post('webhooks/geidea/callback', [GeideaWebhookController::class, 'callback']);
 
 Route::group(['prefix' => 'general'], function () {
