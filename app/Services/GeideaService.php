@@ -324,6 +324,7 @@ class GeideaService
         $amount = (float) ($params['amount'] ?? 0);
         $currency = $params['currency'] ?? config('services.geidea.currency', 'USD');
         $merchantReferenceId = $params['merchant_reference_id'] ?? (string) \Illuminate\Support\Str::uuid();
+        $merchantReferenceId = mb_substr($merchantReferenceId, 0, 40);
         $callbackUrl = $params['callback_url'] ?? config('services.geidea.callback_url');
         $language = $params['language'] ?? 'EN';
 
@@ -332,8 +333,11 @@ class GeideaService
         $email = $customer['email'] ?? '';
         $phoneCountryCode = $customer['phone_country_code'] ?? '+966';
         $phoneNumber = $customer['phone_number'] ?? '500000000';
+        $phoneNumber = preg_replace('/\D/', '', $phoneNumber) ?: '500000000';
 
         $itemDescription = $params['item_description'] ?? 'Subscription payment';
+        $itemDescription = trim(preg_replace('/\s+/', ' ', preg_replace('/[^\pL\pN\s\-]/u', ' ', $itemDescription))) ?: 'Subscription payment';
+        $itemDescription = mb_substr($itemDescription, 0, 200);
         $subtotal = $amount;
         $grandTotal = $amount;
 

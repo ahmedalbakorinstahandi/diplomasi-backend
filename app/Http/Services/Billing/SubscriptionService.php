@@ -692,7 +692,8 @@ class SubscriptionService
             MessageService::abort(404, 'messages.plan.not_found');
         }
 
-        $merchantReference = 'diplomasi_' . now()->format('YmdHis') . '_' . \Illuminate\Support\Str::uuid()->toString();
+        // Geidea Pay By Link allows max 40 chars for merchantReferenceId
+        $merchantReference = 'dpl_' . now()->format('YmdHis') . '_' . substr(str_replace('-', '', \Illuminate\Support\Str::uuid()->toString()), 0, 18);
         $amount = (float) $plan->price;
         $currency = config('services.geidea.currency', 'USD') ?: 'USD';
         $expiresAt = now()->addDays(30);
@@ -718,10 +719,10 @@ class SubscriptionService
             'customer' => [
                 'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Customer',
                 'email' => $user->email ?? '',
-                'phone_country_code' => $user->phone_country_code ?? '+966',
-                'phone_number' => $user->phone ?? '500000000',
+                'phone_country_code' => $this->normalizePhoneCountryCode($user->phone_country_code ?? '+966'),
+                'phone_number' => $this->normalizePhoneNumber($user->phone ?? '500000000'),
             ],
-            'item_description' => 'Subscription: ' . ($plan->name ?? 'Plan'),
+            'item_description' => $this->safeItemDescription($plan->name ?? 'Plan'),
             'expiry_date' => $expiresAt->format('Y-m-d\TH:i:s.v\Z'),
         ]);
 
@@ -788,6 +789,48 @@ class SubscriptionService
             'annual' => 365,
             default => 30,
         };
+    }
+
+    /**
+     * Safe item description for Geidea (alphanumeric, space, hyphen only).
+     */
+    private function safeItemDescription(string $planName): string
+    {
+        $cleaned = trim(preg_replace('/[^a-zA-Z0-9\s\-]/', ' ', $planName));
+        return 'Subscription' . ($cleaned !== '' ? ' ' . mb_substr($cleaned, 0, 50) : '');
+    }
+
+    /**
+     * Normalize phone country code for Geidea (e.g. +966).
+     */
+    private function normalizePhoneCountryCode(?string $value): string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '+966';
+        }
+        if (str_starts_with($value, '+')) {
+            return $value;
+        }
+        return '+' . $value;
+    }
+
+    /**
+     * Normalize phone number for Geidea: digits only, no country code prefix.
+     */
+    private function normalizePhoneNumber(?string $value): string
+    {
+        $digits = preg_replace('/\D/', '', (string) $value);
+        if ($digits === '') {
+            return '500000000';
+        }
+        // Remove leading country code if present (e.g. 966 or 00966)
+        if (str_starts_with($digits, '966') && strlen($digits) > 9) {
+            $digits = substr($digits, 3);
+        } elseif (str_starts_with($digits, '00966') && strlen($digits) > 9) {
+            $digits = substr($digits, 5);
+        }
+        return $digits ?: '500000000';
     }
 }
 
