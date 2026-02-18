@@ -211,7 +211,7 @@ class SubscriptionService
 
             // Calculate actual paid amount (amount_charged - amount_refunded)
             $paidAmount = ($lastPaymentEvent->amount_charged ?? 0) - ($lastPaymentEvent->amount_refunded ?? 0);
-            
+
             // Use subscription price as fallback if no event amount
             if ($paidAmount <= 0) {
                 $paidAmount = $subscription->price ?? $lastPaymentEvent->plan_price ?? 0;
@@ -696,7 +696,7 @@ class SubscriptionService
         // Geidea Pay By Link allows max 40 chars for merchantReferenceId
         $merchantReference = 'dpl_' . now()->format('YmdHis') . '_' . substr(str_replace('-', '', \Illuminate\Support\Str::uuid()->toString()), 0, 18);
         $amount = (float) $plan->price;
-        $currency = config('services.geidea.currency', 'USD') ?: 'USD';
+        $currency = 'USD';
         $expiresAt = now()->addDays(30);
 
         $attempt = PaymentAttempt::create([
@@ -812,6 +812,4 @@ class SubscriptionService
         $cleaned = trim(preg_replace('/[^a-zA-Z0-9\s\-]/', ' ', $planName));
         return 'Subscription' . ($cleaned !== '' ? ' ' . mb_substr($cleaned, 0, 50) : '');
     }
-
 }
-
