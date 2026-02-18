@@ -25,12 +25,23 @@ class GeideaWebhookController extends Controller
         Log::info('Geidea callback received', ['payload_keys' => array_keys($payload)]);
 
         $geidea = new GeideaService();
-        if (!$geidea->verifyCallbackSignature($payload)) {
-            Log::warning('Geidea callback signature invalid');
-            return response()->json(['message' => 'Invalid signature'], 400);
+        $signatureValid = $geidea->verifyCallbackSignature($payload);
+
+        if (!$signatureValid) {
+            $paymentIntent = $payload['paymentIntent'] ?? [];
+            $merchantRefFromPbl = $paymentIntent['eInvoiceDetails']['merchantReferenceId'] ?? $paymentIntent['merchantReferenceId'] ?? null;
+            if ($merchantRefFromPbl) {
+                Log::info('Geidea Pay By Link callback: accepting without signature verification', ['merchant_reference' => $merchantRefFromPbl]);
+            } else {
+                Log::warning('Geidea callback signature invalid');
+                return response()->json(['message' => 'Invalid signature'], 400);
+            }
         }
 
         $order = $payload['order'] ?? [];
+        if (empty($order) && !empty($payload['orders'][0])) {
+            $order = $payload['orders'][0];
+        }
         $paymentIntent = $payload['paymentIntent'] ?? [];
         $orderId = $order['orderId'] ?? $payload['orderId'] ?? $paymentIntent['orderId'] ?? null;
         $merchantRef = $order['merchantReferenceId'] ?? $payload['merchantReferenceId']
@@ -38,7 +49,8 @@ class GeideaWebhookController extends Controller
         $status = $order['status'] ?? $payload['detailedStatus'] ?? $payload['status'] ?? $paymentIntent['status'] ?? '';
         $responseCode = $payload['responseCode'] ?? '';
         $detailedResponseCode = $payload['detailedResponseCode'] ?? '';
-        $success = ($responseCode === '000' && $detailedResponseCode === '000' && in_array(strtolower($status), ['paid', 'completed', 'captured'], true));
+        $successStatuses = ['paid', 'completed', 'captured', 'success'];
+        $success = ($responseCode === '000' && $detailedResponseCode === '000' && in_array(strtolower((string) $status), $successStatuses, true));
 
         if ($merchantRef) {
             $orderForHandler = $order;

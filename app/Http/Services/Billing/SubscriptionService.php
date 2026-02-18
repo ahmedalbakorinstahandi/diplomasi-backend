@@ -710,6 +710,7 @@ class SubscriptionService
         ]);
 
         $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/webhooks/geidea/callback');
+        Log::info('Geidea preparePayment callback URL', ['callback_url' => $callbackUrl, 'from_env' => (bool) config('services.geidea.callback_url')]);
 
         $phoneCountryCode = '+966';
         $phoneNumber = '500000000';
