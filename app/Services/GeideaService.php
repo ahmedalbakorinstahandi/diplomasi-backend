@@ -315,6 +315,103 @@ class GeideaService
     }
 
     /**
+     * Create Payment Link (Pay By Link / eInvoice). Single payment, no recurring.
+     * POST /payment-intent/api/v1/direct/eInvoice
+     * Returns ['link' => url, 'merchantReferenceId' => ..., 'paymentIntentId' => ...] or null.
+     */
+    public function createPaymentLink(array $params): ?array
+    {
+        $amount = (float) ($params['amount'] ?? 0);
+        $currency = $params['currency'] ?? config('services.geidea.currency', 'USD');
+        $merchantReferenceId = $params['merchant_reference_id'] ?? (string) \Illuminate\Support\Str::uuid();
+        $callbackUrl = $params['callback_url'] ?? config('services.geidea.callback_url');
+        $language = $params['language'] ?? 'EN';
+
+        $customer = $params['customer'] ?? [];
+        $name = $customer['name'] ?? 'Customer';
+        $email = $customer['email'] ?? '';
+        $phoneCountryCode = $customer['phone_country_code'] ?? '+966';
+        $phoneNumber = $customer['phone_number'] ?? '500000000';
+
+        $itemDescription = $params['item_description'] ?? 'Subscription payment';
+        $subtotal = $amount;
+        $grandTotal = $amount;
+
+        $eInvoiceItems = [
+            [
+                'description' => $itemDescription,
+                'price' => $amount,
+                'quantity' => 1,
+                'total' => $amount,
+                'priceWithDiscount' => $amount,
+                'priceTax' => 0,
+                'priceTotal' => $amount,
+                'itemDiscount' => 0,
+                'itemDiscountType' => 'Amount',
+                'tax' => 0,
+                'taxType' => 'Amount',
+                'totalWithoutTax' => $amount,
+                'totalTax' => 0,
+            ],
+        ];
+
+        $body = [
+            'amount' => $amount,
+            'currency' => $currency,
+            'customer' => [
+                'name' => $name,
+                'email' => $email,
+                'phoneCountryCode' => $phoneCountryCode,
+                'phoneNumber' => $phoneNumber,
+            ],
+            'eInvoiceDetails' => [
+                'type' => 'Detailed',
+                'subtotal' => $subtotal,
+                'grandTotal' => $grandTotal,
+                'eInvoiceItems' => $eInvoiceItems,
+                'merchantReferenceId' => $merchantReferenceId,
+                'callbackUrl' => $callbackUrl,
+                'language' => $language,
+            ],
+        ];
+
+        $expiryDate = $params['expiry_date'] ?? now()->addDays(30)->format('Y-m-d\TH:i:s.v\Z');
+        $body['expiryDate'] = $expiryDate;
+
+        $url = $this->baseUrl . '/payment-intent/api/v1/direct/eInvoice';
+
+        Log::info('Geidea Create Payment Link request', ['url' => $url, 'merchant_reference' => $merchantReferenceId]);
+
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'Authorization' => $this->authHeader(),
+        ])->post($url, $body);
+
+        $status = $response->status();
+        $responseBody = $response->json();
+
+        Log::info('Geidea Create Payment Link response', ['status' => $status, 'body' => $responseBody]);
+
+        if ($status !== 201) {
+            Log::warning('Geidea Create Payment Link failed', ['status' => $status, 'body' => $responseBody]);
+            return null;
+        }
+
+        $paymentIntent = $responseBody['paymentIntent'] ?? [];
+        $link = $paymentIntent['link'] ?? null;
+        if (!$link) {
+            Log::warning('Geidea Create Payment Link: no link in response', ['response' => $responseBody]);
+            return null;
+        }
+
+        return [
+            'link' => $link,
+            'merchantReferenceId' => $paymentIntent['eInvoiceDetails']['merchantReferenceId'] ?? $merchantReferenceId,
+            'paymentIntentId' => $paymentIntent['paymentIntentId'] ?? null,
+        ];
+    }
+
+    /**
      * Map plan interval to Geidea cycleInterval and cycleFrequency.
      */
     public static function planIntervalToGeidea(string $interval): array

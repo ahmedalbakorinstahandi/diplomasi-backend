@@ -31,15 +31,21 @@ class GeideaWebhookController extends Controller
         }
 
         $order = $payload['order'] ?? [];
-        $orderId = $order['orderId'] ?? $payload['orderId'] ?? null;
-        $merchantRef = $order['merchantReferenceId'] ?? $payload['merchantReferenceId'] ?? null;
-        $status = $order['status'] ?? $payload['detailedStatus'] ?? $payload['status'] ?? '';
+        $paymentIntent = $payload['paymentIntent'] ?? [];
+        $orderId = $order['orderId'] ?? $payload['orderId'] ?? $paymentIntent['orderId'] ?? null;
+        $merchantRef = $order['merchantReferenceId'] ?? $payload['merchantReferenceId']
+            ?? $paymentIntent['eInvoiceDetails']['merchantReferenceId'] ?? $paymentIntent['merchantReferenceId'] ?? null;
+        $status = $order['status'] ?? $payload['detailedStatus'] ?? $payload['status'] ?? $paymentIntent['status'] ?? '';
         $responseCode = $payload['responseCode'] ?? '';
         $detailedResponseCode = $payload['detailedResponseCode'] ?? '';
         $success = ($responseCode === '000' && $detailedResponseCode === '000' && in_array(strtolower($status), ['paid', 'completed', 'captured'], true));
 
         if ($merchantRef) {
-            return $this->handlePaymentAttemptCallback($merchantRef, $orderId, $order, $payload, $success);
+            $orderForHandler = $order;
+            if (empty($orderForHandler['orderId']) && $orderId) {
+                $orderForHandler['orderId'] = $orderId;
+            }
+            return $this->handlePaymentAttemptCallback($merchantRef, $orderId, $orderForHandler, $payload, $success);
         }
 
         $subscriptionId = $this->extractSubscriptionId($payload, $order);
@@ -221,7 +227,7 @@ class GeideaWebhookController extends Controller
             'status' => 'active',
             'price' => $attempt->amount,
             'currency' => $attempt->currency,
-            'auto_renew' => !empty($attempt->geidea_subscription_id),
+            'auto_renew' => false,
             'cancel_at_period_end' => false,
             'canceled_at' => null,
             'geidea_subscription_id' => $attempt->geidea_subscription_id,
