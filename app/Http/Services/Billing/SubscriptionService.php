@@ -11,6 +11,7 @@ use App\Models\Billing\FinancialTransaction;
 use App\Services\FilterService;
 use App\Services\GeideaService;
 use App\Services\MessageService;
+use App\Services\PhoneService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -710,6 +711,18 @@ class SubscriptionService
 
         $callbackUrl = config('services.geidea.callback_url') ?: url('/api/v1/webhooks/geidea/callback');
 
+        $phoneCountryCode = '+966';
+        $phoneNumber = '500000000';
+        if (!empty(trim((string) $user->phone))) {
+            try {
+                $parts = PhoneService::parsePhoneParts($user->phone);
+                $phoneCountryCode = '+' . $parts['country_code'];
+                $phoneNumber = (string) $parts['national_number'];
+            } catch (\Throwable $e) {
+                Log::debug('Geidea preparePayment: could not parse user phone, using defaults', ['phone' => $user->phone, 'error' => $e->getMessage()]);
+            }
+        }
+
         $geidea = new GeideaService();
         $linkResult = $geidea->createPaymentLink([
             'amount' => $amount,
@@ -719,8 +732,8 @@ class SubscriptionService
             'customer' => [
                 'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Customer',
                 'email' => $user->email ?? '',
-                'phone_country_code' => $this->normalizePhoneCountryCode($user->phone_country_code ?? '+966'),
-                'phone_number' => $this->normalizePhoneNumber($user->phone ?? '500000000'),
+                'phone_country_code' => $phoneCountryCode,
+                'phone_number' => $phoneNumber,
             ],
             'item_description' => $this->safeItemDescription($plan->name ?? 'Plan'),
             'expiry_date' => $expiresAt->format('Y-m-d\TH:i:s.v\Z'),
@@ -800,41 +813,5 @@ class SubscriptionService
         return 'Subscription' . ($cleaned !== '' ? ' ' . mb_substr($cleaned, 0, 50) : '');
     }
 
-    /**
-     * Normalize phone country code for Geidea (e.g. +966).
-     */
-    private function normalizePhoneCountryCode(?string $value): string
-    {
-        $value = trim((string) $value);
-        if ($value === '') {
-            return '+966';
-        }
-        if (str_starts_with($value, '+')) {
-            return $value;
-        }
-        return '+' . $value;
-    }
-
-    /**
-     * Normalize phone number for Geidea: digits only, no country code prefix, min 9 digits, no leading zero.
-     */
-    private function normalizePhoneNumber(?string $value): string
-    {
-        $digits = preg_replace('/\D/', '', (string) $value);
-        if ($digits === '') {
-            return '500000000';
-        }
-        // Remove leading country code if present (e.g. 966 or 00966)
-        if (str_starts_with($digits, '966') && strlen($digits) > 9) {
-            $digits = substr($digits, 3);
-        } elseif (str_starts_with($digits, '00966') && strlen($digits) > 9) {
-            $digits = substr($digits, 5);
-        }
-        $digits = ltrim($digits, '0');
-        if (strlen($digits) < 9) {
-            return '500000000';
-        }
-        return substr($digits, -12);
-    }
 }
 
