@@ -696,7 +696,7 @@ class SubscriptionService
         // Geidea Pay By Link allows max 40 chars for merchantReferenceId
         $merchantReference = 'dpl_' . now()->format('YmdHis') . '_' . substr(str_replace('-', '', \Illuminate\Support\Str::uuid()->toString()), 0, 18);
         $amount = (float) $plan->price;
-        $currency = 'USD';
+        $currency = 'SAR';
         $expiresAt = now()->addDays(30);
 
         $attempt = PaymentAttempt::create([
