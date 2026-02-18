@@ -333,7 +333,11 @@ class GeideaService
         $email = $customer['email'] ?? '';
         $phoneCountryCode = $customer['phone_country_code'] ?? '+966';
         $phoneNumber = $customer['phone_number'] ?? '500000000';
-        $phoneNumber = preg_replace('/\D/', '', $phoneNumber) ?: '500000000';
+        $phoneNumber = preg_replace('/\D/', '', (string) $phoneNumber);
+        if (strlen($phoneNumber) < 9) {
+            $phoneNumber = '500000000';
+        }
+        $phoneNumber = substr($phoneNumber, -12);
 
         $itemDescription = $params['item_description'] ?? 'Subscription payment';
         $itemDescription = trim(preg_replace('/\s+/', ' ', preg_replace('/[^\pL\pN\s\-]/u', ' ', $itemDescription))) ?: 'Subscription payment';
@@ -384,7 +388,11 @@ class GeideaService
 
         $url = $this->baseUrl . '/payment-intent/api/v1/direct/eInvoice';
 
-        Log::info('Geidea Create Payment Link request', ['url' => $url, 'merchant_reference' => $merchantReferenceId]);
+        Log::info('Geidea Create Payment Link request', [
+            'url' => $url,
+            'merchant_reference' => $merchantReferenceId,
+            'body' => $body,
+        ]);
 
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',

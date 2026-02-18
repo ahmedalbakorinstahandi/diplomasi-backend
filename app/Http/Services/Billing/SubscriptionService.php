@@ -816,7 +816,7 @@ class SubscriptionService
     }
 
     /**
-     * Normalize phone number for Geidea: digits only, no country code prefix.
+     * Normalize phone number for Geidea: digits only, no country code prefix, min 9 digits, no leading zero.
      */
     private function normalizePhoneNumber(?string $value): string
     {
@@ -830,7 +830,11 @@ class SubscriptionService
         } elseif (str_starts_with($digits, '00966') && strlen($digits) > 9) {
             $digits = substr($digits, 5);
         }
-        return $digits ?: '500000000';
+        $digits = ltrim($digits, '0');
+        if (strlen($digits) < 9) {
+            return '500000000';
+        }
+        return substr($digits, -12);
     }
 }
 
