@@ -3,6 +3,7 @@
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\MoyasarPaymentController;
 use App\Http\Controllers\Billing\PaymentMethodController;
+use App\Http\Controllers\Billing\BillingHistoryController;
 use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
@@ -113,6 +114,10 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('billing/payment-methods', [PaymentMethodController::class, 'store']);
         Route::post('billing/payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);
         Route::delete('billing/payment-methods/{id}', [PaymentMethodController::class, 'destroy']);
+        Route::get('billing/invoices', [BillingHistoryController::class, 'invoices']);
+        Route::get('billing/invoices/{id}', [BillingHistoryController::class, 'showInvoice']);
+        Route::get('billing/invoices/{id}/download', [BillingHistoryController::class, 'downloadInvoice']);
+        Route::get('billing/payments', [BillingHistoryController::class, 'payments']);
         Route::get('billing/subscription', [SubscriptionController::class, 'current']);
         Route::post('billing/subscription/purchase', [SubscriptionController::class, 'purchasePlan']);
         Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
@@ -121,3 +126,4 @@ Route::group(['prefix' => 'user'], function () {
 
     });
 });
+

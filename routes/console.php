@@ -11,3 +11,8 @@ Artisan::command('inspire', function () {
 Schedule::command('billing:process-renewals')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
+
+Schedule::command('billing:send-notifications')->everyFiveMinutes()->withoutOverlapping();
+
+Schedule::command('billing:sync-artifacts')->everyFiveMinutes()->withoutOverlapping();
+

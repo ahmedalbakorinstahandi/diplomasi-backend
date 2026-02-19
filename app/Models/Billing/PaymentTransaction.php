@@ -54,5 +54,10 @@ class PaymentTransaction extends Model
             'verified_at' => 'datetime',
         ];
     }
+
+    public function invoice()
+    {
+        return $this->hasOne(Invoice::class, 'payment_transaction_id');
+    }
 }
 
