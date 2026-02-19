@@ -5,36 +5,68 @@ namespace App\Http\Services\Billing;
 use App\Models\Billing\Invoice;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Users\User;
+use App\Services\FilterService;
+use App\Services\MessageService;
 use Illuminate\Support\Facades\Storage;
 use Mpdf\Mpdf;
 
 class InvoiceService
 {
-    public function listForUser(int $userId, int $perPage = 20)
+    public function listForUser(array $filters = [])
     {
-        return Invoice::query()
-            ->where('user_id', $userId)
+        $query = Invoice::query()
             ->with(['paymentTransaction'])
-            ->orderByDesc('issued_at')
-            ->paginate($perPage);
+            ->orderByDesc('issued_at');
+
+        $invoices = FilterService::applyFilters(
+            $query,
+            $filters,
+            ['user_id', 'subscription_id', 'payment_transaction_id'],
+            ['amount_minor', 'currency'],
+            ['issued_at_from', 'issued_at_to', 'due_at', 'paid_at'],
+            ['invoice_number'],
+            ['status']
+        );
+
+        return $invoices;
     }
 
-    public function listPaymentsForUser(int $userId, int $perPage = 20)
+    public function listPaymentsForUser(array $filters = [])
     {
-        return PaymentTransaction::query()
-            ->where('user_id', $userId)
-            ->whereNotNull('finalized_at')
+        $query = PaymentTransaction::query()
             ->with(['invoice'])
-            ->orderByDesc('id')
-            ->paginate($perPage);
+            ->orderByDesc('id');
+
+        $payments = FilterService::applyFilters(
+            $query,
+            $filters,
+            ['user_id', 'plan_id', 'subscription_id', 'merchant_reference_id', 'given_id'],
+            ['amount_minor'],
+            ['billing_period_start', 'billing_period_end', 'finalized_at_from', 'finalized_at_to', 'finalized_at', 'next_retry_at'],
+            ['provider', 'currency', 'attempt_no'],
+            ['provider_payment_id', 'gateway_status', 'redirect_url'],
+            ['status']
+
+        );
+
+        return $payments;
     }
 
-    public function findUserInvoice(int $userId, int $invoiceId): ?Invoice
+    public function findUserInvoice(int $invoiceId): ?Invoice
     {
-        return Invoice::query()
-            ->where('user_id', $userId)
+
+        $user = User::auth();
+
+        $invoice = Invoice::query()
+            ->where('user_id', $user->id)
             ->where('id', $invoiceId)
             ->first();
+
+        if (!$invoice) {
+            MessageService::abort(404, message: 'الفاتورة غير موجودة');
+        }
+
+        return $invoice;
     }
 
     public function issueFromTransaction(PaymentTransaction $transaction): Invoice

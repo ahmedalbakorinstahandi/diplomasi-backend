@@ -11,12 +11,13 @@ class BillingHistoryController extends Controller
 {
     public function __construct(
         protected InvoiceService $invoiceService
-    ) {
-    }
+    ) {}
 
     public function invoices(Request $request)
     {
-        $items = $this->invoiceService->listForUser((int) $request->user()->id, (int) $request->integer('per_page', 20));
+        $items = $this->invoiceService->listForUser(
+            $request->all()
+        );
 
         return ResponseService::response([
             'success' => true,
@@ -28,7 +29,7 @@ class BillingHistoryController extends Controller
 
     public function payments(Request $request)
     {
-        $items = $this->invoiceService->listPaymentsForUser((int) $request->user()->id, (int) $request->integer('per_page', 20));
+        $items = $this->invoiceService->listPaymentsForUser($request->all());
 
         return ResponseService::response([
             'success' => true,
@@ -41,13 +42,7 @@ class BillingHistoryController extends Controller
     public function showInvoice(Request $request, int $id)
     {
         $invoice = $this->invoiceService->findUserInvoice((int) $request->user()->id, $id);
-        if (!$invoice) {
-            return ResponseService::response([
-                'success' => false,
-                'status' => 404,
-                'message' => 'Invoice not found',
-            ]);
-        }
+
 
         $data = $invoice->toArray();
         if ($request->boolean('include_pdf')) {
@@ -64,13 +59,6 @@ class BillingHistoryController extends Controller
     public function downloadInvoice(Request $request, int $id)
     {
         $invoice = $this->invoiceService->findUserInvoice((int) $request->user()->id, $id);
-        if (!$invoice) {
-            return ResponseService::response([
-                'success' => false,
-                'status' => 404,
-                'message' => 'Invoice not found',
-            ]);
-        }
 
         $binary = $this->invoiceService->getPdfBinary($invoice);
 
