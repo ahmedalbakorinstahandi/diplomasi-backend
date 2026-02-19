@@ -249,22 +249,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the payment methods.
-     */
-    public function paymentMethods()
-    {
-        return $this->hasMany(\App\Models\Billing\PaymentMethod::class);
-    }
-
-    /**
-     * Get the financial transactions.
-     */
-    public function financialTransactions()
-    {
-        return $this->hasMany(\App\Models\Billing\FinancialTransaction::class);
-    }
-
-    /**
      * Check if user has an active subscription.
      */
     public function isSubscribed(): bool

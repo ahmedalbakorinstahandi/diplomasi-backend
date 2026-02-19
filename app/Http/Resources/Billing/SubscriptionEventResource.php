@@ -26,10 +26,6 @@ class SubscriptionEventResource extends JsonResource
             'amount_charged' => $this->amount_charged,
             'amount_refunded' => $this->amount_refunded,
             'currency' => $this->currency,
-            'stripe_invoice_id' => $this->stripe_invoice_id,
-            'stripe_payment_intent_id' => $this->stripe_payment_intent_id,
-            'stripe_charge_id' => $this->stripe_charge_id,
-            'stripe_event_id' => $this->stripe_event_id,
             'meta' => $this->meta,
             'created_at' => $this->created_at,
             

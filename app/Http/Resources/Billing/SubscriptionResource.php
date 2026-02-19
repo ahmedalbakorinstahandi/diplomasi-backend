@@ -28,8 +28,6 @@ class SubscriptionResource extends JsonResource
             'auto_renew' => $this->auto_renew,
             'cancel_at_period_end' => (bool) ($this->cancel_at_period_end ?? false),
             'canceled_at' => $this->canceled_at,
-            'geidea_subscription_id' => $this->geidea_subscription_id,
-            'geidea_order_id' => $this->geidea_order_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             

@@ -28,8 +28,6 @@ class Subscription extends Model
         'auto_renew',
         'cancel_at_period_end',
         'canceled_at',
-        'geidea_subscription_id',
-        'geidea_order_id',
     ];
 
     /**

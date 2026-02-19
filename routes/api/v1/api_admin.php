@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Billing\PlanController;
-use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
@@ -135,26 +134,6 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('plans/{id}', [PlanController::class, 'update']);
         Route::delete('plans/{id}', [PlanController::class, 'delete']);
         Route::put('plans/{id}/reorder', [PlanController::class, 'reorder']);
-
-        // Subscriptions
-        Route::get('subscriptions', [SubscriptionController::class, 'index']);
-        Route::get('subscriptions/{id}', [SubscriptionController::class, 'show']);
-        Route::post('subscriptions', [SubscriptionController::class, 'create']);
-        // Route::put('subscriptions/{id}', [SubscriptionController::class, 'update']);
-        Route::delete('subscriptions/{id}', [SubscriptionController::class, 'delete']);
-        // Route::post('subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
-        Route::post('subscriptions/{id}/renew', [SubscriptionController::class, 'renew']);
-        Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgrade']);
-        Route::post('subscriptions/{id}/pause', [SubscriptionController::class, 'pause']);
-        Route::post('subscriptions/{id}/resume', [SubscriptionController::class, 'resume']);
-        Route::post('subscriptions/{id}/renew-manual', [SubscriptionController::class, 'renewManual']);
-        Route::post('subscriptions/{id}/extend', [SubscriptionController::class, 'extend']);
-
-        // Financial Dashboard
-        Route::get('financial/overview', [\App\Http\Controllers\Billing\FinancialController::class, 'overview']);
-        Route::get('financial/transactions', [\App\Http\Controllers\Billing\FinancialController::class, 'transactions']);
-        Route::get('financial/revenue', [\App\Http\Controllers\Billing\FinancialController::class, 'revenue']);
-        Route::get('financial/subscriptions-stats', [\App\Http\Controllers\Billing\FinancialController::class, 'subscriptionsStats']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);

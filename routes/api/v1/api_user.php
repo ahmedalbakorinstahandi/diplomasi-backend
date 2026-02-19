@@ -1,8 +1,6 @@
 <?php
 
-use App\Http\Controllers\Billing\InvoiceController;
 use App\Http\Controllers\Billing\PlanController;
-use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
@@ -106,22 +104,5 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
 
-        // Subscriptions (Geidea)
-        Route::post('plans/{plan}/subscribe', [SubscriptionController::class, 'startSubscribe']);
-        Route::get('me/subscription', [SubscriptionController::class, 'mySubscription']);
-        Route::get('me/subscription/payment-status/{merchantReference}', [SubscriptionController::class, 'mySubscriptionPaymentStatus']);
-        Route::post('me/subscription/cancel-renewal', [SubscriptionController::class, 'cancelMyRenewal']);
-
-        // Subscription history/details
-        Route::get('subscriptions', [SubscriptionController::class, 'getUserSubscriptions']);
-        Route::get('subscriptions/{id}', [SubscriptionController::class, 'getUserSubscription']);
-        Route::post('subscriptions/{id}/upgrade', [SubscriptionController::class, 'upgradeUser']);
-
-        // Payments/Transactions (user's transaction history)
-        Route::get('payments', [\App\Http\Controllers\Billing\FinancialController::class, 'getUserPayments']);
-
-        // Invoices (display HTML + download PDF)
-        Route::get('invoices/{id}', [InvoiceController::class, 'show']);
-        Route::get('invoices/{id}/download', [InvoiceController::class, 'download']);
     });
 });
