@@ -236,9 +236,12 @@ class PaymentMethodService
 
     protected function refundVerificationIfRequested(int $userId, array $input, SavedPaymentMethod $method): void
     {
-        $shouldRefund = (bool) ($input['refund_verification'] ?? false);
+        $explicitRefundFlag = array_key_exists('refund_verification', $input)
+            ? (bool) $input['refund_verification']
+            : null;
+
         $paymentId = trim((string) ($input['gateway_payment_id'] ?? ''));
-        if (!$shouldRefund || $paymentId === '') {
+        if ($paymentId === '') {
             return;
         }
 
@@ -258,6 +261,15 @@ class PaymentMethodService
             return;
         }
 
+        // Safety fallback: if client omitted refund flag, auto-refund only very small verification amounts.
+        $maxVerificationMinor = (int) env('BILLING_VERIFICATION_REFUND_MAX_MINOR', 100);
+        $autoRefundByAmount = $amount > 0 && $amount <= $maxVerificationMinor;
+        $shouldRefund = $explicitRefundFlag ?? $autoRefundByAmount;
+
+        if (!$shouldRefund) {
+            return;
+        }
+
         $refundResponse = $this->createRefund($paymentId, $amount);
         $meta = is_array($method->meta) ? $method->meta : [];
         $meta['verification_refund'] = [
@@ -265,7 +277,13 @@ class PaymentMethodService
             'amount_minor' => $amount,
             'status_code' => $refundResponse->status(),
             'success' => $refundResponse->successful(),
+            'response' => $refundResponse->json() ?? ['raw' => $refundResponse->body()],
         ];
+        if ($refundResponse->successful()) {
+            $meta['verification_refund']['refunded_at'] = now()->toIso8601String();
+        } else {
+            $meta['verification_refund']['error'] = (string) ($refundResponse->body() ?? 'Unknown refund error');
+        }
         $method->update(['meta' => $meta]);
     }
 
@@ -282,6 +300,17 @@ class PaymentMethodService
             ->post("{$baseUrl}/payments/{$paymentId}/refund", [
                 'amount' => $amountMinor,
             ]);
+
+        // Backward/compat fallback for gateway variants.
+        if ($response->failed()) {
+            $response = Http::acceptJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->withBasicAuth($secretKey, '')
+                ->post("{$baseUrl}/payments/{$paymentId}/refunds", [
+                    'amount' => $amountMinor,
+                ]);
+        }
 
         return $response;
     }

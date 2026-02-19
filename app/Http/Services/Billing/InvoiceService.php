@@ -8,6 +8,7 @@ use App\Models\Users\User;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 use Mpdf\Mpdf;
 
 class InvoiceService
@@ -131,7 +132,18 @@ class InvoiceService
             . '<p><strong>Status:</strong> ' . $invoice->status . '</p>'
             . '<hr/><p>Thank you for using Diplomasi.</p>';
 
-        $mpdf = new Mpdf();
+        $tmpDir = storage_path('app/mpdf/tmp');
+        if (!File::exists($tmpDir)) {
+            File::makeDirectory($tmpDir, 0775, true);
+        }
+
+        if (!is_writable($tmpDir)) {
+            MessageService::abort(500, 'PDF temporary directory is not writable');
+        }
+
+        $mpdf = new Mpdf([
+            'tempDir' => $tmpDir,
+        ]);
         $mpdf->WriteHTML($html);
         $binary = $mpdf->Output('', 'S');
 
