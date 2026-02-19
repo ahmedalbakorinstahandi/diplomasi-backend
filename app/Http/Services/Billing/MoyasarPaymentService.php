@@ -28,6 +28,8 @@ class MoyasarPaymentService
         'verified',
     ];
 
+    protected const FINAL_SUCCESS_STATUSES = ['paid', 'captured'];
+
     public function createCheckoutSession(array $input): array
     {
         $plan = Plan::query()->find($input['plan_id']);
@@ -99,6 +101,10 @@ class MoyasarPaymentService
             'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
         ]);
 
+        if ($transaction->subscription_id === null && in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true)) {
+            $this->activateSubscriptionFromFirstPurchase($transaction);
+        }
+
         return [
             'transaction_id' => $transaction->id,
             'merchant_reference_id' => $transaction->merchant_reference_id,
@@ -106,8 +112,33 @@ class MoyasarPaymentService
             'redirect_url' => $transaction->redirect_url,
             'gateway_status' => $gatewayStatus,
             'status' => $transaction->status,
+            'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
+            'verified' => in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true),
             'expires_at' => null,
         ];
+    }
+
+    public function purchasePlanForUser(int $userId, int $planId): array
+    {
+        $paymentMethod = SavedPaymentMethod::query()
+            ->where('user_id', $userId)
+            ->where('provider', 'moyasar')
+            ->where('status', 'active')
+            ->orderByDesc('is_default')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$paymentMethod) {
+            MessageService::abort(422, 'Default active payment method is required');
+        }
+
+        return $this->createCheckoutSession([
+            'user_id' => $userId,
+            'plan_id' => $planId,
+            'source_type' => 'token',
+            'source_token' => (string) $paymentMethod->token,
+            'callback_url' => rtrim((string) config('app.url'), '/') . '/billing/callback',
+        ]);
     }
 
     public function retryCurrentSubscription(int $userId): array
@@ -127,9 +158,20 @@ class MoyasarPaymentService
             MessageService::abort(404, 'No renewable subscription found for retry');
         }
 
-        $result = $this->attemptRenewal($subscription, 'user_retry');
+        $blockedReason = null;
+        $result = $this->attemptRenewal(
+            subscription: $subscription,
+            trigger: 'user_retry',
+            allowBackoffOverride: true,
+            blockedReason: $blockedReason
+        );
         if (!$result) {
-            MessageService::abort(422, 'Renewal attempt is not currently allowed');
+            MessageService::response([
+                'success' => false,
+                'message' => 'Renewal attempt is not currently allowed',
+                'key' => 'billing.retry.' . ($blockedReason ?? 'unknown'),
+                'reason_code' => $blockedReason ?? 'unknown',
+            ], 422);
         }
 
         return $result;
@@ -164,11 +206,17 @@ class MoyasarPaymentService
         ];
     }
 
-    public function attemptRenewal(Subscription $subscription, string $trigger): ?array
+    public function attemptRenewal(
+        Subscription $subscription,
+        string $trigger,
+        bool $allowBackoffOverride = false,
+        ?string &$blockedReason = null
+    ): ?array
     {
         $subscription->loadMissing('plan');
         $plan = $subscription->plan;
         if (!$plan) {
+            $blockedReason = 'plan_not_found';
             return null;
         }
 
@@ -186,15 +234,23 @@ class MoyasarPaymentService
             ->first();
 
         if ($latestAttempt && $latestAttempt->status === 'paid') {
+            $blockedReason = 'already_paid_for_period';
             return null;
         }
 
         $attemptNo = $latestAttempt ? ((int) $latestAttempt->attempt_no + 1) : 1;
         if ($attemptNo > self::MAX_RENEWAL_ATTEMPTS) {
+            $blockedReason = 'max_attempts_reached';
             return null;
         }
 
-        if ($latestAttempt && $latestAttempt->next_retry_at && Carbon::parse($latestAttempt->next_retry_at)->isFuture()) {
+        if (
+            !$allowBackoffOverride &&
+            $latestAttempt &&
+            $latestAttempt->next_retry_at &&
+            Carbon::parse($latestAttempt->next_retry_at)->isFuture()
+        ) {
+            $blockedReason = 'backoff_not_elapsed';
             return null;
         }
 
@@ -208,6 +264,7 @@ class MoyasarPaymentService
 
         if (!$paymentMethod) {
             $subscription->update(['status' => 'past_due']);
+            $blockedReason = 'no_active_payment_method';
             return null;
         }
 
@@ -337,6 +394,14 @@ class MoyasarPaymentService
         $finalized = in_array($gatewayStatus, self::FINALIZED_STATUSES, true);
         $verified = empty($mismatches) && $gatewayStatus === 'paid';
 
+        if ($finalized && !empty($transaction->provider_payment_id)) {
+            $this->finalizeByGatewayPaymentId(
+                paymentId: (string) $transaction->provider_payment_id,
+                gatewayStatus: $gatewayStatus,
+                rawPayload: $payment
+            );
+        }
+
         return [
             'merchant_reference_id' => (string) $transaction->merchant_reference_id,
             'verified' => $verified,
@@ -391,8 +456,47 @@ class MoyasarPaymentService
                         $subscription->update(['status' => 'past_due']);
                     }
                 }
+            } elseif (in_array($nextStatus, self::FINAL_SUCCESS_STATUSES, true)) {
+                $this->activateSubscriptionFromFirstPurchase($transaction);
             }
         });
+    }
+
+    protected function activateSubscriptionFromFirstPurchase(PaymentTransaction $transaction): void
+    {
+        $plan = Plan::query()->find($transaction->plan_id);
+        if (!$plan) {
+            return;
+        }
+
+        $periodStart = now()->startOfDay();
+        $periodEnd = $this->computeNextEndDate($periodStart->copy()->subDay(), (string) $plan->interval);
+
+        $subscription = Subscription::query()
+            ->where('user_id', $transaction->user_id)
+            ->orderByDesc('id')
+            ->first();
+
+        $payload = [
+            'plan_id' => (int) $plan->id,
+            'status' => 'active',
+            'start_date' => $periodStart->toDateString(),
+            'end_date' => $periodEnd->toDateString(),
+            'price' => (string) $plan->price,
+            'currency' => strtoupper((string) config('services.moyasar.currency', 'SAR')),
+            'auto_renew' => true,
+            'cancel_at_period_end' => false,
+            'canceled_at' => null,
+        ];
+
+        if ($subscription) {
+            $subscription->update($payload);
+        } else {
+            Subscription::query()->create([
+                'user_id' => (int) $transaction->user_id,
+                ...$payload,
+            ]);
+        }
     }
 
     protected function fetchPayment(string $paymentId): array

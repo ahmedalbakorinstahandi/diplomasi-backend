@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Billing\PurchasePlanRequest;
 use App\Http\Services\Billing\MoyasarPaymentService;
 use App\Http\Services\Billing\SubscriptionManagementService;
 use App\Services\ResponseService;
@@ -53,6 +54,20 @@ class SubscriptionController extends Controller
     public function retryPayment(Request $request)
     {
         $result = $this->moyasarPaymentService->retryCurrentSubscription((int) $request->user()->id);
+
+        return ResponseService::response([
+            'success' => true,
+            'status' => 200,
+            'data' => $result,
+        ]);
+    }
+
+    public function purchasePlan(PurchasePlanRequest $request)
+    {
+        $result = $this->moyasarPaymentService->purchasePlanForUser(
+            userId: (int) $request->user()->id,
+            planId: (int) $request->validated('plan_id')
+        );
 
         return ResponseService::response([
             'success' => true,
