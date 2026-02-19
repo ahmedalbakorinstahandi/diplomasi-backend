@@ -84,6 +84,57 @@ class PaymentMethodService
         return $method->fresh();
     }
 
+    public function setDefaultForUser(int $userId, int $methodId): SavedPaymentMethod
+    {
+        $method = SavedPaymentMethod::query()
+            ->where('id', $methodId)
+            ->where('user_id', $userId)
+            ->where('provider', 'moyasar')
+            ->first();
+
+        if (!$method) {
+            MessageService::abort(404, 'Payment method not found');
+        }
+
+        SavedPaymentMethod::query()
+            ->where('user_id', $userId)
+            ->where('provider', 'moyasar')
+            ->update(['is_default' => false]);
+
+        $method->update(['is_default' => true]);
+
+        return $method->fresh();
+    }
+
+    public function deleteForUser(int $userId, int $methodId): void
+    {
+        $method = SavedPaymentMethod::query()
+            ->where('id', $methodId)
+            ->where('user_id', $userId)
+            ->where('provider', 'moyasar')
+            ->first();
+
+        if (!$method) {
+            MessageService::abort(404, 'Payment method not found');
+        }
+
+        $wasDefault = (bool) $method->is_default;
+        $method->delete();
+
+        if ($wasDefault) {
+            $replacement = SavedPaymentMethod::query()
+                ->where('user_id', $userId)
+                ->where('provider', 'moyasar')
+                ->where('status', 'active')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($replacement) {
+                $replacement->update(['is_default' => true]);
+            }
+        }
+    }
+
     protected function resolveMethodInput(int $userId, array $input): array
     {
         $token = trim((string) ($input['token'] ?? ''));

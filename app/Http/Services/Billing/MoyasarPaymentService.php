@@ -120,6 +120,19 @@ class MoyasarPaymentService
 
     public function purchasePlanForUser(int $userId, int $planId): array
     {
+        $activeSubscription = Subscription::query()
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->first();
+        if ($activeSubscription) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Current subscription is still active',
+                'key' => 'billing.purchase.active_subscription_exists',
+            ], 422);
+        }
+
         $paymentMethod = SavedPaymentMethod::query()
             ->where('user_id', $userId)
             ->where('provider', 'moyasar')
@@ -129,7 +142,11 @@ class MoyasarPaymentService
             ->first();
 
         if (!$paymentMethod) {
-            MessageService::abort(422, 'Default active payment method is required');
+            MessageService::response([
+                'success' => false,
+                'message' => 'Default active payment method is required',
+                'key' => 'billing.purchase.no_active_payment_method',
+            ], 422);
         }
 
         return $this->createCheckoutSession([

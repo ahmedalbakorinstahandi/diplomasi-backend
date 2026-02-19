@@ -35,5 +35,27 @@ class PaymentMethodController extends Controller
             'data' => $method,
         ]);
     }
+
+    public function setDefault(Request $request, int $id)
+    {
+        $method = $this->paymentMethodService->setDefaultForUser((int) $request->user()->id, $id);
+
+        return ResponseService::response([
+            'success' => true,
+            'status' => 200,
+            'data' => $method,
+        ]);
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        $this->paymentMethodService->deleteForUser((int) $request->user()->id, $id);
+
+        return ResponseService::response([
+            'success' => true,
+            'status' => 200,
+            'data' => null,
+        ]);
+    }
 }
 
