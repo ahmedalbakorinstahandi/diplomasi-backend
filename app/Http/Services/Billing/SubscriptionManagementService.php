@@ -12,7 +12,7 @@ class SubscriptionManagementService
         $subscription = $this->getCurrentUserSubscription($userId);
 
         if (!$subscription) {
-            MessageService::abort(404, 'Active subscription was not found');
+            MessageService::abort(404, 'Subscription was not found');
         }
 
         return $subscription;
@@ -20,7 +20,7 @@ class SubscriptionManagementService
 
     public function cancelAtPeriodEnd(int $userId): Subscription
     {
-        $subscription = $this->getCurrentUserSubscription($userId);
+        $subscription = $this->getManageableUserSubscription($userId);
         if (!$subscription) {
             MessageService::abort(404, 'Active subscription was not found');
         }
@@ -36,7 +36,7 @@ class SubscriptionManagementService
 
     public function resumeAutoRenew(int $userId): Subscription
     {
-        $subscription = $this->getCurrentUserSubscription($userId);
+        $subscription = $this->getManageableUserSubscription($userId);
         if (!$subscription) {
             MessageService::abort(404, 'Active subscription was not found');
         }
@@ -54,8 +54,16 @@ class SubscriptionManagementService
     {
         return Subscription::query()
             ->where('user_id', $userId)
+            ->whereIn('status', ['active', 'past_due', 'expired'])
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    protected function getManageableUserSubscription(int $userId): ?Subscription
+    {
+        return Subscription::query()
+            ->where('user_id', $userId)
             ->whereIn('status', ['active', 'past_due'])
-            ->whereDate('end_date', '>=', now()->toDateString())
             ->orderByDesc('id')
             ->first();
     }

@@ -270,6 +270,8 @@ class MoyasarPaymentService
                 'merchant_reference_id' => $transaction->merchant_reference_id,
                 'gateway_status' => 'failed',
                 'status' => $transaction->status,
+                'finalized' => true,
+                'verified' => false,
             ];
         }
 
@@ -300,6 +302,8 @@ class MoyasarPaymentService
             'gateway_payment_id' => $transaction->provider_payment_id,
             'gateway_status' => $gatewayStatus,
             'status' => $transaction->status,
+            'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
+            'verified' => $status === 'paid',
         ];
     }
 
@@ -312,7 +316,7 @@ class MoyasarPaymentService
             ->first();
 
         if (!$transaction) {
-            MessageService::abort(404, 'Unknown payment transaction');
+            MessageService::abort(404, 'Payment transaction not found');
         }
 
         if (empty($transaction->provider_payment_id)) {
@@ -334,23 +338,10 @@ class MoyasarPaymentService
         $verified = empty($mismatches) && $gatewayStatus === 'paid';
 
         return [
+            'merchant_reference_id' => (string) $transaction->merchant_reference_id,
             'verified' => $verified,
             'finalized' => $finalized,
             'gateway_status' => $gatewayStatus,
-            'mismatches' => $mismatches,
-            'expected' => [
-                'plan_id' => (int) $transaction->plan_id,
-                'amount_minor' => (int) $transaction->amount_minor,
-                'currency' => strtoupper((string) $transaction->currency),
-                'merchant_reference_id' => (string) $transaction->merchant_reference_id,
-            ],
-            'payment' => [
-                'id' => $payment['id'] ?? null,
-                'status' => $payment['status'] ?? null,
-                'amount' => $payment['amount'] ?? null,
-                'currency' => $payment['currency'] ?? null,
-                'source_type' => $payment['source']['type'] ?? null,
-            ],
         ];
     }
 

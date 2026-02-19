@@ -9,7 +9,8 @@ class StorePaymentMethodRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'token' => 'required|string|max:191',
+            'token' => 'nullable|string|max:191|required_without:gateway_payment_id',
+            'gateway_payment_id' => 'nullable|string|max:191|required_without:token',
             'status' => 'nullable|string|in:active,inactive',
             'brand' => 'nullable|string|max:30',
             'last4' => 'nullable|string|max:4',
