@@ -6,6 +6,7 @@ use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Plan;
 use App\Models\Billing\SavedPaymentMethod;
 use App\Models\Billing\Subscription;
+use App\Http\Services\Billing\PaymentMethodService;
 use App\Services\MessageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Client\Response;
@@ -15,6 +16,10 @@ use Illuminate\Support\Str;
 
 class MoyasarPaymentService
 {
+    public function __construct(
+        protected PaymentMethodService $paymentMethodService
+    ) {}
+
     protected const MAX_RENEWAL_ATTEMPTS = 3;
     protected const RETRY_BACKOFF_MINUTES = [1440, 4320];
 
@@ -156,6 +161,110 @@ class MoyasarPaymentService
             'source_token' => (string) $paymentMethod->token,
             'callback_url' => rtrim((string) config('app.url'), '/') . '/billing/callback',
         ]);
+    }
+
+    public function purchasePlanWithGatewayPayment(
+        int $userId,
+        int $planId,
+        string $gatewayPaymentId,
+        array $paymentMethodInput = []
+    ): array {
+        $activeSubscription = Subscription::query()
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->first();
+        if ($activeSubscription) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Current subscription is still active',
+                'key' => 'billing.purchase.active_subscription_exists',
+            ], 422);
+        }
+
+        $plan = Plan::query()->find($planId);
+        if (!$plan) {
+            MessageService::abort(404, 'messages.plan.not_found');
+        }
+
+        $payment = $this->fetchPayment($gatewayPaymentId);
+        $gatewayStatus = (string) ($payment['status'] ?? '');
+        $currency = strtoupper((string) config('services.moyasar.currency', 'SAR'));
+        $expectedAmountMinor = $this->toMinorUnits((string) $plan->price, $currency);
+        $actualAmountMinor = (int) ($payment['amount'] ?? -1);
+        $actualCurrency = strtoupper((string) ($payment['currency'] ?? ''));
+        if ($actualAmountMinor !== $expectedAmountMinor || $actualCurrency !== $currency) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Gateway payment amount/currency mismatch',
+                'key' => 'billing.purchase.amount_currency_mismatch',
+            ], 422);
+        }
+
+        $transaction = PaymentTransaction::query()
+            ->where('provider', 'moyasar')
+            ->where('provider_payment_id', $gatewayPaymentId)
+            ->first();
+
+        if (!$transaction) {
+            $transaction = PaymentTransaction::query()->create([
+                'user_id' => $userId,
+                'plan_id' => (int) $plan->id,
+                'subscription_id' => null,
+                'merchant_reference_id' => (string) ($payment['metadata']['merchant_reference_id'] ?? Str::uuid()),
+                'given_id' => (string) ($payment['given_id'] ?? Str::uuid()),
+                'provider' => 'moyasar',
+                'provider_payment_id' => $gatewayPaymentId,
+                'amount_minor' => $expectedAmountMinor,
+                'currency' => $currency,
+                'status' => 'pending',
+            ]);
+        } else {
+            if ((int) $transaction->user_id !== $userId) {
+                MessageService::abort(404, 'Payment transaction not found');
+            }
+            $transaction->update([
+                'plan_id' => (int) $plan->id,
+                'amount_minor' => $expectedAmountMinor,
+                'currency' => $currency,
+            ]);
+        }
+
+        $mappedStatus = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $transaction->update([
+            'gateway_status' => $gatewayStatus,
+            'status' => $mappedStatus,
+            'raw_response' => $this->sanitizeGatewayResponse($payment),
+            'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
+        ]);
+
+        $methodPayload = array_filter([
+            'token' => $paymentMethodInput['token'] ?? null,
+            'gateway_payment_id' => $gatewayPaymentId,
+            'status' => $paymentMethodInput['status'] ?? 'active',
+            'brand' => $paymentMethodInput['brand'] ?? null,
+            'last4' => $paymentMethodInput['last4'] ?? null,
+            'exp_month' => $paymentMethodInput['exp_month'] ?? null,
+            'exp_year' => $paymentMethodInput['exp_year'] ?? null,
+            'is_default' => $paymentMethodInput['is_default'] ?? true,
+            'refund_verification' => false,
+            'meta' => $paymentMethodInput['meta'] ?? null,
+        ], fn ($v) => $v !== null);
+        $this->paymentMethodService->storeForUser($userId, $methodPayload);
+
+        if (in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true)) {
+            $this->activateSubscriptionFromFirstPurchase($transaction->fresh());
+        }
+
+        return [
+            'transaction_id' => $transaction->id,
+            'merchant_reference_id' => $transaction->merchant_reference_id,
+            'gateway_payment_id' => $transaction->provider_payment_id,
+            'gateway_status' => $gatewayStatus,
+            'status' => $mappedStatus,
+            'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
+            'verified' => in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true),
+        ];
     }
 
     public function retryCurrentSubscription(int $userId): array

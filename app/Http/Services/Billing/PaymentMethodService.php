@@ -28,6 +28,7 @@ class PaymentMethodService
             'exp_month' => $method->exp_month,
             'exp_year' => $method->exp_year,
             'is_default' => (bool) $method->is_default,
+            'verification_refund' => is_array($method->meta) ? ($method->meta['verification_refund'] ?? null) : null,
             'created_at' => optional($method->created_at)->toIso8601String(),
         ])->values();
 

@@ -7,15 +7,9 @@ use App\Services\MessageService;
 
 class SubscriptionManagementService
 {
-    public function currentForUser(int $userId): Subscription
+    public function currentForUser(int $userId): ?Subscription
     {
-        $subscription = $this->getCurrentUserSubscription($userId);
-
-        if (!$subscription) {
-            MessageService::abort(404, 'Subscription was not found');
-        }
-
-        return $subscription;
+        return $this->getCurrentUserSubscription($userId);
     }
 
     public function cancelAtPeriodEnd(int $userId): Subscription

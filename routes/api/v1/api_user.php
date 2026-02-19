@@ -120,6 +120,7 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('billing/payments', [BillingHistoryController::class, 'payments']);
         Route::get('billing/subscription', [SubscriptionController::class, 'current']);
         Route::post('billing/subscription/purchase', [SubscriptionController::class, 'purchasePlan']);
+        Route::post('billing/subscription/purchase-with-payment', [SubscriptionController::class, 'purchasePlanWithPayment']);
         Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
         Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
         Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
