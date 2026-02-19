@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\MoyasarWebhookController;
 use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\ImageController;
 use App\Http\Controllers\System\SettingController;
@@ -16,4 +17,7 @@ Route::group(['prefix' => 'general'], function () {
 
     // Certificate Verification (Public)
     Route::get('certificates/verify/{certificateCode}', [CertificateController::class, 'verify']);
+
+    // Payment Webhooks (Public)
+    Route::post('billing/webhooks/moyasar', [MoyasarWebhookController::class, 'receive']);
 });

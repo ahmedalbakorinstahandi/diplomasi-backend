@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Billing\PlanController;
+use App\Http\Controllers\Billing\MoyasarPaymentController;
+use App\Http\Controllers\Billing\PaymentMethodController;
+use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
@@ -103,6 +106,15 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
         Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
+
+        // Billing
+        Route::post('billing/payments/verify', [MoyasarPaymentController::class, 'verify']);
+        Route::get('billing/payment-methods', [PaymentMethodController::class, 'index']);
+        Route::post('billing/payment-methods', [PaymentMethodController::class, 'store']);
+        Route::get('billing/subscription', [SubscriptionController::class, 'current']);
+        Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
+        Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
+        Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
 
     });
 });
