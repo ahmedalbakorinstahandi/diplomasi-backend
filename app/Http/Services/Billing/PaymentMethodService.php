@@ -81,6 +81,8 @@ class PaymentMethodService
             }
         }
 
+        $this->refundVerificationIfRequested($userId, $input, $method);
+
         return $method->fresh();
     }
 
@@ -229,6 +231,58 @@ class PaymentMethodService
         }
 
         return $response->json() ?? [];
+    }
+
+    protected function refundVerificationIfRequested(int $userId, array $input, SavedPaymentMethod $method): void
+    {
+        $shouldRefund = (bool) ($input['refund_verification'] ?? false);
+        $paymentId = trim((string) ($input['gateway_payment_id'] ?? ''));
+        if (!$shouldRefund || $paymentId === '') {
+            return;
+        }
+
+        $payment = $this->fetchGatewayPayment($paymentId);
+        $metadata = is_array($payment['metadata'] ?? null) ? $payment['metadata'] : [];
+        if (array_key_exists('user_id', $metadata) && (int) $metadata['user_id'] !== $userId) {
+            return;
+        }
+
+        $status = strtolower((string) ($payment['status'] ?? ''));
+        if (!in_array($status, ['paid', 'captured'], true)) {
+            return;
+        }
+
+        $amount = (int) ($input['verification_amount_minor'] ?? $payment['amount'] ?? 0);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $refundResponse = $this->createRefund($paymentId, $amount);
+        $meta = is_array($method->meta) ? $method->meta : [];
+        $meta['verification_refund'] = [
+            'requested' => true,
+            'amount_minor' => $amount,
+            'status_code' => $refundResponse->status(),
+            'success' => $refundResponse->successful(),
+        ];
+        $method->update(['meta' => $meta]);
+    }
+
+    protected function createRefund(string $paymentId, int $amountMinor): Response
+    {
+        $baseUrl = rtrim((string) config('services.moyasar.base_url'), '/');
+        $secretKey = (string) config('services.moyasar.secret_key');
+
+        /** @var Response $response */
+        $response = Http::acceptJson()
+            ->connectTimeout(5)
+            ->timeout(10)
+            ->withBasicAuth($secretKey, '')
+            ->post("{$baseUrl}/payments/{$paymentId}/refund", [
+                'amount' => $amountMinor,
+            ]);
+
+        return $response;
     }
 }
 

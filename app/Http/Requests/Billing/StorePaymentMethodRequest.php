@@ -17,6 +17,8 @@ class StorePaymentMethodRequest extends BaseFormRequest
             'exp_month' => 'nullable|integer|min:1|max:12',
             'exp_year' => 'nullable|integer|min:2000|max:9999',
             'is_default' => 'nullable|boolean',
+            'refund_verification' => 'nullable|boolean',
+            'verification_amount_minor' => 'nullable|integer|min:1',
             'meta' => 'nullable|array',
         ];
     }
