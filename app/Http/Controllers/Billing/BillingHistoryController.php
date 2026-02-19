@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Billing\InvoiceResource;
+use App\Http\Resources\Billing\PaymentTransactionResource;
 use App\Http\Services\Billing\InvoiceService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
@@ -16,6 +18,7 @@ class BillingHistoryController extends Controller
     public function invoices(Request $request)
     {
         $items = $this->invoiceService->listForUser(
+            (int) $request->user()->id,
             $request->all()
         );
 
@@ -24,27 +27,27 @@ class BillingHistoryController extends Controller
             'status' => 200,
             'data' => $items,
             'meta' => true,
+            'resource' => InvoiceResource::class,
         ]);
     }
 
     public function payments(Request $request)
     {
-        $items = $this->invoiceService->listPaymentsForUser($request->all());
+        $items = $this->invoiceService->listPaymentsForUser((int) $request->user()->id, $request->all());
 
         return ResponseService::response([
             'success' => true,
             'status' => 200,
             'data' => $items,
             'meta' => true,
+            'resource' => PaymentTransactionResource::class,
         ]);
     }
 
     public function showInvoice(Request $request, int $id)
     {
         $invoice = $this->invoiceService->findUserInvoice((int) $request->user()->id, $id);
-
-
-        $data = $invoice->toArray();
+        $data = (new InvoiceResource($invoice))->toArray($request);
         if ($request->boolean('include_pdf')) {
             $data['pdf_base64'] = base64_encode($this->invoiceService->getPdfBinary($invoice));
         }

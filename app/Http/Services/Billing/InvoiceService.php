@@ -12,11 +12,12 @@ use Mpdf\Mpdf;
 
 class InvoiceService
 {
-    public function listForUser(array $filters = [])
+    public function listForUser(int $userId, array $filters = [])
     {
         $query = Invoice::query()
+            ->where('user_id', $userId)
             ->with(['paymentTransaction'])
-            ->orderByDesc('issued_at');
+            ->orderByDesc('id');
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
         $filters['sort_field'] = $filters['sort_field'] ?? 'issued_at';
@@ -25,19 +26,21 @@ class InvoiceService
         $invoices = FilterService::applyFilters(
             $query,
             $filters,
-            ['user_id', 'subscription_id', 'payment_transaction_id'],
-            ['amount_minor', 'currency'],
-            ['issued_at_from', 'issued_at_to', 'due_at', 'paid_at'],
-            ['invoice_number'],
-            ['status']
+            ['invoice_number', 'currency', 'status'],
+            ['amount_minor', 'subscription_id', 'payment_transaction_id'],
+            ['issued_at', 'due_at', 'paid_at', 'created_at'],
+            ['invoice_number', 'status', 'currency'],
+            ['status', 'currency']
         );
 
         return $invoices;
     }
 
-    public function listPaymentsForUser(array $filters = [])
+    public function listPaymentsForUser(int $userId, array $filters = [])
     {
         $query = PaymentTransaction::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('finalized_at')
             ->with(['invoice'])
             ->orderByDesc('id');
 
@@ -48,24 +51,22 @@ class InvoiceService
         $payments = FilterService::applyFilters(
             $query,
             $filters,
-            ['provider', 'currency', 'attempt_no'],
-            ['amount_minor'],
-            ['billing_period_start', 'billing_period_end', 'finalized_at_from', 'finalized_at_to', 'finalized_at', 'next_retry_at'],
-            ['user_id', 'plan_id', 'subscription_id', 'merchant_reference_id', 'given_id'],
-            ['provider_payment_id', 'gateway_status', 'status'],
+            ['merchant_reference_id', 'given_id', 'provider_payment_id', 'gateway_status', 'status', 'currency', 'provider'],
+            ['amount_minor', 'attempt_no', 'plan_id', 'subscription_id'],
+            ['billing_period_start', 'billing_period_end', 'finalized_at', 'verified_at', 'next_retry_at', 'created_at'],
+            ['provider', 'status', 'gateway_status', 'currency', 'plan_id', 'subscription_id'],
+            ['status', 'gateway_status', 'currency', 'provider'],
         );
 
         return $payments;
     }
 
-    public function findUserInvoice(int $invoiceId): ?Invoice
+    public function findUserInvoice(int $userId, int $invoiceId): ?Invoice
     {
-
-        $user = User::auth();
-
         $invoice = Invoice::query()
-            ->where('user_id', $user->id)
+            ->where('user_id', $userId)
             ->where('id', $invoiceId)
+            ->with(['paymentTransaction'])
             ->first();
 
         if (!$invoice) {
