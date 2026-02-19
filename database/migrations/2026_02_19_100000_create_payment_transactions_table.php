@@ -37,17 +37,17 @@ return new class extends Migration
             $table->json('raw_response')->nullable();
             $table->timestamps();
 
-            $table->unique('merchant_reference_id');
-            $table->unique('given_id');
-            $table->unique(['provider', 'provider_payment_id']);
+            $table->unique('merchant_reference_id', 'pt_merchant_ref_uniq');
+            $table->unique('given_id', 'pt_given_id_uniq');
+            $table->unique(['provider', 'provider_payment_id'], 'pt_provider_payment_uniq');
 
-            $table->index(['user_id', 'status']);
-            $table->index(['plan_id', 'status']);
-            $table->index(['subscription_id']);
-            $table->index(['provider', 'status']);
-            $table->index(['next_retry_at']);
-            $table->index(['billing_period_start', 'billing_period_end']);
-            $table->index(['finalized_at']);
+            $table->index(['user_id', 'status'], 'pt_user_status_idx');
+            $table->index(['plan_id', 'status'], 'pt_plan_status_idx');
+            $table->index(['subscription_id'], 'pt_subscription_idx');
+            $table->index(['provider', 'status'], 'pt_provider_status_idx');
+            $table->index(['next_retry_at'], 'pt_next_retry_idx');
+            $table->index(['billing_period_start', 'billing_period_end'], 'pt_billing_period_idx');
+            $table->index(['finalized_at'], 'pt_finalized_idx');
         });
     }
 
@@ -56,4 +56,3 @@ return new class extends Migration
         Schema::dropIfExists('payment_transactions');
     }
 };
-
