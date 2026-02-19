@@ -18,6 +18,10 @@ class InvoiceService
             ->with(['paymentTransaction'])
             ->orderByDesc('issued_at');
 
+        $filters['per_page'] = $filters['per_page'] ?? 20;
+        $filters['sort_field'] = $filters['sort_field'] ?? 'issued_at';
+        $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
+
         $invoices = FilterService::applyFilters(
             $query,
             $filters,
@@ -37,16 +41,18 @@ class InvoiceService
             ->with(['invoice'])
             ->orderByDesc('id');
 
+        $filters['per_page'] = $filters['per_page'] ?? 20;
+        $filters['sort_field'] = $filters['sort_field'] ?? 'id';
+        $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
+
         $payments = FilterService::applyFilters(
             $query,
             $filters,
-            ['user_id', 'plan_id', 'subscription_id', 'merchant_reference_id', 'given_id'],
+            ['provider', 'currency', 'attempt_no'],
             ['amount_minor'],
             ['billing_period_start', 'billing_period_end', 'finalized_at_from', 'finalized_at_to', 'finalized_at', 'next_retry_at'],
-            ['provider', 'currency', 'attempt_no'],
-            ['provider_payment_id', 'gateway_status', 'redirect_url'],
-            ['status']
-
+            ['user_id', 'plan_id', 'subscription_id', 'merchant_reference_id', 'given_id'],
+            ['provider_payment_id', 'gateway_status', 'status'],
         );
 
         return $payments;
