@@ -17,7 +17,4 @@ Route::group(['prefix' => 'general'], function () {
 
     // Certificate Verification (Public)
     Route::get('certificates/verify/{certificateCode}', [CertificateController::class, 'verify']);
-
-    // Payment Webhooks (Public)
-    Route::post('billing/webhooks/moyasar', [MoyasarWebhookController::class, 'receive']);
 });

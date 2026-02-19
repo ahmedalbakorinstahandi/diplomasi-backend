@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\MoyasarWebhookController;
 use App\Http\Middleware\SetLocaleMiddleware;
 use App\Http\Middleware\RequestContextMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -20,4 +21,9 @@ Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddl
 
     // General routes
     require __DIR__ . '/v1/api_general.php';
+
+
+
+    // Payment Webhooks (Public)
+    Route::post('billing/webhooks/moyasar', [MoyasarWebhookController::class, 'receive']);
 });
