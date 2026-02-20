@@ -99,12 +99,12 @@ class AuthService
             'first_name' => $user->first_name,
             'otp' => $otp,
             'minutes' => $minutes,
-        ], $user->language ?? 'en');
+        ], $user->language ?? 'ar');
 
         $this->sendVerificationEmail(
             $user->email,
-            $user->language ?? 'en',
-            __('auth.verification_code_email_subject', [], $user->language ?? 'en'),
+            $user->language ?? 'ar',
+            __('auth.verification_code_email_subject', [], $user->language ?? 'ar'),
             '<p>' . e($message) . '</p>'
         );
 
@@ -183,12 +183,12 @@ class AuthService
             'first_name' => $user->first_name,
             'otp' => $code,
             'minutes' => $minutes,
-        ], $user->language ?? 'en');
+        ], $user->language ?? 'ar');
 
         $this->sendVerificationEmail(
             $user->email,
-            $user->language ?? 'en',
-            __('auth.forgot_password_code_email_subject', [], $user->language ?? 'en'),
+            $user->language ?? 'ar',
+            __('auth.forgot_password_code_email_subject', [], $user->language ?? 'ar'),
             '<p>' . e($message) . '</p>'
         );
 
