@@ -20,6 +20,8 @@ return [
     'login_invalid' => 'Invalid login credentials.',
     'login_success' => 'Login successful.',
     'we_sent_verification_code_to_your_email' => 'We have sent a verification code to your email. Please check your email to activate your account.',
+    'verification_code_email_subject' => 'Your verification code - Diplomasi',
+    'forgot_password_code_email_subject' => 'Password reset code - Diplomasi',
     'account_banned' => 'Your account is banned.',
     'account_not_verified' => 'Your account is not verified.',
     'email_already_exists' => 'This email is already in use.',

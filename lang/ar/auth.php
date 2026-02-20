@@ -19,6 +19,8 @@ return [
     'login_invalid' => 'بيانات الدخول غير صحيحة.',
     'login_success' => 'تم تسجيل الدخول بنجاح.',
     'we_sent_verification_code_to_your_email' => 'لقد أرسلنا رمز التحقق إلى بريدك الإلكتروني. يرجى التحقق من البريد الإلكتروني لتفعيل حسابك.',
+    'verification_code_email_subject' => 'رمز التحقق - Diplomasi',
+    'forgot_password_code_email_subject' => 'رمز إعادة تعيين كلمة المرور - Diplomasi',
     'account_banned' => 'حسابك محظور.',
     'account_not_verified' => 'حسابك غير مفعل.',
     'email_already_exists' => 'البريد الإلكتروني هذا مستخدم بالفعل.',

@@ -2,10 +2,14 @@
 
 namespace App\Http\Services\Auth;
 
+use App\Mail\AccountDeletionCodeMail;
+use App\Mail\VerificationCodeMail;
 use App\Models\Users\Role;
 use App\Models\Users\User;
 use App\Services\MessageService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthService
@@ -91,17 +95,18 @@ class AuthService
             'created_at' => now(),
         ]);
 
-        // Send OTP to phone number
         $message = __('messages.verification.code_message_rigster', [
             'first_name' => $user->first_name,
             'otp' => $otp,
             'minutes' => $minutes,
-        ], $user->language);
+        ], $user->language ?? 'en');
 
-
-        // TODO: Send OTP to email
-        // EmailService::send($data['email'], $message);
-
+        $this->sendVerificationEmail(
+            $user->email,
+            $user->language ?? 'en',
+            __('auth.verification_code_email_subject', [], $user->language ?? 'en'),
+            '<p>' . e($message) . '</p>'
+        );
 
         return [
             'user' => $user,
@@ -174,15 +179,18 @@ class AuthService
             'otp_expire_at' => $otpExpireAt,
         ]);
 
-        // // Send OTP to email
-        // $message = __('messages.verification.code_message_forgot_password', [
-        //     'first_name' => $user->first_name,
-        //     'otp' => $code,
-        //     'minutes' => $minutes,
-        // ], $user->language);
+        $message = __('messages.verification.code_message_forgot_password', [
+            'first_name' => $user->first_name,
+            'otp' => $code,
+            'minutes' => $minutes,
+        ], $user->language ?? 'en');
 
-        // TODO: Send OTP to email
-        // WhatsappMessageService::send($phoneNumber, $message);
+        $this->sendVerificationEmail(
+            $user->email,
+            $user->language ?? 'en',
+            __('auth.forgot_password_code_email_subject', [], $user->language ?? 'en'),
+            '<p>' . e($message) . '</p>'
+        );
 
         return [
             'user' => $user,
@@ -231,16 +239,18 @@ class AuthService
         $minutes = 10;
         $codeExpireAt = now()->addMinutes($minutes);
 
-        // Use existing otp and otp_expire_at fields
         $user->update([
             'otp' => $code,
             'otp_expire_at' => $codeExpireAt,
         ]);
 
-        // TODO: Send email with deletion code
-        // Mail::to($user->email)->send(
-        //     new \App\Mail\AccountDeletionCodeMail($code, $user->first_name, $minutes)
-        // );
+        try {
+            Mail::to($user->email)->send(
+                new AccountDeletionCodeMail($code, $user->first_name, $minutes)
+            );
+        } catch (\Throwable $e) {
+            Log::error('Account deletion code email failed: ' . $e->getMessage());
+        }
 
         return [
             'message' => 'auth.account_deletion_code_sent',
@@ -335,5 +345,17 @@ class AuthService
 
         // Finally, delete the user (soft delete)
         $user->delete();
+    }
+
+    /**
+     * Send verification/OTP email using default mailer (no-reply@).
+     */
+    protected function sendVerificationEmail(string $to, string $locale, string $subject, string $htmlBody): void
+    {
+        try {
+            Mail::to($to)->send(new VerificationCodeMail($subject, $htmlBody));
+        } catch (\Throwable $e) {
+            Log::error('Verification email failed: ' . $e->getMessage());
+        }
     }
 }

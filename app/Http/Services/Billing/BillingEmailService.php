@@ -158,21 +158,13 @@ class BillingEmailService
 
     protected function send(BillingEmailNotification $notification): void
     {
-        config([
-            'mail.default' => 'smtp',
-            'mail.mailers.smtp.host' => env('BILLING_SMTP_HOST', env('MAIL_HOST')),
-            'mail.mailers.smtp.port' => (int) env('BILLING_SMTP_PORT', env('MAIL_PORT', 465)),
-            'mail.mailers.smtp.scheme' => env('BILLING_SMTP_ENCRYPTION', env('MAIL_ENCRYPTION', 'ssl')),
-            'mail.mailers.smtp.username' => env('BILLING_SMTP_USERNAME', env('MAIL_USERNAME')),
-            'mail.mailers.smtp.password' => env('BILLING_SMTP_PASSWORD', env('MAIL_PASSWORD')),
-            'mail.from.address' => env('BILLING_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS')),
-            'mail.from.name' => env('BILLING_MAIL_FROM_NAME', env('MAIL_FROM_NAME', 'Diplomasi')),
-        ]);
-
         $attachments = is_array($notification->attachments) ? $notification->attachments : [];
+        $fromAddress = env('BILLING_MAIL_FROM_ADDRESS', config('mail.from.address'));
+        $fromName = env('BILLING_MAIL_FROM_NAME', config('mail.from.name', 'Diplomasi'));
 
-        Mail::mailer('smtp')->send([], [], function ($message) use ($notification, $attachments) {
-            $message->to($notification->to_email)
+        Mail::mailer('billing')->send([], [], function ($message) use ($notification, $attachments, $fromAddress, $fromName) {
+            $message->from($fromAddress, $fromName)
+                ->to($notification->to_email)
                 ->subject($notification->subject)
                 ->html($notification->content);
 
