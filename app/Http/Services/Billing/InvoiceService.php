@@ -144,11 +144,7 @@ class InvoiceService
         $email = $user?->email ?? '—';
 
         $totalSar = (float) ($invoice->amount_minor / 100);
-        $subtotalSar = round($totalSar / 1.15, 2);
-        $vatSar = round($totalSar - $subtotalSar, 2);
         $amount = number_format($totalSar, 2);
-        $subtotalStr = number_format($subtotalSar, 2);
-        $vatStr = number_format($vatSar, 2);
 
         $plan = $invoice->paymentTransaction?->plan;
         $planName = $plan ? e((string) $plan->name) : '—';
@@ -161,6 +157,7 @@ class InvoiceService
         $currencyAr = strtoupper((string) $invoice->currency) === 'SAR' ? 'ر.س' : e((string) $invoice->currency);
         $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
         $vatReg = config('app.invoice_vat_registration_number');
+        $paymentMethodDisplay = $this->formatPaymentMethodForInvoice($invoice->paymentTransaction);
 
         $logoHtml = $logoUrl
             ? '<img src="' . e($logoUrl) . '" style="height:52px;display:block;" alt="دبلوماسي" />'
@@ -172,19 +169,14 @@ class InvoiceService
             . '</table>'
             . '<table style="width:100%;max-width:600px;margin:20px auto 0;border-collapse:collapse;">'
             . '<tr><td style="padding:6px 12px 6px 0;vertical-align:top;width:33%;"><strong>التاريخ</strong><br/>' . $issuedAt . '</td><td style="padding:6px 12px;vertical-align:top;width:33%;"><strong>تعريف الطلب</strong><br/>' . e((string) $reference) . '</td><td style="padding:6px 0 6px 12px;vertical-align:top;width:34%;"><strong>رقم المستند</strong><br/>' . e($invoice->invoice_number) . '</td></tr>'
-            . '<tr><td style="padding:6px 12px 6px 0;vertical-align:top;"><strong>اسم العميل</strong><br/>' . e($fullName) . '</td><td colspan="2" style="padding:6px 12px 6px 0;vertical-align:top;"><strong>البريد الإلكتروني</strong><br/>' . e($email) . '</td></tr>'
+            . '<tr><td style="padding:6px 12px 6px 0;vertical-align:top;"><strong>اسم العميل</strong><br/>' . e($fullName) . '</td><td style="padding:6px 12px;vertical-align:top;"><strong>البريد الإلكتروني</strong><br/>' . e($email) . '</td><td style="padding:6px 0 6px 12px;vertical-align:top;"><strong>طريقة الدفع</strong><br/>' . $paymentMethodDisplay . '</td></tr>'
             . '</table>'
             . '<table style="width:100%;max-width:600px;margin:24px auto 0;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">'
             . '<tr><td colspan="2" style="padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:700;border-radius:8px 8px 0 0;">دبلوماسي - تفاصيل الاشتراك</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>نوع العملية</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">اشتراك</td></tr>'
-            . '<tr><td style="padding:10px 14px;"><strong>سعر البند</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
-            . '</table>'
-            . '<table style="width:100%;max-width:600px;margin:20px auto 0;border-collapse:collapse;">'
-            . '<tr><td style="padding:6px 0;color:#64748b;">الإجمالي الفرعي</td><td style="padding:6px 0;text-align:left;">' . $subtotalStr . ' ' . $currencyAr . '</td></tr>'
-            . '<tr><td style="padding:6px 0;color:#64748b;">ضريبة القيمة المضافة 15%</td><td style="padding:6px 0;text-align:left;">' . $vatStr . ' ' . $currencyAr . '</td></tr>'
-            . '<tr><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;font-weight:700;">المجموع (شامل ضريبة القيمة المضافة 15%)</td><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;text-align:left;font-weight:700;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>المبلغ (شامل ضريبة القيمة المضافة 15%)</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
             . '</table>'
             . '<p style="margin:20px auto 0;max-width:600px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:10px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
         if ($vatReg) {
@@ -225,5 +217,25 @@ class InvoiceService
     protected function generateInvoiceNumber(): string
     {
         return 'INV-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid('', true), -6));
+    }
+
+    /**
+     * تنسيق وسيلة الدفع للفاتورة: نوع البطاقة + .... + آخر 4 أرقام (مثل فاتورة طليق).
+     */
+    protected function formatPaymentMethodForInvoice(?PaymentTransaction $transaction): string
+    {
+        if (!$transaction || !is_array($transaction->raw_response)) {
+            return '—';
+        }
+        $source = $transaction->raw_response['source'] ?? [];
+        $company = trim((string) ($source['company'] ?? ''));
+        $number = trim((string) ($source['number'] ?? ''));
+        $digits = preg_replace('/\D/', '', $number);
+        $last4 = strlen($digits) >= 4 ? substr($digits, -4) : null;
+        if ($company === '' && $last4 === null) {
+            return '—';
+        }
+        $brand = $company !== '' ? e($company) : 'بطاقة';
+        return $last4 !== null ? $brand . ' .... ' . $last4 : $brand;
     }
 }
