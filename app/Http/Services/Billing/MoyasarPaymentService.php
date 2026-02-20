@@ -4,6 +4,7 @@ namespace App\Http\Services\Billing;
 
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Plan;
+use App\Models\Billing\RefundTransaction;
 use App\Models\Billing\SavedPaymentMethod;
 use App\Models\Billing\Subscription;
 use App\Http\Services\Billing\PaymentMethodService;
@@ -29,6 +30,7 @@ class MoyasarPaymentService
         'authorized',
         'captured',
         'refunded',
+        'partially_refunded',
         'voided',
         'verified',
     ];
@@ -581,7 +583,17 @@ class MoyasarPaymentService
                 ->first();
 
             if (!$transaction) {
-                return;
+                $created = $this->createTransactionFromGatewayPayload($paymentId, $gatewayStatus, $rawPayload);
+                if (!$created) {
+                    return;
+                }
+                $transaction = PaymentTransaction::query()
+                    ->where('id', $created->id)
+                    ->lockForUpdate()
+                    ->first();
+                if (!$transaction) {
+                    return;
+                }
             }
 
             $previousStatus = (string) $transaction->status;
@@ -598,6 +610,15 @@ class MoyasarPaymentService
                 'last_error_message' => $failure['message'],
                 'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
             ]);
+
+            if (in_array($gatewayStatus, ['refunded', 'partially_refunded'], true)) {
+                $this->syncRefundStatusForTransaction($transaction, $gatewayStatus);
+                $transaction = $transaction->fresh();
+                if (!$transaction) {
+                    return;
+                }
+                $nextStatus = (string) $transaction->status;
+            }
 
             if ($transaction->subscription_id) {
                 $subscription = Subscription::query()
@@ -624,6 +645,92 @@ class MoyasarPaymentService
             } elseif (in_array($nextStatus, self::FINAL_SUCCESS_STATUSES, true)) {
                 $this->activateSubscriptionFromFirstPurchase($transaction);
             }
+        });
+    }
+
+    public function processRefundWebhook(array $payload, string $gatewayStatus = 'refunded'): void
+    {
+        $paymentPayload = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
+        $paymentId = $this->toNullableString($paymentPayload['id'] ?? $paymentPayload['payment_id'] ?? null);
+        if (!$paymentId) {
+            $paymentId = $this->toNullableString($paymentPayload['payment']['id'] ?? null);
+        }
+
+        if (!$paymentId) {
+            return;
+        }
+
+        DB::transaction(function () use ($paymentId, $paymentPayload, $payload, $gatewayStatus) {
+            $transaction = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('provider_payment_id', $paymentId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$transaction) {
+                $transaction = $this->createTransactionFromGatewayPayload($paymentId, $gatewayStatus, $payload);
+                if (!$transaction) {
+                    return;
+                }
+            }
+
+            $refundAmountMinor = (int) ($paymentPayload['refund']['amount'] ?? $paymentPayload['amount'] ?? 0);
+            $refundStatus = $gatewayStatus === 'failed' ? 'failed' : 'completed';
+            $failure = $refundStatus === 'failed'
+                ? $this->extractFailureDetails($paymentPayload)
+                : ['code' => null, 'message' => null];
+
+            $refundId = $this->toNullableString($paymentPayload['refund']['id'] ?? null)
+                ?? $this->toNullableString($paymentPayload['refund_id'] ?? null);
+            if (!$refundId) {
+                $refundId = 'webhook-' . $paymentId . '-' . now()->timestamp;
+            }
+
+            $refund = RefundTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('provider_payment_id', $paymentId)
+                ->where(function ($query) use ($refundId) {
+                    $query->where('provider_refund_id', $refundId)
+                        ->orWhereNull('provider_refund_id');
+                })
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
+
+            if (!$refund) {
+                $refund = RefundTransaction::query()->create([
+                    'payment_transaction_id' => (int) $transaction->id,
+                    'provider' => 'moyasar',
+                    'provider_payment_id' => $paymentId,
+                    'provider_refund_id' => $refundId,
+                    'amount_minor' => max(0, $refundAmountMinor),
+                    'currency' => strtoupper((string) ($paymentPayload['currency'] ?? $transaction->currency)),
+                    'status' => $refundStatus,
+                    'gateway_status' => $gatewayStatus,
+                    'error_code' => $failure['code'],
+                    'error_message' => $failure['message'],
+                    'raw_response' => $paymentPayload,
+                    'requested_at' => now(),
+                    'refunded_at' => $refundStatus === 'completed' ? now() : null,
+                    'failed_at' => $refundStatus === 'failed' ? now() : null,
+                ]);
+            } else {
+                $refund->update([
+                    'payment_transaction_id' => (int) $transaction->id,
+                    'provider_refund_id' => $refund->provider_refund_id ?: $refundId,
+                    'amount_minor' => $refundAmountMinor > 0 ? $refundAmountMinor : (int) $refund->amount_minor,
+                    'currency' => strtoupper((string) ($paymentPayload['currency'] ?? $refund->currency ?? $transaction->currency)),
+                    'status' => $refundStatus,
+                    'gateway_status' => $gatewayStatus,
+                    'error_code' => $failure['code'],
+                    'error_message' => $failure['message'],
+                    'raw_response' => $paymentPayload,
+                    'refunded_at' => $refundStatus === 'completed' ? now() : null,
+                    'failed_at' => $refundStatus === 'failed' ? now() : null,
+                ]);
+            }
+
+            $this->syncRefundStatusForTransaction($transaction, $gatewayStatus);
         });
     }
 
@@ -782,6 +889,7 @@ class MoyasarPaymentService
             'failed', 'voided' => 'failed',
             'authorized' => 'authorized',
             'refunded' => 'refunded',
+            'partially_refunded' => 'partially_refunded',
             default => 'pending',
         };
     }
@@ -871,6 +979,90 @@ class MoyasarPaymentService
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    protected function createTransactionFromGatewayPayload(string $paymentId, string $gatewayStatus, array $rawPayload): ?PaymentTransaction
+    {
+        $payment = is_array($rawPayload['data'] ?? null) ? $rawPayload['data'] : $rawPayload;
+        $metadata = is_array($payment['metadata'] ?? null) ? $payment['metadata'] : [];
+        $userId = isset($metadata['user_id']) ? (int) $metadata['user_id'] : 0;
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $planId = isset($metadata['plan_id']) && is_numeric($metadata['plan_id'])
+            ? (int) $metadata['plan_id']
+            : null;
+        $subscriptionId = isset($metadata['subscription_id']) && is_numeric($metadata['subscription_id'])
+            ? (int) $metadata['subscription_id']
+            : null;
+        $status = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $failure = $status === 'failed'
+            ? $this->extractFailureDetails($payment)
+            : ['code' => null, 'message' => null];
+
+        $merchantReferenceId = $this->toNullableString($metadata['merchant_reference_id'] ?? null);
+        if (!$merchantReferenceId || PaymentTransaction::query()->where('merchant_reference_id', $merchantReferenceId)->exists()) {
+            $merchantReferenceId = (string) Str::uuid();
+        }
+
+        $givenId = $this->toNullableString($payment['given_id'] ?? null);
+        if (!$givenId || PaymentTransaction::query()->where('given_id', $givenId)->exists()) {
+            $givenId = (string) Str::uuid();
+        }
+
+        return PaymentTransaction::query()->updateOrCreate(
+            [
+                'provider' => 'moyasar',
+                'provider_payment_id' => $paymentId,
+            ],
+            [
+                'user_id' => $userId,
+                'plan_id' => $planId,
+                'subscription_id' => $subscriptionId,
+                'merchant_reference_id' => $merchantReferenceId,
+                'given_id' => $givenId,
+                'amount_minor' => max(0, (int) ($payment['amount'] ?? 0)),
+                'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR'))),
+                'status' => $status,
+                'gateway_status' => $gatewayStatus,
+                'raw_response' => $this->sanitizeGatewayResponse($payment),
+                'last_error_code' => $failure['code'],
+                'last_error_message' => $failure['message'],
+                'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
+            ]
+        );
+    }
+
+    protected function syncRefundStatusForTransaction(PaymentTransaction $transaction, ?string $fallbackGatewayStatus = null): void
+    {
+        $totalCompletedRefundMinor = (int) RefundTransaction::query()
+            ->where('payment_transaction_id', $transaction->id)
+            ->where('status', 'completed')
+            ->sum('amount_minor');
+
+        if ($totalCompletedRefundMinor <= 0) {
+            return;
+        }
+
+        $amountMinor = (int) $transaction->amount_minor;
+        $isFullyRefunded = $amountMinor > 0 && $totalCompletedRefundMinor >= $amountMinor;
+        $status = $isFullyRefunded ? 'refunded' : 'partially_refunded';
+        $gatewayStatus = $fallbackGatewayStatus ?: $status;
+
+        $raw = is_array($transaction->raw_response) ? $transaction->raw_response : [];
+        $raw['refund_summary'] = [
+            'total_refunded_minor' => $totalCompletedRefundMinor,
+            'is_fully_refunded' => $isFullyRefunded,
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $transaction->update([
+            'status' => $status,
+            'gateway_status' => $gatewayStatus,
+            'raw_response' => $raw,
+            'finalized_at' => now(),
+        ]);
     }
 
     protected function hasPurchaseBlockingSubscription(int $userId): bool

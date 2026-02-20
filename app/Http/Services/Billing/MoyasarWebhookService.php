@@ -53,6 +53,9 @@ class MoyasarWebhookService
 
         if ($isSupportedType && !empty($event->payment_id)) {
             $gatewayStatus = (string) ($payload['data']['status'] ?? $this->mapEventTypeToGatewayStatus((string) $payload['type']));
+            if ((string) $payload['type'] === 'payment_refunded') {
+                $this->moyasarPaymentService->processRefundWebhook($payload, $gatewayStatus);
+            }
             $this->moyasarPaymentService->finalizeByGatewayPaymentId(
                 (string) $event->payment_id,
                 $gatewayStatus,
@@ -104,7 +107,13 @@ class MoyasarWebhookService
 
     protected function extractPaymentId(array $payload): ?string
     {
-        $paymentId = $payload['data']['id'] ?? null;
+        $paymentId = $payload['data']['payment_id'] ?? null;
+        if (!$paymentId) {
+            $paymentId = $payload['data']['payment']['id'] ?? null;
+        }
+        if (!$paymentId) {
+            $paymentId = $payload['data']['id'] ?? null;
+        }
         if (!$paymentId) {
             return null;
         }

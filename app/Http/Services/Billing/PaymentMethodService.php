@@ -2,13 +2,27 @@
 
 namespace App\Http\Services\Billing;
 
+use App\Models\Billing\PaymentTransaction;
+use App\Models\Billing\RefundTransaction;
 use App\Models\Billing\SavedPaymentMethod;
 use App\Services\MessageService;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class PaymentMethodService
 {
+    protected const FINALIZED_PAYMENT_STATUSES = [
+        'paid',
+        'failed',
+        'authorized',
+        'captured',
+        'refunded',
+        'voided',
+        'verified',
+        'partially_refunded',
+    ];
+
     public function listForUser(int $userId)
     {
         $methods = SavedPaymentMethod::query()
@@ -168,6 +182,12 @@ class PaymentMethodService
             MessageService::abort(404, 'Gateway payment not found');
         }
 
+        $this->recordGatewayPaymentAttempt(
+            userId: $userId,
+            paymentId: $paymentId,
+            payment: $payment
+        );
+
         if (!in_array($gatewayStatus, ['paid', 'authorized', 'captured'], true)) {
             MessageService::abort(422, 'Gateway payment is not eligible for saving payment method');
         }
@@ -251,6 +271,12 @@ class PaymentMethodService
             return;
         }
 
+        $paymentTransaction = $this->recordGatewayPaymentAttempt(
+            userId: $userId,
+            paymentId: $paymentId,
+            payment: $payment
+        );
+
         $status = strtolower((string) ($payment['status'] ?? ''));
         if (!in_array($status, ['paid', 'captured'], true)) {
             return;
@@ -287,11 +313,36 @@ class PaymentMethodService
             return;
         }
 
+        $refundTransaction = RefundTransaction::query()->create([
+            'payment_transaction_id' => (int) $paymentTransaction->id,
+            'provider' => 'moyasar',
+            'provider_payment_id' => $paymentId,
+            'amount_minor' => $amount,
+            'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR'))),
+            'status' => 'pending',
+            'gateway_status' => 'pending',
+            'requested_at' => now(),
+        ]);
+
         $refundResponse = $this->createRefund($paymentId, $amount);
+        $refundPayload = $refundResponse->json() ?? [];
+        $refundDetails = $this->extractRefundResponseDetails($refundPayload, $paymentId);
+        $refundStatus = $refundResponse->successful() ? 'processing' : 'failed';
+        $refundTransaction->update([
+            'provider_refund_id' => $refundDetails['refund_id'],
+            'status' => $refundStatus,
+            'gateway_status' => $refundDetails['gateway_status'] ?? ($refundResponse->successful() ? 'pending' : 'failed'),
+            'error_code' => $refundDetails['error_code'],
+            'error_message' => $refundDetails['error_message'],
+            'raw_response' => !empty($refundPayload) ? $refundPayload : ['raw' => $refundResponse->body()],
+            'failed_at' => $refundResponse->successful() ? null : now(),
+        ]);
+
         $meta = is_array($method->meta) ? $method->meta : [];
         $meta['verification_refund'] = [
             'requested' => true,
             'gateway_payment_id' => $paymentId,
+            'refund_transaction_id' => (int) $refundTransaction->id,
             'original_payment_amount_minor' => $paymentAmount,
             'amount_minor' => $amount,
             'status_code' => $refundResponse->status(),
@@ -353,6 +404,146 @@ class PaymentMethodService
         }
 
         return $response;
+    }
+
+    protected function recordGatewayPaymentAttempt(int $userId, string $paymentId, array $payment): PaymentTransaction
+    {
+        $metadata = is_array($payment['metadata'] ?? null) ? $payment['metadata'] : [];
+        $gatewayStatus = strtolower((string) ($payment['status'] ?? ''));
+        $status = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $failure = $status === 'failed'
+            ? $this->extractFailureDetails($payment)
+            : ['code' => null, 'message' => null];
+
+        $planId = isset($metadata['plan_id']) && is_numeric($metadata['plan_id'])
+            ? (int) $metadata['plan_id']
+            : null;
+        $currency = strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR')));
+        $amountMinor = max(0, (int) ($payment['amount'] ?? 0));
+
+        $attributes = [
+            'plan_id' => $planId,
+            'amount_minor' => $amountMinor,
+            'currency' => $currency,
+            'status' => $status,
+            'gateway_status' => $gatewayStatus,
+            'raw_response' => $this->sanitizeGatewayResponse($payment),
+            'last_error_code' => $failure['code'],
+            'last_error_message' => $failure['message'],
+            'finalized_at' => in_array($gatewayStatus, self::FINALIZED_PAYMENT_STATUSES, true) ? now() : null,
+        ];
+
+        $transaction = PaymentTransaction::query()
+            ->where('provider', 'moyasar')
+            ->where('provider_payment_id', $paymentId)
+            ->first();
+
+        if ($transaction) {
+            if ((int) $transaction->user_id !== $userId) {
+                MessageService::abort(404, 'Payment transaction not found');
+            }
+            $transaction->update($attributes);
+
+            return $transaction->fresh();
+        }
+
+        return PaymentTransaction::query()->create([
+            'user_id' => $userId,
+            'plan_id' => $planId,
+            'subscription_id' => null,
+            'merchant_reference_id' => (string) ($metadata['merchant_reference_id'] ?? Str::uuid()),
+            'given_id' => (string) ($payment['given_id'] ?? Str::uuid()),
+            'provider' => 'moyasar',
+            'provider_payment_id' => $paymentId,
+            ...$attributes,
+        ]);
+    }
+
+    protected function mapGatewayStatusToTransactionStatus(string $gatewayStatus): string
+    {
+        return match ($gatewayStatus) {
+            'paid', 'captured' => 'paid',
+            'failed', 'voided' => 'failed',
+            'authorized' => 'authorized',
+            'refunded', 'partially_refunded' => 'refunded',
+            default => 'pending',
+        };
+    }
+
+    protected function sanitizeGatewayResponse(array $payload): array
+    {
+        return [
+            'id' => $payload['id'] ?? null,
+            'status' => $payload['status'] ?? null,
+            'amount' => $payload['amount'] ?? null,
+            'currency' => $payload['currency'] ?? null,
+            'created_at' => $payload['created_at'] ?? null,
+            'metadata' => $payload['metadata'] ?? null,
+            'source' => [
+                'type' => $payload['source']['type'] ?? null,
+                'company' => $payload['source']['company'] ?? null,
+                'number' => $payload['source']['number'] ?? null,
+                'reference_number' => $payload['source']['reference_number'] ?? null,
+                'message' => $payload['source']['message'] ?? null,
+                'response_code' => $payload['source']['response_code'] ?? null,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{code: ?string, message: ?string}
+     */
+    protected function extractFailureDetails(array $payload, ?string $fallbackCode = null, ?string $fallbackMessage = null): array
+    {
+        $source = is_array($payload['source'] ?? null) ? $payload['source'] : [];
+
+        $code = $this->toNullableString($source['response_code'] ?? null)
+            ?? $this->toNullableString($payload['response_code'] ?? null)
+            ?? $this->toNullableString($payload['error']['code'] ?? null)
+            ?? $this->toNullableString($payload['errors']['code'] ?? null)
+            ?? $this->toNullableString($fallbackCode);
+
+        $message = $this->toNullableString($source['message'] ?? null)
+            ?? $this->toNullableString($payload['message'] ?? null)
+            ?? $this->toNullableString($payload['error']['message'] ?? null)
+            ?? $this->toNullableString($fallbackMessage);
+
+        return [
+            'code' => $code,
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * @return array{refund_id: ?string, gateway_status: ?string, error_code: ?string, error_message: ?string}
+     */
+    protected function extractRefundResponseDetails(array $payload, string $paymentId): array
+    {
+        $refundId = $this->toNullableString($payload['id'] ?? null);
+        if ($refundId === $paymentId) {
+            $refundId = $this->toNullableString($payload['refund_id'] ?? null)
+                ?? $this->toNullableString($payload['refund']['id'] ?? null);
+        }
+
+        $error = $this->extractFailureDetails($payload);
+
+        return [
+            'refund_id' => $refundId,
+            'gateway_status' => $this->toNullableString($payload['status'] ?? null),
+            'error_code' => $error['code'],
+            'error_message' => $error['message'],
+        ];
+    }
+
+    protected function toNullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 }
 

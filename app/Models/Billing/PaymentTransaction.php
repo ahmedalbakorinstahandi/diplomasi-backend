@@ -59,5 +59,10 @@ class PaymentTransaction extends Model
     {
         return $this->hasOne(Invoice::class, 'payment_transaction_id');
     }
+
+    public function refunds()
+    {
+        return $this->hasMany(RefundTransaction::class, 'payment_transaction_id');
+    }
 }
 
