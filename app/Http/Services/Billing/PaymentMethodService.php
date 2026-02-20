@@ -279,6 +279,14 @@ class PaymentMethodService
             return;
         }
 
+        $existingMeta = is_array($method->meta) ? $method->meta : [];
+        $existingRefund = is_array($existingMeta['verification_refund'] ?? null)
+            ? $existingMeta['verification_refund']
+            : [];
+        if (($existingRefund['success'] ?? false) === true) {
+            return;
+        }
+
         $refundResponse = $this->createRefund($paymentId, $amount);
         $meta = is_array($method->meta) ? $method->meta : [];
         $meta['verification_refund'] = [
@@ -296,6 +304,10 @@ class PaymentMethodService
             $meta['verification_refund']['error'] = (string) ($refundResponse->body() ?? 'Unknown refund error');
         }
         $method->update(['meta' => $meta]);
+
+        if ($explicitRefundFlag === true && !$refundResponse->successful()) {
+            MessageService::abort(502, 'Card was saved but verification refund failed');
+        }
     }
 
     protected function createRefund(string $paymentId, int $amountMinor): Response
@@ -312,6 +324,15 @@ class PaymentMethodService
                 'amount' => $amountMinor,
             ]);
 
+        // Same payment refund endpoint fallback without amount payload.
+        if ($response->failed()) {
+            $response = Http::acceptJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->withBasicAuth($secretKey, '')
+                ->post("{$baseUrl}/payments/{$paymentId}/refund");
+        }
+
         // Backward/compat fallback for gateway variants.
         if ($response->failed()) {
             $response = Http::acceptJson()
@@ -321,6 +342,14 @@ class PaymentMethodService
                 ->post("{$baseUrl}/payments/{$paymentId}/refunds", [
                     'amount' => $amountMinor,
                 ]);
+        }
+
+        if ($response->failed()) {
+            $response = Http::acceptJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->withBasicAuth($secretKey, '')
+                ->post("{$baseUrl}/payments/{$paymentId}/refunds");
         }
 
         return $response;
