@@ -95,17 +95,12 @@ class AuthService
             'created_at' => now(),
         ]);
 
-        $message = __('messages.verification.code_message_rigster', [
-            'first_name' => $user->first_name,
-            'otp' => $otp,
-            'minutes' => $minutes,
-        ], $user->language ?? 'ar');
-
         $this->sendVerificationEmail(
             $user->email,
-            $user->language ?? 'ar',
-            __('auth.verification_code_email_subject', [], $user->language ?? 'ar'),
-            '<p>' . e($message) . '</p>'
+            $user->first_name,
+            $otp,
+            $minutes,
+            'register'
         );
 
         return [
@@ -179,17 +174,12 @@ class AuthService
             'otp_expire_at' => $otpExpireAt,
         ]);
 
-        $message = __('messages.verification.code_message_forgot_password', [
-            'first_name' => $user->first_name,
-            'otp' => $code,
-            'minutes' => $minutes,
-        ], $user->language ?? 'ar');
-
         $this->sendVerificationEmail(
             $user->email,
-            $user->language ?? 'ar',
-            __('auth.forgot_password_code_email_subject', [], $user->language ?? 'ar'),
-            '<p>' . e($message) . '</p>'
+            $user->first_name,
+            (string) $code,
+            $minutes,
+            'forgot_password'
         );
 
         return [
@@ -245,8 +235,13 @@ class AuthService
         ]);
 
         try {
+            $locale = app()->getLocale();
+            app()->setLocale('ar');
+            $subject = __('auth.account_deletion_code_subject');
+            app()->setLocale($locale);
+
             Mail::to($user->email)->send(
-                new AccountDeletionCodeMail($code, $user->first_name, $minutes)
+                new AccountDeletionCodeMail($subject, $code, $user->first_name, $minutes)
             );
         } catch (\Throwable $e) {
             Log::error('Account deletion code email failed: ' . $e->getMessage());
@@ -348,12 +343,36 @@ class AuthService
     }
 
     /**
-     * Send verification/OTP email using default mailer (no-reply@).
+     * Send verification/OTP email in Arabic only, using default mailer (no-reply@).
+     *
+     * @param  'register'|'forgot_password'  $type
      */
-    protected function sendVerificationEmail(string $to, string $locale, string $subject, string $htmlBody): void
+    protected function sendVerificationEmail(string $to, string $firstName, string $otp, int $minutes, string $type): void
     {
         try {
-            Mail::to($to)->send(new VerificationCodeMail($subject, $htmlBody));
+            $locale = app()->getLocale();
+            app()->setLocale('ar');
+
+            $subject = $type === 'forgot_password'
+                ? __('auth.forgot_password_code_email_subject')
+                : __('auth.verification_code_email_subject');
+            $title = $type === 'forgot_password'
+                ? __('auth.forgot_password_code_email_title')
+                : __('auth.verification_code_email_title');
+            $intro = $type === 'forgot_password'
+                ? __('auth.forgot_password_code_email_intro')
+                : __('auth.verification_code_email_intro');
+
+            app()->setLocale($locale);
+
+            Mail::to($to)->send(new VerificationCodeMail(
+                $subject,
+                $title,
+                $firstName,
+                $intro,
+                $otp,
+                $minutes
+            ));
         } catch (\Throwable $e) {
             Log::error('Verification email failed: ' . $e->getMessage());
         }

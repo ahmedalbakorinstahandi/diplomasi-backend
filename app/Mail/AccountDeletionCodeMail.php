@@ -12,48 +12,24 @@ class AccountDeletionCodeMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $code;
-    public $userName;
-    public $minutes;
+    public function __construct(
+        public string $subjectLine,
+        public string $code,
+        public string $userName,
+        public int $minutes
+    ) {}
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct($code, $userName, $minutes)
-    {
-        $this->code = $code;
-        $this->userName = $userName;
-        $this->minutes = $minutes;
-    }
-
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: __('auth.account_deletion_code_subject', [], app()->getLocale()),
+            subject: $this->subjectLine,
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
             html: 'emails.account_deletion_code',
-            text: 'emails.account_deletion_code',
         );
-    }
-
-    /**
-     * Get the attachments for the message.
-     *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
-     */
-    public function attachments(): array
-    {
-        return [];
     }
 }

@@ -14,7 +14,11 @@ class VerificationCodeMail extends Mailable
 
     public function __construct(
         public string $subjectLine,
-        public string $htmlBody
+        public string $title,
+        public string $firstName,
+        public string $introText,
+        public string $otp,
+        public int $minutes
     ) {}
 
     public function envelope(): Envelope
