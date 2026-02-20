@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Billing;
 
+use App\Services\FileService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,7 @@ class InvoiceResource extends JsonResource
             'due_at' => $this->due_at,
             'paid_at' => $this->paid_at,
             'pdf_path' => $this->pdf_path,
+            'pdf_url' => $this->pdf_path ? FileService::fileUrl((string) $this->pdf_path) : null,
             'meta' => $this->meta,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

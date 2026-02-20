@@ -29,4 +29,33 @@ class FileService
         }
         return false;
     }
+
+    public static function storeContent(string $content, string $path): string
+    {
+        Storage::disk('public')->put($path, $content);
+        return $path;
+    }
+
+    public static function readContent(string $path): ?string
+    {
+        if (!Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return Storage::disk('public')->get($path);
+    }
+
+    public static function fileSize(string $path): int
+    {
+        if (!Storage::disk('public')->exists($path)) {
+            return 0;
+        }
+
+        return (int) Storage::disk('public')->size($path);
+    }
+
+    public static function fileUrl(string $path): string
+    {
+        return asset('storage/' . ltrim($path, '/'));
+    }
 }

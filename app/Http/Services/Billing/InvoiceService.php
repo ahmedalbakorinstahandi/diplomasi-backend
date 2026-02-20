@@ -5,9 +5,9 @@ namespace App\Http\Services\Billing;
 use App\Models\Billing\Invoice;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Users\User;
+use App\Services\FileService;
 use App\Services\FilterService;
 use App\Services\MessageService;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
 use Mpdf\Mpdf;
 
@@ -110,14 +110,8 @@ class InvoiceService
     {
         $needsRegeneration = false;
 
-        if (!$invoice->pdf_path || !Storage::disk('local')->exists($invoice->pdf_path)) {
+        if (!$invoice->pdf_path || FileService::fileSize((string) $invoice->pdf_path) <= 0) {
             $needsRegeneration = true;
-        } else {
-            $currentPath = (string) $invoice->pdf_path;
-            $size = (int) Storage::disk('local')->size($currentPath);
-            if ($size <= 0) {
-                $needsRegeneration = true;
-            }
         }
 
         if ($needsRegeneration) {
@@ -126,12 +120,16 @@ class InvoiceService
             $invoice = $invoice->fresh();
         }
 
-        $binary = (string) Storage::disk('local')->get((string) $invoice->pdf_path);
+        $binary = (string) (FileService::readContent((string) $invoice->pdf_path) ?? '');
         if ($binary === '') {
             $path = $this->buildAndStorePdf($invoice);
             $invoice->update(['pdf_path' => $path]);
             $invoice = $invoice->fresh();
-            $binary = (string) Storage::disk('local')->get((string) $invoice->pdf_path);
+            $binary = (string) (FileService::readContent((string) $invoice->pdf_path) ?? '');
+        }
+
+        if ($binary === '') {
+            MessageService::abort(500, 'Invoice PDF is empty after regeneration');
         }
 
         return $binary;
@@ -171,7 +169,7 @@ class InvoiceService
         }
 
         $path = 'invoices/' . $invoice->invoice_number . '.pdf';
-        Storage::disk('local')->put($path, $binary);
+        FileService::storeContent($binary, $path);
 
         return $path;
     }
