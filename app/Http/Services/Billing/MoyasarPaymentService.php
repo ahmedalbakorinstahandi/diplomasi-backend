@@ -646,6 +646,23 @@ class MoyasarPaymentService
                 $this->activateSubscriptionFromFirstPurchase($transaction);
             }
         });
+
+        // إنشاء الفاتورة فوراً عند اكتمال دفع ناجح (بدون انتظار أمر sync كل 5 دقائق)
+        $finalized = PaymentTransaction::query()
+            ->where('provider', 'moyasar')
+            ->where('provider_payment_id', $paymentId)
+            ->first();
+        if ($finalized && in_array((string) $finalized->status, self::FINAL_SUCCESS_STATUSES, true)) {
+            try {
+                $invoiceService = app(InvoiceService::class);
+                $billingEmailService = app(BillingEmailService::class);
+                $invoice = $invoiceService->issueFromTransaction($finalized);
+                $billingEmailService->queueInvoiceIssued($invoice);
+            } catch (\Throwable $e) {
+                // لا نفشل الويب هوك؛ أمر billing:sync-artifacts يعوّض لاحقاً
+                report($e);
+            }
+        }
     }
 
     public function processRefundWebhook(array $payload, string $gatewayStatus = 'refunded'): void

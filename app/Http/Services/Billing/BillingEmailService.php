@@ -24,19 +24,20 @@ class BillingEmailService
         $customerName = trim((string) ($user->first_name . ' ' . $user->last_name));
         $customerName = $customerName !== '' ? $customerName : 'Customer';
 
+        $customerName = $customerName !== 'Customer' ? $customerName : 'عميلنا';
         BillingEmailNotification::query()->create([
             'user_id' => $user->id,
             'type' => 'invoice_issued',
             'to_email' => $user->email,
-            'subject' => 'Invoice ' . $invoice->invoice_number . ' - Diplomasi',
+            'subject' => 'فاتورة ' . $invoice->invoice_number . ' - Diplomasi',
             'content' => $this->renderEmailLayout(
-                title: 'Your invoice is ready',
-                greeting: 'Hi ' . e($customerName) . ',',
-                bodyHtml: '<p>Thank you for your payment. Your invoice is attached to this email.</p>'
-                    . '<p><strong>Invoice Number:</strong> ' . e($invoice->invoice_number) . '<br/>'
-                    . '<strong>Amount:</strong> ' . e($amount) . ' ' . e((string) $invoice->currency) . '<br/>'
-                    . '<strong>Status:</strong> ' . e((string) $invoice->status) . '</p>',
-                footer: 'If you need support, please contact Diplomasi support team.'
+                title: 'فاتورتك جاهزة',
+                greeting: 'مرحباً ' . e($customerName) . '،',
+                bodyHtml: '<p>تم استلام دفعتك. الفاتورة مرفقة بهذا البريد.</p>'
+                    . '<p><strong>رقم الفاتورة:</strong> ' . e($invoice->invoice_number) . '<br/>'
+                    . '<strong>المبلغ:</strong> ' . e($amount) . ' ' . e((string) $invoice->currency) . '<br/>'
+                    . '<strong>الحالة:</strong> ' . e((string) $invoice->status) . '</p>',
+                footer: 'للاستفسار يرجى التواصل مع فريق دبلوماسي.'
             ),
             'attachments' => $invoice->pdf_path ? [$invoice->pdf_path] : [],
             'payload' => ['invoice_id' => $invoice->id],
@@ -54,53 +55,62 @@ class BillingEmailService
 
         $amount = number_format(((int) $transaction->amount_minor) / 100, 2);
         $customerName = trim((string) ($user->first_name . ' ' . $user->last_name));
-        $customerName = $customerName !== '' ? $customerName : 'Customer';
+        $customerName = $customerName !== '' ? $customerName : 'عميلنا';
 
         $payload = ['payment_transaction_id' => $transaction->id];
         $primaryType = $success ? 'renewal_success' : 'renewal_failed';
+
+        // عند نجاح التجديد: إرفاق الفاتورة كملف PDF في نفس الإيميل
+        $attachments = [];
+        if ($success) {
+            $invoice = Invoice::query()->where('payment_transaction_id', $transaction->id)->first();
+            if ($invoice && $invoice->pdf_path) {
+                $attachments[] = $invoice->pdf_path;
+            }
+        }
 
         BillingEmailNotification::query()->create([
             'user_id' => $user->id,
             'type' => $primaryType,
             'to_email' => $user->email,
             'subject' => $success
-                ? 'Subscription renewed successfully - Diplomasi'
-                : 'Subscription renewal failed - action required',
+                ? 'تم تجديد اشتراكك بنجاح - Diplomasi'
+                : 'فشل تجديد الاشتراك - يرجى التحديث',
             'content' => $success
                 ? $this->renderEmailLayout(
-                    title: 'Renewal completed',
-                    greeting: 'Hi ' . e($customerName) . ',',
-                    bodyHtml: '<p>Your subscription has been renewed successfully.</p>'
-                        . '<p><strong>Reference:</strong> ' . e((string) $transaction->merchant_reference_id) . '<br/>'
-                        . '<strong>Amount:</strong> ' . e($amount) . ' ' . e((string) $transaction->currency) . '</p>',
-                    footer: 'Thank you for staying with Diplomasi.'
+                    title: 'تم التجديد بنجاح',
+                    greeting: 'مرحباً ' . e($customerName) . '،',
+                    bodyHtml: '<p>تم تجديد اشتراكك بنجاح. الفاتورة مرفقة بهذا البريد كملف PDF.</p>'
+                        . '<p><strong>المرجع:</strong> ' . e((string) $transaction->merchant_reference_id) . '<br/>'
+                        . '<strong>المبلغ:</strong> ' . e($amount) . ' ' . e((string) $transaction->currency) . '</p>',
+                    footer: 'شكراً لبقائك مع دبلوماسي.'
                 )
                 : $this->renderEmailLayout(
-                    title: 'We could not renew your subscription',
-                    greeting: 'Hi ' . e($customerName) . ',',
-                    bodyHtml: '<p>We were unable to renew your subscription automatically.</p>'
-                        . '<p>Please update your default payment method, then retry your payment from the app.</p>'
-                        . '<p><strong>Reference:</strong> ' . e((string) $transaction->merchant_reference_id) . '</p>',
-                    footer: 'Your access may be limited if payment is not completed.'
+                    title: 'لم نتمكن من تجديد اشتراكك',
+                    greeting: 'مرحباً ' . e($customerName) . '،',
+                    bodyHtml: '<p>لم نتمكن من خصم مبلغ التجديد تلقائياً.</p>'
+                        . '<p>يرجى تحديث وسيلة الدفع الافتراضية ثم إعادة المحاولة من التطبيق.</p>'
+                        . '<p><strong>المرجع:</strong> ' . e((string) $transaction->merchant_reference_id) . '</p>',
+                    footer: 'قد يُحدّ من وصولك إذا لم تُكمل الدفع.'
                 ),
+            'attachments' => $attachments,
             'payload' => $payload,
             'send_at' => now(),
             'status' => 'pending',
         ]);
 
-        // Scheduled follow-up reminder for failed renewals (large-app standard dunning step).
         if (!$success) {
             BillingEmailNotification::query()->create([
                 'user_id' => $user->id,
                 'type' => 'renewal_failed_reminder',
                 'to_email' => $user->email,
-                'subject' => 'Reminder: your subscription payment is still pending',
+                'subject' => 'تذكير: دفعة اشتراكك لا تزال معلقة - Diplomasi',
                 'content' => $this->renderEmailLayout(
-                    title: 'Payment reminder',
-                    greeting: 'Hi ' . e($customerName) . ',',
-                    bodyHtml: '<p>This is a friendly reminder that your subscription renewal is still unpaid.</p>'
-                        . '<p>Please update your payment method and complete payment to avoid interruption.</p>',
-                    footer: 'If you already paid, please ignore this reminder.'
+                    title: 'تذكير بالدفع',
+                    greeting: 'مرحباً ' . e($customerName) . '،',
+                    bodyHtml: '<p>تذكير بأن تجديد اشتراكك لم يُدفع بعد.</p>'
+                        . '<p>يرجى تحديث وسيلة الدفع وإكمال الدفع لتجنب الانقطاع.</p>',
+                    footer: 'إن كنت قد دفعت مسبقاً، يرجى تجاهل هذا التذكير.'
                 ),
                 'payload' => $payload + ['reminder' => 'd1'],
                 'send_at' => now()->addDay(),
@@ -159,23 +169,29 @@ class BillingEmailService
     protected function send(BillingEmailNotification $notification): void
     {
         $attachments = is_array($notification->attachments) ? $notification->attachments : [];
-        $fromAddress = env('BILLING_MAIL_FROM_ADDRESS', config('mail.from.address'));
-        $fromName = env('BILLING_MAIL_FROM_NAME', config('mail.from.name', 'Diplomasi'));
+        // إرسال من billing@ دائماً (الفاتورة والتجديد)
+        $fromAddress = env('BILLING_MAIL_FROM_ADDRESS') ?: 'billing@diplomasi.app';
+        $fromName = env('BILLING_MAIL_FROM_NAME') ?: 'Diplomasi';
 
         Mail::mailer('billing')->send([], [], function ($message) use ($notification, $attachments, $fromAddress, $fromName) {
             $message->from($fromAddress, $fromName)
+                ->replyTo($fromAddress, $fromName)
                 ->to($notification->to_email)
                 ->subject($notification->subject)
                 ->html($notification->content);
 
             foreach ($attachments as $path) {
-                $fullPath = storage_path('app/' . ltrim((string) $path, '/'));
-                if (!file_exists($fullPath)) {
+                $path = ltrim((string) $path, '/');
+                $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
+                if (!is_file($fullPath)) {
+                    $fullPath = storage_path('app/public/' . $path);
+                }
+                if (!is_file($fullPath)) {
                     continue;
                 }
                 $message->attach($fullPath, [
-                    'as' => basename($fullPath),
-                    'mime' => mime_content_type($fullPath) ?: 'application/pdf',
+                    'as' => basename($path),
+                    'mime' => 'application/pdf',
                 ]);
             }
         });
