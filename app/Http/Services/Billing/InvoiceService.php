@@ -137,18 +137,40 @@ class InvoiceService
 
     protected function buildAndStorePdf(Invoice $invoice): string
     {
+        $invoice->loadMissing(['paymentTransaction.plan']);
         $user = User::query()->find($invoice->user_id);
         $fullName = trim((string) ($user?->first_name . ' ' . $user?->last_name));
-        $fullName = $fullName !== '' ? $fullName : (string) ($user?->email ?? 'Customer');
+        $fullName = $fullName !== '' ? $fullName : (string) ($user?->email ?? 'العميل');
+        $email = $user?->email ?? '—';
 
         $amount = number_format($invoice->amount_minor / 100, 2);
-        $html = '<h1>Diplomasi - Invoice</h1>'
-            . '<p><strong>Invoice #:</strong> ' . $invoice->invoice_number . '</p>'
-            . '<p><strong>Date:</strong> ' . $invoice->issued_at?->toDateString() . '</p>'
-            . '<p><strong>Customer:</strong> ' . $fullName . '</p>'
-            . '<p><strong>Amount:</strong> ' . $amount . ' ' . $invoice->currency . '</p>'
-            . '<p><strong>Status:</strong> ' . $invoice->status . '</p>'
-            . '<hr/><p>Thank you for using Diplomasi.</p>';
+        $plan = $invoice->paymentTransaction?->plan;
+        $planName = $plan ? e((string) $plan->name) : '—';
+        $planInterval = $plan && !empty($plan->interval)
+            ? (str_starts_with(strtolower((string) $plan->interval), 'year') ? 'سنوي' : 'شهري')
+            : '—';
+        $reference = $invoice->paymentTransaction?->merchant_reference_id ?? '—';
+        $issuedAt = $invoice->issued_at?->format('d/m/Y') ?? $invoice->issued_at?->format('Y-m-d') ?? '—';
+        $statusAr = $invoice->status === 'paid' ? 'مدفوعة' : ($invoice->status === 'issued' ? 'صادرة' : e((string) $invoice->status));
+        $currencyAr = strtoupper((string) $invoice->currency) === 'SAR' ? 'ريال سعودي' : e((string) $invoice->currency);
+
+        $html = '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><style>body{direction:rtl;text-align:right;font-family:DejaVu Sans,Tahoma,Arial,sans-serif;}</style></head><body style="font-size:12px;line-height:1.6;color:#1a1a2e;">'
+            . '<div style="max-width:600px;margin:0 auto;padding:24px;">'
+            . '<h1 style="text-align:center;margin:0 0 24px;font-size:20px;color:#1e3a5f;">فاتورة - دبلوماسي</h1>'
+            . '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;direction:rtl;">'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>رقم الفاتورة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($invoice->invoice_number) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>تاريخ الإصدار</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $issuedAt . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>العميل</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($fullName) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>البريد الإلكتروني</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($email) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>مرجع الدفع</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e((string) $reference) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>المبلغ</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>الحالة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $statusAr . '</td></tr>'
+            . '</table>'
+            . '<p style="margin:20px 0 0;padding:12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#64748b;">هذه الفاتورة غير قابلة للاسترداد.</p>'
+            . '<p style="margin:24px 0 0;text-align:center;font-size:11px;color:#94a3b8;">شكراً لاستخدامك دبلوماسي.</p>'
+            . '</div></body></html>';
 
         $tmpDir = storage_path('app/mpdf/tmp');
         if (!File::exists($tmpDir)) {
@@ -161,7 +183,12 @@ class InvoiceService
 
         $mpdf = new Mpdf([
             'tempDir' => $tmpDir,
+            'mode' => 'utf-8',
+            'autoScriptToLang' => true,
+            'autoLangToFont' => true,
+            'autoArabic' => true,
         ]);
+        $mpdf->SetDirectionality('rtl');
         $mpdf->WriteHTML($html);
         $binary = $mpdf->Output('', 'S');
         if ($binary === '') {
