@@ -108,13 +108,33 @@ class InvoiceService
 
     public function getPdfBinary(Invoice $invoice): string
     {
+        $needsRegeneration = false;
+
         if (!$invoice->pdf_path || !Storage::disk('local')->exists($invoice->pdf_path)) {
+            $needsRegeneration = true;
+        } else {
+            $currentPath = (string) $invoice->pdf_path;
+            $size = (int) Storage::disk('local')->size($currentPath);
+            if ($size <= 0) {
+                $needsRegeneration = true;
+            }
+        }
+
+        if ($needsRegeneration) {
             $path = $this->buildAndStorePdf($invoice);
             $invoice->update(['pdf_path' => $path]);
             $invoice = $invoice->fresh();
         }
 
-        return (string) Storage::disk('local')->get((string) $invoice->pdf_path);
+        $binary = (string) Storage::disk('local')->get((string) $invoice->pdf_path);
+        if ($binary === '') {
+            $path = $this->buildAndStorePdf($invoice);
+            $invoice->update(['pdf_path' => $path]);
+            $invoice = $invoice->fresh();
+            $binary = (string) Storage::disk('local')->get((string) $invoice->pdf_path);
+        }
+
+        return $binary;
     }
 
     protected function buildAndStorePdf(Invoice $invoice): string
@@ -146,6 +166,9 @@ class InvoiceService
         ]);
         $mpdf->WriteHTML($html);
         $binary = $mpdf->Output('', 'S');
+        if ($binary === '') {
+            MessageService::abort(500, 'Generated invoice PDF is empty');
+        }
 
         $path = 'invoices/' . $invoice->invoice_number . '.pdf';
         Storage::disk('local')->put($path, $binary);
