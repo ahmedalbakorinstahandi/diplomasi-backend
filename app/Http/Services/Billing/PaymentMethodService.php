@@ -256,8 +256,17 @@ class PaymentMethodService
             return;
         }
 
-        $amount = (int) ($input['verification_amount_minor'] ?? $payment['amount'] ?? 0);
+        $paymentAmount = (int) ($payment['amount'] ?? 0);
+        $amount = (int) ($input['verification_amount_minor'] ?? $paymentAmount);
+        if ($amount > $paymentAmount) {
+            $amount = $paymentAmount;
+        }
         if ($amount <= 0) {
+            return;
+        }
+
+        $purpose = strtolower((string) ($metadata['purpose'] ?? ''));
+        if ($purpose === 'plan_purchase') {
             return;
         }
 
@@ -274,6 +283,8 @@ class PaymentMethodService
         $meta = is_array($method->meta) ? $method->meta : [];
         $meta['verification_refund'] = [
             'requested' => true,
+            'gateway_payment_id' => $paymentId,
+            'original_payment_amount_minor' => $paymentAmount,
             'amount_minor' => $amount,
             'status_code' => $refundResponse->status(),
             'success' => $refundResponse->successful(),

@@ -65,9 +65,12 @@ class SubscriptionController extends Controller
 
     public function purchasePlan(PurchasePlanRequest $request)
     {
+        $validated = $request->validated();
+
         $result = $this->moyasarPaymentService->purchasePlanForUser(
-            userId: (int) $request->user()->id,
-            planId: (int) $request->validated('plan_id')
+            (int) $request->user()->id,
+            (int) $validated['plan_id'],
+            isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null
         );
 
         return ResponseService::response([

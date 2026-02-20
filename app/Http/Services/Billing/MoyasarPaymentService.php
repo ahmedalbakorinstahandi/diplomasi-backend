@@ -79,10 +79,11 @@ class MoyasarPaymentService
         $response = $this->createPayment($payload);
 
         if ($response->failed()) {
+            $failure = $this->extractFailureDetails($response->json() ?? [], (string) $response->status(), 'Create payment failed');
             $transaction->update([
                 'status' => 'failed',
-                'last_error_code' => (string) $response->status(),
-                'last_error_message' => 'Create payment failed',
+                'last_error_code' => $failure['code'],
+                'last_error_message' => $failure['message'],
                 'raw_response' => $response->json(),
                 'finalized_at' => now(),
             ]);
@@ -96,6 +97,9 @@ class MoyasarPaymentService
         $payment = $response->json() ?? [];
         $gatewayStatus = (string) ($payment['status'] ?? '');
         $status = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $failure = $status === 'failed'
+            ? $this->extractFailureDetails($payment)
+            : ['code' => null, 'message' => null];
 
         $transaction->update([
             'provider_payment_id' => $payment['id'] ?? null,
@@ -103,6 +107,8 @@ class MoyasarPaymentService
             'status' => $status,
             'redirect_url' => $payment['source']['transaction_url'] ?? null,
             'raw_response' => $payment,
+            'last_error_code' => $failure['code'],
+            'last_error_message' => $failure['message'],
             'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
         ]);
 
@@ -120,10 +126,12 @@ class MoyasarPaymentService
             'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
             'verified' => in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true),
             'expires_at' => null,
+            'failure_code' => $transaction->last_error_code,
+            'failure_reason' => $transaction->last_error_message,
         ];
     }
 
-    public function purchasePlanForUser(int $userId, int $planId): array
+    public function purchasePlanForUser(int $userId, int $planId, ?int $paymentMethodId = null): array
     {
         if ($this->hasPurchaseBlockingSubscription($userId)) {
             MessageService::response([
@@ -133,13 +141,29 @@ class MoyasarPaymentService
             ], 422);
         }
 
-        $paymentMethod = SavedPaymentMethod::query()
+        $paymentMethodQuery = SavedPaymentMethod::query()
             ->where('user_id', $userId)
             ->where('provider', 'moyasar')
-            ->where('status', 'active')
-            ->orderByDesc('is_default')
-            ->orderByDesc('id')
-            ->first();
+            ->where('status', 'active');
+
+        if ($paymentMethodId !== null) {
+            $paymentMethod = (clone $paymentMethodQuery)
+                ->where('id', $paymentMethodId)
+                ->first();
+
+            if (!$paymentMethod) {
+                MessageService::response([
+                    'success' => false,
+                    'message' => 'Selected payment method is not active or not owned by user',
+                    'key' => 'billing.purchase.invalid_payment_method',
+                ], 422);
+            }
+        } else {
+            $paymentMethod = $paymentMethodQuery
+                ->orderByDesc('is_default')
+                ->orderByDesc('id')
+                ->first();
+        }
 
         if (!$paymentMethod) {
             MessageService::response([
@@ -221,10 +245,15 @@ class MoyasarPaymentService
         }
 
         $mappedStatus = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $failure = $mappedStatus === 'failed'
+            ? $this->extractFailureDetails($payment)
+            : ['code' => null, 'message' => null];
         $transaction->update([
             'gateway_status' => $gatewayStatus,
             'status' => $mappedStatus,
             'raw_response' => $this->sanitizeGatewayResponse($payment),
+            'last_error_code' => $failure['code'],
+            'last_error_message' => $failure['message'],
             'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
         ]);
 
@@ -254,6 +283,8 @@ class MoyasarPaymentService
             'status' => $mappedStatus,
             'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
             'verified' => in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true),
+            'failure_code' => $transaction->last_error_code,
+            'failure_reason' => $transaction->last_error_message,
         ];
     }
 
@@ -422,12 +453,13 @@ class MoyasarPaymentService
 
         $response = $this->createPayment($payload);
         if ($response->failed()) {
+            $failure = $this->extractFailureDetails($response->json() ?? [], (string) $response->status(), 'Create payment failed');
             $nextRetryAt = $this->computeNextRetryAt($attemptNo);
             $transaction->update([
                 'status' => 'failed',
                 'gateway_status' => 'failed',
-                'last_error_code' => (string) $response->status(),
-                'last_error_message' => 'Create payment failed',
+                'last_error_code' => $failure['code'],
+                'last_error_message' => $failure['message'],
                 'raw_response' => $response->json(),
                 'next_retry_at' => $nextRetryAt,
                 'finalized_at' => now(),
@@ -445,12 +477,17 @@ class MoyasarPaymentService
                 'status' => $transaction->status,
                 'finalized' => true,
                 'verified' => false,
+                'failure_code' => $transaction->last_error_code,
+                'failure_reason' => $transaction->last_error_message,
             ];
         }
 
         $payment = $response->json() ?? [];
         $gatewayStatus = (string) ($payment['status'] ?? '');
         $status = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+        $failure = $status === 'failed'
+            ? $this->extractFailureDetails($payment)
+            : ['code' => null, 'message' => null];
 
         $transaction->update([
             'provider_payment_id' => $payment['id'] ?? null,
@@ -458,6 +495,8 @@ class MoyasarPaymentService
             'status' => $status,
             'redirect_url' => $payment['source']['transaction_url'] ?? null,
             'raw_response' => $this->sanitizeGatewayResponse($payment),
+            'last_error_code' => $failure['code'],
+            'last_error_message' => $failure['message'],
             'next_retry_at' => $status === 'failed' ? $this->computeNextRetryAt($attemptNo) : null,
             'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
         ]);
@@ -477,6 +516,8 @@ class MoyasarPaymentService
             'status' => $transaction->status,
             'finalized' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true),
             'verified' => $status === 'paid',
+            'failure_code' => $transaction->last_error_code,
+            'failure_reason' => $transaction->last_error_message,
         ];
     }
 
@@ -516,6 +557,7 @@ class MoyasarPaymentService
                 gatewayStatus: $gatewayStatus,
                 rawPayload: $payment
             );
+            $transaction = $transaction->fresh();
         }
 
         return [
@@ -523,6 +565,8 @@ class MoyasarPaymentService
             'verified' => $verified,
             'finalized' => $finalized,
             'gateway_status' => $gatewayStatus,
+            'failure_code' => $transaction->last_error_code,
+            'failure_reason' => $transaction->last_error_message,
         ];
     }
 
@@ -542,11 +586,16 @@ class MoyasarPaymentService
 
             $previousStatus = (string) $transaction->status;
             $nextStatus = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
+            $failure = $nextStatus === 'failed'
+                ? $this->extractFailureDetails($rawPayload)
+                : ['code' => null, 'message' => null];
 
             $transaction->update([
                 'gateway_status' => $gatewayStatus,
                 'status' => $nextStatus,
                 'raw_response' => !empty($rawPayload) ? $this->sanitizeGatewayResponse($rawPayload) : $transaction->raw_response,
+                'last_error_code' => $failure['code'],
+                'last_error_message' => $failure['message'],
                 'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
             ]);
 
@@ -766,22 +815,62 @@ class MoyasarPaymentService
 
     protected function sanitizeGatewayResponse(array $payload): array
     {
+        $paymentPayload = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
+
         // Keep only non-sensitive fields needed for audit/reconciliation.
         return [
-            'id' => $payload['id'] ?? null,
-            'status' => $payload['status'] ?? null,
-            'amount' => $payload['amount'] ?? null,
-            'currency' => $payload['currency'] ?? null,
-            'created_at' => $payload['created_at'] ?? null,
-            'metadata' => $payload['metadata'] ?? null,
+            'id' => $paymentPayload['id'] ?? null,
+            'status' => $paymentPayload['status'] ?? null,
+            'amount' => $paymentPayload['amount'] ?? null,
+            'currency' => $paymentPayload['currency'] ?? null,
+            'created_at' => $paymentPayload['created_at'] ?? null,
+            'metadata' => $paymentPayload['metadata'] ?? null,
             'source' => [
-                'type' => $payload['source']['type'] ?? null,
-                'company' => $payload['source']['company'] ?? null,
-                'number' => $payload['source']['number'] ?? null,
-                'reference_number' => $payload['source']['reference_number'] ?? null,
-                'message' => $payload['source']['message'] ?? null,
+                'type' => $paymentPayload['source']['type'] ?? null,
+                'company' => $paymentPayload['source']['company'] ?? null,
+                'number' => $paymentPayload['source']['number'] ?? null,
+                'reference_number' => $paymentPayload['source']['reference_number'] ?? null,
+                'message' => $paymentPayload['source']['message'] ?? null,
+                'response_code' => $paymentPayload['source']['response_code'] ?? null,
             ],
         ];
+    }
+
+    /**
+     * @return array{code: ?string, message: ?string}
+     */
+    protected function extractFailureDetails(array $payload, ?string $fallbackCode = null, ?string $fallbackMessage = null): array
+    {
+        $paymentPayload = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
+        $source = is_array($paymentPayload['source'] ?? null) ? $paymentPayload['source'] : [];
+
+        $code = $this->toNullableString($source['response_code'] ?? null)
+            ?? $this->toNullableString($paymentPayload['response_code'] ?? null)
+            ?? $this->toNullableString($paymentPayload['error']['code'] ?? null)
+            ?? $this->toNullableString($payload['errors']['code'] ?? null)
+            ?? $this->toNullableString($fallbackCode);
+
+        $message = $this->toNullableString($source['message'] ?? null)
+            ?? $this->toNullableString($paymentPayload['message'] ?? null)
+            ?? $this->toNullableString($paymentPayload['error']['message'] ?? null)
+            ?? $this->toNullableString($payload['message'] ?? null)
+            ?? $this->toNullableString($fallbackMessage);
+
+        return [
+            'code' => $code,
+            'message' => $message,
+        ];
+    }
+
+    protected function toNullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     protected function hasPurchaseBlockingSubscription(int $userId): bool
