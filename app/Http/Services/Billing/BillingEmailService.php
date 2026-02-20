@@ -20,30 +20,80 @@ class BillingEmailService
             return;
         }
 
-        $amount = number_format(((int) $invoice->amount_minor) / 100, 2);
-        $customerName = trim((string) ($user->first_name . ' ' . $user->last_name));
-        $customerName = $customerName !== '' ? $customerName : 'Customer';
-
-        $customerName = $customerName !== 'Customer' ? $customerName : 'عميلنا';
+        $content = $this->buildInvoiceEmailHtml($invoice, $user);
         BillingEmailNotification::query()->create([
             'user_id' => $user->id,
             'type' => 'invoice_issued',
             'to_email' => $user->email,
-            'subject' => 'فاتورة ' . $invoice->invoice_number . ' - Diplomasi',
-            'content' => $this->renderEmailLayout(
-                title: 'فاتورتك جاهزة',
-                greeting: 'مرحباً ' . e($customerName) . '،',
-                bodyHtml: '<p>تم استلام دفعتك. الفاتورة مرفقة بهذا البريد.</p>'
-                    . '<p><strong>رقم الفاتورة:</strong> ' . e($invoice->invoice_number) . '<br/>'
-                    . '<strong>المبلغ:</strong> ' . e($amount) . ' ' . e((string) $invoice->currency) . '<br/>'
-                    . '<strong>الحالة:</strong> ' . e((string) $invoice->status) . '</p>',
-                footer: 'للاستفسار يرجى التواصل مع فريق دبلوماسي.'
-            ),
+            'subject' => 'فاتورة ' . $invoice->invoice_number . ' - دبلوماسي',
+            'content' => $content,
             'attachments' => $invoice->pdf_path ? [$invoice->pdf_path] : [],
             'payload' => ['invoice_id' => $invoice->id],
             'send_at' => now(),
             'status' => 'pending',
         ]);
+    }
+
+    /**
+     * تصميم إيميل الفاتورة مطابق لتصميم الـ PDF (لوغو، تفاصيل، ضريبة 15%).
+     */
+    protected function buildInvoiceEmailHtml(Invoice $invoice, User $user): string
+    {
+        $invoice->loadMissing(['paymentTransaction.plan']);
+        $fullName = trim((string) ($user->first_name . ' ' . $user->last_name));
+        $fullName = $fullName !== '' ? $fullName : 'عميلنا';
+        $email = $user->email ?? '—';
+
+        $totalSar = (float) ($invoice->amount_minor / 100);
+        $subtotalSar = round($totalSar / 1.15, 2);
+        $vatSar = round($totalSar - $subtotalSar, 2);
+        $amount = number_format($totalSar, 2);
+        $subtotalStr = number_format($subtotalSar, 2);
+        $vatStr = number_format($vatSar, 2);
+
+        $plan = $invoice->paymentTransaction?->plan;
+        $planName = $plan ? e((string) $plan->name) : '—';
+        $planInterval = $plan && !empty($plan->interval)
+            ? (str_starts_with(strtolower((string) $plan->interval), 'year') ? 'سنوي' : 'شهري')
+            : '—';
+        $reference = $invoice->paymentTransaction?->merchant_reference_id ?? '—';
+        $issuedAt = $invoice->issued_at?->format('d/m/Y') ?? '—';
+        $currencyAr = 'ر.س';
+        $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
+        $vatReg = config('app.invoice_vat_registration_number');
+
+        $logoHtml = $logoUrl
+            ? '<img src="' . e($logoUrl) . '" style="height:48px;display:block;" alt="دبلوماسي" />'
+            : '<span style="font-size:22px;font-weight:700;color:#1e3a5f;">دبلوماسي</span>';
+
+        $html = '<div dir="rtl" style="font-family:Arial,Tahoma,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1a1a2e;font-size:14px;line-height:1.5;">'
+            . '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">'
+            . '<tr><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;">' . $logoHtml . '</td><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;text-align:left;"><h1 style="margin:0;font-size:20px;color:#1e3a5f;">الفاتورة</h1></td></tr>'
+            . '</table>'
+            . '<p style="margin:0 0 16px;">مرحباً ' . e($fullName) . '، تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.</p>'
+            . '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;">'
+            . '<tr><td style="padding:6px 12px 6px 0;"><strong>التاريخ</strong></td><td style="padding:6px 12px;"><strong>تعريف الطلب</strong></td><td style="padding:6px 0 6px 12px;"><strong>رقم المستند</strong></td></tr>'
+            . '<tr><td style="padding:6px 12px 6px 0;">' . $issuedAt . '</td><td style="padding:6px 12px;">' . e((string) $reference) . '</td><td style="padding:6px 0 6px 12px;">' . e($invoice->invoice_number) . '</td></tr>'
+            . '<tr><td style="padding:8px 12px 8px 0;"><strong>اسم العميل</strong></td><td colspan="2" style="padding:8px 12px 8px 0;"><strong>البريد الإلكتروني</strong></td></tr>'
+            . '<tr><td style="padding:6px 12px 6px 0;">' . e($fullName) . '</td><td colspan="2" style="padding:6px 12px 6px 0;">' . e($email) . '</td></tr>'
+            . '</table>'
+            . '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px;">'
+            . '<tr><td colspan="2" style="padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:700;border-radius:8px 8px 0 0;">دبلوماسي - تفاصيل الاشتراك</td></tr>'
+            . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>سعر البند</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '</table>'
+            . '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
+            . '<tr><td style="padding:6px 0;color:#64748b;">الإجمالي الفرعي</td><td style="padding:6px 0;text-align:left;">' . $subtotalStr . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:6px 0;color:#64748b;">ضريبة القيمة المضافة 15%</td><td style="padding:6px 0;text-align:left;">' . $vatStr . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;font-weight:700;">المجموع (شامل ضريبة القيمة المضافة 15%)</td><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;text-align:left;font-weight:700;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '</table>'
+            . '<p style="margin:0 0 8px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
+        if ($vatReg) {
+            $html .= '<p style="margin:0 0 16px;font-size:11px;color:#64748b;">رقم تسجيل ضريبة القيمة المضافة في المملكة العربية السعودية: ' . e($vatReg) . '</p>';
+        }
+        $html .= '<p style="margin:0;text-align:center;font-size:12px;color:#94a3b8;">شكراً لاستخدامك دبلوماسي.</p></div>';
+        return $html;
     }
 
     public function queueRenewalStatus(PaymentTransaction $transaction, bool $success): void

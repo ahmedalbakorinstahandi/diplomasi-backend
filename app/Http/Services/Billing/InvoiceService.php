@@ -143,7 +143,13 @@ class InvoiceService
         $fullName = $fullName !== '' ? $fullName : (string) ($user?->email ?? 'العميل');
         $email = $user?->email ?? '—';
 
-        $amount = number_format($invoice->amount_minor / 100, 2);
+        $totalSar = (float) ($invoice->amount_minor / 100);
+        $subtotalSar = round($totalSar / 1.15, 2);
+        $vatSar = round($totalSar - $subtotalSar, 2);
+        $amount = number_format($totalSar, 2);
+        $subtotalStr = number_format($subtotalSar, 2);
+        $vatStr = number_format($vatSar, 2);
+
         $plan = $invoice->paymentTransaction?->plan;
         $planName = $plan ? e((string) $plan->name) : '—';
         $planInterval = $plan && !empty($plan->interval)
@@ -152,25 +158,40 @@ class InvoiceService
         $reference = $invoice->paymentTransaction?->merchant_reference_id ?? '—';
         $issuedAt = $invoice->issued_at?->format('d/m/Y') ?? $invoice->issued_at?->format('Y-m-d') ?? '—';
         $statusAr = $invoice->status === 'paid' ? 'مدفوعة' : ($invoice->status === 'issued' ? 'صادرة' : e((string) $invoice->status));
-        $currencyAr = strtoupper((string) $invoice->currency) === 'SAR' ? 'ريال سعودي' : e((string) $invoice->currency);
+        $currencyAr = strtoupper((string) $invoice->currency) === 'SAR' ? 'ر.س' : e((string) $invoice->currency);
+        $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
+        $vatReg = config('app.invoice_vat_registration_number');
 
-        $html = '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><style>body{direction:rtl;text-align:right;font-family:DejaVu Sans,Tahoma,Arial,sans-serif;}</style></head><body style="font-size:12px;line-height:1.6;color:#1a1a2e;">'
-            . '<div style="max-width:600px;margin:0 auto;padding:24px;">'
-            . '<h1 style="text-align:center;margin:0 0 24px;font-size:20px;color:#1e3a5f;">فاتورة - دبلوماسي</h1>'
-            . '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;direction:rtl;">'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>رقم الفاتورة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($invoice->invoice_number) . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>تاريخ الإصدار</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $issuedAt . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>العميل</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($fullName) . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>البريد الإلكتروني</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e($email) . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>مرجع الدفع</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . e((string) $reference) . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>المبلغ</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $amount . ' ' . $currencyAr . '</td></tr>'
-            . '<tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>الحالة</strong></td><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;">' . $statusAr . '</td></tr>'
+        $logoHtml = $logoUrl
+            ? '<img src="' . e($logoUrl) . '" style="height:52px;display:block;" alt="دبلوماسي" />'
+            : '<div style="font-size:24px;font-weight:700;color:#1e3a5f;">دبلوماسي</div>';
+
+        $html = '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><style>body{direction:rtl;text-align:right;font-family:DejaVu Sans,Tahoma,Arial,sans-serif;}</style></head><body style="font-size:11px;line-height:1.5;color:#1a1a2e;margin:0;padding:20px;">'
+            . '<table style="width:100%;max-width:600px;margin:0 auto;border-collapse:collapse;">'
+            . '<tr><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;">' . $logoHtml . '</td><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;text-align:left;"><h1 style="margin:0;font-size:22px;color:#1e3a5f;">الفاتورة</h1></td></tr>'
             . '</table>'
-            . '<p style="margin:20px 0 0;padding:12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#64748b;">هذه الفاتورة غير قابلة للاسترداد.</p>'
-            . '<p style="margin:24px 0 0;text-align:center;font-size:11px;color:#94a3b8;">شكراً لاستخدامك دبلوماسي.</p>'
-            . '</div></body></html>';
+            . '<table style="width:100%;max-width:600px;margin:20px auto 0;border-collapse:collapse;">'
+            . '<tr><td style="padding:6px 12px 6px 0;vertical-align:top;width:33%;"><strong>التاريخ</strong><br/>' . $issuedAt . '</td><td style="padding:6px 12px;vertical-align:top;width:33%;"><strong>تعريف الطلب</strong><br/>' . e((string) $reference) . '</td><td style="padding:6px 0 6px 12px;vertical-align:top;width:34%;"><strong>رقم المستند</strong><br/>' . e($invoice->invoice_number) . '</td></tr>'
+            . '<tr><td style="padding:6px 12px 6px 0;vertical-align:top;"><strong>اسم العميل</strong><br/>' . e($fullName) . '</td><td colspan="2" style="padding:6px 12px 6px 0;vertical-align:top;"><strong>البريد الإلكتروني</strong><br/>' . e($email) . '</td></tr>'
+            . '</table>'
+            . '<table style="width:100%;max-width:600px;margin:24px auto 0;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">'
+            . '<tr><td colspan="2" style="padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:700;border-radius:8px 8px 0 0;">دبلوماسي - تفاصيل الاشتراك</td></tr>'
+            . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>نوع العملية</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">اشتراك</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>سعر البند</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '</table>'
+            . '<table style="width:100%;max-width:600px;margin:20px auto 0;border-collapse:collapse;">'
+            . '<tr><td style="padding:6px 0;color:#64748b;">الإجمالي الفرعي</td><td style="padding:6px 0;text-align:left;">' . $subtotalStr . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:6px 0;color:#64748b;">ضريبة القيمة المضافة 15%</td><td style="padding:6px 0;text-align:left;">' . $vatStr . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;font-weight:700;">المجموع (شامل ضريبة القيمة المضافة 15%)</td><td style="padding:10px 0 0;border-top:1px solid #e2e8f0;text-align:left;font-weight:700;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '</table>'
+            . '<p style="margin:20px auto 0;max-width:600px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:10px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
+        if ($vatReg) {
+            $html .= '<p style="margin:12px auto 0;max-width:600px;font-size:10px;color:#64748b;">رقم تسجيل ضريبة القيمة المضافة في المملكة العربية السعودية: ' . e($vatReg) . '</p>';
+        }
+        $html .= '<p style="margin:20px auto 0;max-width:600px;text-align:center;font-size:10px;color:#94a3b8;">شكراً لاستخدامك دبلوماسي.</p>'
+            . '</body></html>';
 
         $tmpDir = storage_path('app/mpdf/tmp');
         if (!File::exists($tmpDir)) {

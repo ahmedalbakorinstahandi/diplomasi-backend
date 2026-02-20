@@ -123,4 +123,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'invoice_logo_url' => env('INVOICE_LOGO_URL'), // رابط عام للوغو (يظهر في الفاتورة والإيميل)
+    'invoice_vat_registration_number' => env('INVOICE_VAT_REGISTRATION_NUMBER'), // رقم تسجيل ض.ق.م السعودية إن وُجد
+
 ];
