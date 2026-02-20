@@ -48,9 +48,6 @@ class BillingHistoryController extends Controller
     {
         $invoice = $this->invoiceService->findUserInvoice((int) $request->user()->id, $id);
         $data = (new InvoiceResource($invoice))->toArray($request);
-        if ($request->boolean('include_pdf')) {
-            $data['pdf_base64'] = base64_encode($this->invoiceService->getPdfBinary($invoice));
-        }
 
         return ResponseService::response([
             'success' => true,
