@@ -125,12 +125,7 @@ class MoyasarPaymentService
 
     public function purchasePlanForUser(int $userId, int $planId): array
     {
-        $activeSubscription = Subscription::query()
-            ->where('user_id', $userId)
-            ->where('status', 'active')
-            ->whereDate('end_date', '>=', now()->toDateString())
-            ->first();
-        if ($activeSubscription) {
+        if ($this->hasPurchaseBlockingSubscription($userId)) {
             MessageService::response([
                 'success' => false,
                 'message' => 'Current subscription is still active',
@@ -169,12 +164,7 @@ class MoyasarPaymentService
         string $gatewayPaymentId,
         array $paymentMethodInput = []
     ): array {
-        $activeSubscription = Subscription::query()
-            ->where('user_id', $userId)
-            ->where('status', 'active')
-            ->whereDate('end_date', '>=', now()->toDateString())
-            ->first();
-        if ($activeSubscription) {
+        if ($this->hasPurchaseBlockingSubscription($userId)) {
             MessageService::response([
                 'success' => false,
                 'message' => 'Current subscription is still active',
@@ -792,6 +782,19 @@ class MoyasarPaymentService
                 'message' => $payload['source']['message'] ?? null,
             ],
         ];
+    }
+
+    protected function hasPurchaseBlockingSubscription(int $userId): bool
+    {
+        return Subscription::query()
+            ->where('user_id', $userId)
+            ->where(function ($query) {
+                $query->where(function ($activeQuery) {
+                    $activeQuery->where('status', 'active')
+                        ->whereDate('end_date', '>=', now()->toDateString());
+                })->orWhere('status', 'past_due');
+            })
+            ->exists();
     }
 }
 
