@@ -37,7 +37,7 @@ class UserResource extends JsonResource
             'address' => $this->address,
             'language' => $this->language,
             'status' => $this->status,
-            'approved' => false,
+            'approved' => true,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             
