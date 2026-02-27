@@ -212,17 +212,99 @@ class LessonQuestionService
             return $optionData;
         });
 
+        $questionPayload = [
+            'id' => $question->id,
+            'type' => $question->type,
+            'question_text' => $question->question_text,
+            'attached_path' => $question->attached_path,
+            'explanation' => $isAnswered ? $question->explanation : null,
+            'score' => $question->score,
+            'order_index' => $question->order_index,
+            'options' => $options,
+        ];
+
+        // لأسئلة المطابقة: بناء left_options و right_options من pair_key فقط
+        if ($question->type === 'match') {
+            $opts = $question->lessonQuestionOptions;
+            $hasNull = $opts->contains(fn ($o) => $o->pair_key === null || $o->pair_key === '');
+            $hasNonNull = $opts->contains(fn ($o) => $o->pair_key !== null && $o->pair_key !== '');
+
+            if ($hasNull && $hasNonNull) {
+                // نموذج قديم: اليسار بدون pair_key، اليمين له pair_key
+                $leftModels = $opts->filter(fn ($o) => $o->pair_key === null || $o->pair_key === '')->sortBy('order_index')->values();
+                $rightModels = $opts->filter(fn ($o) => $o->pair_key !== null && $o->pair_key !== '')->sortBy('order_index')->values();
+                $questionPayload['left_options'] = $leftModels->map(function ($option) use ($isAnswered) {
+                    $arr = [
+                        'id' => $option->id,
+                        'option_text' => $option->option_text,
+                        'pair_key' => $option->pair_key,
+                        'attached_path' => $option->attached_path,
+                        'order_index' => $option->order_index,
+                    ];
+                    if ($isAnswered) {
+                        $arr['is_correct'] = $option->is_correct;
+                    }
+                    return $arr;
+                })->values()->all();
+                $questionPayload['right_options'] = $rightModels->map(function ($option) use ($isAnswered) {
+                    $arr = [
+                        'id' => $option->id,
+                        'option_text' => $option->option_text,
+                        'pair_key' => $option->pair_key,
+                        'attached_path' => $option->attached_path,
+                        'order_index' => $option->order_index,
+                    ];
+                    if ($isAnswered) {
+                        $arr['is_correct'] = $option->is_correct;
+                    }
+                    return $arr;
+                })->values()->all();
+            } elseif (!$hasNull) {
+                // نموذج الأزواج: كل الخيارات لها pair_key، كل مفتاح مرتين → أصغر order_index = عمود (أ)، الآخر = (ب)
+                $grouped = $opts->groupBy('pair_key');
+                $pairs = [];
+                foreach ($grouped as $key => $group) {
+                    $sorted = $group->sortBy('order_index')->values();
+                    $first = $sorted->get(0);
+                    $second = $sorted->get(1);
+                    if ($first && $second) {
+                        $pairs[] = ['left' => $first, 'right' => $second];
+                    }
+                }
+                usort($pairs, fn ($a, $b) => $a['left']->order_index <=> $b['left']->order_index);
+                $questionPayload['left_options'] = array_map(function ($p) use ($isAnswered) {
+                    $o = $p['left'];
+                    $arr = [
+                        'id' => $o->id,
+                        'option_text' => $o->option_text,
+                        'pair_key' => $o->pair_key,
+                        'attached_path' => $o->attached_path,
+                        'order_index' => $o->order_index,
+                    ];
+                    if ($isAnswered) {
+                        $arr['is_correct'] = $o->is_correct;
+                    }
+                    return $arr;
+                }, $pairs);
+                $questionPayload['right_options'] = array_map(function ($p) use ($isAnswered) {
+                    $o = $p['right'];
+                    $arr = [
+                        'id' => $o->id,
+                        'option_text' => $o->option_text,
+                        'pair_key' => $o->pair_key,
+                        'attached_path' => $o->attached_path,
+                        'order_index' => $o->order_index,
+                    ];
+                    if ($isAnswered) {
+                        $arr['is_correct'] = $o->is_correct;
+                    }
+                    return $arr;
+                }, $pairs);
+            }
+        }
+
         return [
-            'question' => [
-                'id' => $question->id,
-                'type' => $question->type,
-                'question_text' => $question->question_text,
-                'attached_path' => $question->attached_path,
-                'explanation' => $isAnswered ? $question->explanation : null,
-                'score' => $question->score,
-                'order_index' => $question->order_index,
-                'options' => $options,
-            ],
+            'question' => $questionPayload,
             'user_answer' => $isAnswered ? [
                 'is_correct' => $userAnswer->is_correct,
                 'score' => $userAnswer->score,
@@ -401,63 +483,64 @@ class LessonQuestionService
                         MessageService::abort(400, 'messages.answer.invalid_match_format');
                     }
 
-                    if (!in_array($match['left_option_id'], $allOptionIds) || 
+                    if (!in_array($match['left_option_id'], $allOptionIds) ||
                         !in_array($match['right_option_id'], $allOptionIds)) {
                         MessageService::abort(400, 'messages.answer.invalid_option');
                     }
                 }
 
-                // في أسئلة Match:
-                // - الخيارات اليمينية (المصطلحات) لديها pair_key مثل "L1", "L2"
-                // - الخيارات اليسارية (التعريفات) ليس لديها pair_key (null)
-                // - يجب أن يكون التعريف الأول (order_index أصغر) يطابق المصطلح الأول (pair_key "L1")
-                // - والتعريف الثاني يطابق المصطلح الثاني (pair_key "L2") وهكذا
-                
-                // الحصول على جميع الخيارات اليمينية (المصطلحات) مرتبة حسب order_index
-                $rightOptionsWithKeys = $options->whereNotNull('pair_key')
-                    ->sortBy('order_index')
-                    ->values();
-                
-                // الحصول على جميع الخيارات اليسارية (التعريفات) مرتبة حسب order_index
-                $leftOptionsWithoutKeys = $options->whereNull('pair_key')
-                    ->sortBy('order_index')
-                    ->values();
+                $hasNull = $options->contains(fn ($o) => $o->pair_key === null || $o->pair_key === '');
+                $hasNonNull = $options->contains(fn ($o) => $o->pair_key !== null && $o->pair_key !== '');
 
-                // التحقق من صحة كل match
-                foreach ($matches as $match) {
-                    $leftOption = $options->find($match['left_option_id']);
-                    $rightOption = $options->find($match['right_option_id']);
+                if ($hasNull && $hasNonNull) {
+                    // نموذج قديم: اليسار بدون pair_key، اليمين له pair_key، المطابقة حسب ترتيب الموضع
+                    $rightOptionsWithKeys = $options->filter(fn ($o) => $o->pair_key !== null && $o->pair_key !== '')
+                        ->sortBy('order_index')->values();
+                    $leftOptionsWithoutKeys = $options->filter(fn ($o) => $o->pair_key === null || $o->pair_key === '')
+                        ->sortBy('order_index')->values();
 
-                    if (!$leftOption || !$rightOption) {
-                        $allCorrect = false;
-                        continue;
+                    foreach ($matches as $match) {
+                        $leftOption = $options->find($match['left_option_id']);
+                        $rightOption = $options->find($match['right_option_id']);
+
+                        if (!$leftOption || !$rightOption) {
+                            $allCorrect = false;
+                            continue;
+                        }
+
+                        $rightIndex = $rightOptionsWithKeys->search(fn ($item) => $item->id === $rightOption->id);
+                        $leftIndex = $leftOptionsWithoutKeys->search(fn ($item) => $item->id === $leftOption->id);
+
+                        if ($rightOption->pair_key !== null &&
+                            ($leftOption->pair_key === null || $leftOption->pair_key === '') &&
+                            $rightIndex !== false &&
+                            $leftIndex !== false &&
+                            $rightIndex === $leftIndex) {
+                            $correctCount++;
+                        } else {
+                            $allCorrect = false;
+                        }
                     }
+                } else {
+                    // نموذج الأزواج: كل الخيارات لها pair_key، الصحيح = تساوي المفتاح
+                    foreach ($matches as $match) {
+                        $leftOption = $options->find($match['left_option_id']);
+                        $rightOption = $options->find($match['right_option_id']);
 
-                    // البحث عن موضع الخيار الأيمن في قائمة المصطلحات
-                    $rightIndex = $rightOptionsWithKeys->search(function($item) use ($rightOption) {
-                        return $item->id === $rightOption->id;
-                    });
+                        if (!$leftOption || !$rightOption) {
+                            $allCorrect = false;
+                            continue;
+                        }
 
-                    // البحث عن موضع الخيار الأيسر في قائمة التعريفات
-                    $leftIndex = $leftOptionsWithoutKeys->search(function($item) use ($leftOption) {
-                        return $item->id === $leftOption->id;
-                    });
-
-                    // التحقق من أن الخيار الأيمن له pair_key والخيار الأيسر ليس له pair_key
-                    // وأن موضعهما متطابق
-                    if ($rightOption->pair_key !== null && 
-                        $leftOption->pair_key === null &&
-                        $rightIndex !== false && 
-                        $leftIndex !== false &&
-                        $rightIndex === $leftIndex) {
-                        $correctCount++;
-                    } else {
-                        $allCorrect = false;
+                        if ((string) $leftOption->pair_key === (string) $rightOption->pair_key) {
+                            $correctCount++;
+                        } else {
+                            $allCorrect = false;
+                        }
                     }
                 }
 
                 $isCorrect = $allCorrect && $correctCount === $totalMatches;
-                // حساب النتيجة بناءً على عدد المطابقات الصحيحة
                 $score = $totalMatches > 0 ? (($correctCount / $totalMatches) * ($question->score ?? 1)) : 0;
                 break;
 
@@ -508,40 +591,30 @@ class LessonQuestionService
 
             case 'match':
                 if (isset($answerData['matches']) && is_array($answerData['matches'])) {
-                    // الحصول على جميع الخيارات اليمينية (المصطلحات) مرتبة حسب order_index
-                    $rightOptionsWithKeys = $question->lessonQuestionOptions->whereNotNull('pair_key')
-                        ->sortBy('order_index')
-                        ->values();
-                    
-                    // الحصول على جميع الخيارات اليسارية (التعريفات) مرتبة حسب order_index
-                    $leftOptionsWithoutKeys = $question->lessonQuestionOptions->whereNull('pair_key')
-                        ->sortBy('order_index')
-                        ->values();
+                    $opts = $question->lessonQuestionOptions;
+                    $hasNull = $opts->contains(fn ($o) => $o->pair_key === null || $o->pair_key === '');
+                    $hasNonNull = $opts->contains(fn ($o) => $o->pair_key !== null && $o->pair_key !== '');
 
                     foreach ($answerData['matches'] as $match) {
-                        $leftOption = $question->lessonQuestionOptions->find($match['left_option_id']);
-                        $rightOption = $question->lessonQuestionOptions->find($match['right_option_id']);
+                        $leftOption = $opts->find($match['left_option_id']);
+                        $rightOption = $opts->find($match['right_option_id']);
 
                         $isMatchCorrect = false;
                         if ($leftOption && $rightOption) {
-                            // البحث عن موضع الخيار الأيمن في قائمة المصطلحات
-                            $rightIndex = $rightOptionsWithKeys->search(function($item) use ($rightOption) {
-                                return $item->id === $rightOption->id;
-                            });
-
-                            // البحث عن موضع الخيار الأيسر في قائمة التعريفات
-                            $leftIndex = $leftOptionsWithoutKeys->search(function($item) use ($leftOption) {
-                                return $item->id === $leftOption->id;
-                            });
-
-                            // التحقق من أن الخيار الأيمن له pair_key والخيار الأيسر ليس له pair_key
-                            // وأن موضعهما متطابق
-                            if ($rightOption->pair_key !== null && 
-                                $leftOption->pair_key === null &&
-                                $rightIndex !== false && 
-                                $leftIndex !== false &&
-                                $rightIndex === $leftIndex) {
-                                $isMatchCorrect = true;
+                            if ($hasNull && $hasNonNull) {
+                                $rightOptionsWithKeys = $opts->filter(fn ($o) => $o->pair_key !== null && $o->pair_key !== '')
+                                    ->sortBy('order_index')->values();
+                                $leftOptionsWithoutKeys = $opts->filter(fn ($o) => $o->pair_key === null || $o->pair_key === '')
+                                    ->sortBy('order_index')->values();
+                                $rightIndex = $rightOptionsWithKeys->search(fn ($item) => $item->id === $rightOption->id);
+                                $leftIndex = $leftOptionsWithoutKeys->search(fn ($item) => $item->id === $leftOption->id);
+                                $isMatchCorrect = $rightOption->pair_key !== null
+                                    && ($leftOption->pair_key === null || $leftOption->pair_key === '')
+                                    && $rightIndex !== false
+                                    && $leftIndex !== false
+                                    && $rightIndex === $leftIndex;
+                            } else {
+                                $isMatchCorrect = (string) $leftOption->pair_key === (string) $rightOption->pair_key;
                             }
                         }
 

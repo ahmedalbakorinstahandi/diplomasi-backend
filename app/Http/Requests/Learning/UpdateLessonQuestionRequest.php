@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Learning;
 
 use App\Http\Requests\BaseFormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateLessonQuestionRequest extends BaseFormRequest
 {
@@ -22,5 +23,25 @@ class UpdateLessonQuestionRequest extends BaseFormRequest
             'options.*.is_correct' => 'nullable|boolean',
             'options.*.attached_path' => 'nullable|string|max:100',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $type = $this->input('type');
+            $options = $this->input('options', []);
+            if (empty($options) || ($type !== null && $type !== 'match')) {
+                return;
+            }
+            $pairKeys = collect($options)->pluck('pair_key')->filter(fn ($v) => $v !== null && $v !== '');
+            $counts = $pairKeys->countBy();
+            $overTwo = $counts->filter(fn ($c) => $c > 2);
+            if ($overTwo->isNotEmpty()) {
+                $validator->errors()->add(
+                    'options',
+                    __('Each pair_key in a match question must appear at most twice.')
+                );
+            }
+        });
     }
 }
