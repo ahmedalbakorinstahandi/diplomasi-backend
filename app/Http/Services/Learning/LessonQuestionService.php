@@ -271,9 +271,7 @@ class LessonQuestionService
                         $pairs[] = ['left' => $first, 'right' => $second];
                     }
                 }
-                usort($pairs, fn ($a, $b) => $a['left']->order_index <=> $b['left']->order_index);
-                $questionPayload['left_options'] = array_map(function ($p) use ($isAnswered) {
-                    $o = $p['left'];
+                $toOptionArr = function ($o, $isAnswered) {
                     $arr = [
                         'id' => $o->id,
                         'option_text' => $o->option_text,
@@ -285,21 +283,13 @@ class LessonQuestionService
                         $arr['is_correct'] = $o->is_correct;
                     }
                     return $arr;
-                }, $pairs);
-                $questionPayload['right_options'] = array_map(function ($p) use ($isAnswered) {
-                    $o = $p['right'];
-                    $arr = [
-                        'id' => $o->id,
-                        'option_text' => $o->option_text,
-                        'pair_key' => $o->pair_key,
-                        'attached_path' => $o->attached_path,
-                        'order_index' => $o->order_index,
-                    ];
-                    if ($isAnswered) {
-                        $arr['is_correct'] = $o->is_correct;
-                    }
-                    return $arr;
-                }, $pairs);
+                };
+                $leftItems = array_map(fn ($p) => $p['left'], $pairs);
+                $rightItems = array_map(fn ($p) => $p['right'], $pairs);
+                usort($leftItems, fn ($a, $b) => $a->order_index <=> $b->order_index);
+                usort($rightItems, fn ($a, $b) => $a->order_index <=> $b->order_index);
+                $questionPayload['left_options'] = array_map(fn ($o) => $toOptionArr($o, $isAnswered), $leftItems);
+                $questionPayload['right_options'] = array_map(fn ($o) => $toOptionArr($o, $isAnswered), $rightItems);
             }
         }
 
