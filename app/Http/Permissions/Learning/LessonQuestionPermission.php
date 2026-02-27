@@ -19,14 +19,14 @@ class LessonQuestionPermission
     public static function canView(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('lesson_question.view');
+            AuthorizationService::authorize('lesson.view');
         }
     }
 
     public static function canCreate(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('lesson_question.create');
+            AuthorizationService::authorize('lesson.create');
             return;
         }
 
@@ -36,7 +36,7 @@ class LessonQuestionPermission
     public static function canUpdate(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('lesson_question.update');
+            AuthorizationService::authorize('lesson.update');
             return;
         }
 
@@ -46,7 +46,7 @@ class LessonQuestionPermission
     public static function canDelete(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('lesson_question.delete');
+            AuthorizationService::authorize('lesson.delete');
             return;
         }
 
@@ -56,7 +56,7 @@ class LessonQuestionPermission
     public static function canReorder(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('lesson_question.reorder');
+            AuthorizationService::authorize('lesson.reorder');
             return;
         }
 
