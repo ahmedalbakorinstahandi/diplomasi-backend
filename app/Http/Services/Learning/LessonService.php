@@ -81,7 +81,7 @@ class LessonService
     public function update($data, $lesson)
     {
         $oldLevelId = $lesson->level_id;
-        
+
         $lesson->update($data);
 
         // If level_id changed, update LevelTrack
@@ -93,7 +93,7 @@ class LessonService
             if ($oldLevelTrack) {
                 $oldLevelTrack->delete();
             }
-            
+
             // Create new LevelTrack for new level
             $this->syncLevelTrack($lesson);
         } else {
@@ -113,7 +113,7 @@ class LessonService
         $lesson->lessonSummary()->delete();
         $lesson->userLessonProgress()->delete();
         $lesson->userLessonAttempts()->delete();
-        
+
         // Delete LevelTrack
         $levelTrack = LevelTrack::where('trackable_id', $lesson->id)
             ->where('trackable_type', Lesson::class)

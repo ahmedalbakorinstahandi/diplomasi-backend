@@ -35,12 +35,12 @@ class LessonResource extends JsonResource
         if ($userId) {
             // Use stored data directly (faster, no recursion)
             $progressPercentage = $this->trackProgressService->getProgressPercentage($this->resource, $userId);
-            
+
             // Check status from stored data
             $progress = \App\Models\Progress\UserLessonProgress::where('user_id', $userId)
                 ->where('lesson_id', $this->id)
                 ->first();
-            
+
             if ($progress && $progress->track_status) {
                 $status = $progress->track_status;
             } else {
@@ -56,16 +56,16 @@ class LessonResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'video_url' => $this->video_url,
-            'content' => $this->content,
+            'content' => $this->content ?? "",
             'order_index' => $this->order_index,
             'is_published' => $this->is_published,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            
+
             // Progress fields
             'status' => $status, // locked, open, completed
             'progress_percentage' => $progressPercentage, // 0-100
-            
+
             // Relationships
             'level' => new LevelResource($this->whenLoaded('level')),
             'lesson_questions' => LessonQuestionResource::collection($this->whenLoaded('lessonQuestions')),
@@ -82,4 +82,3 @@ class LessonResource extends JsonResource
         ];
     }
 }
-
