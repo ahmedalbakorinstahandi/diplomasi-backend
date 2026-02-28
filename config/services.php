@@ -48,4 +48,12 @@ return [
         'mode' => env('MOYASAR_MODE', 'test'),
     ],
 
+    'translation' => [
+        // Supported providers: mymemory, libretranslate
+        'provider' => env('TRANSLATION_PROVIDER', 'mymemory'),
+        'base_url' => env('TRANSLATION_BASE_URL', 'https://api.mymemory.translated.net/get'),
+        'api_key' => env('TRANSLATION_API_KEY'),
+        'timeout' => (int) env('TRANSLATION_TIMEOUT', 8),
+    ],
+
 ];

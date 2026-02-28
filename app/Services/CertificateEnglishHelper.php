@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
-
 /**
  * Prepares certificate content in English: romanization of names and translation of titles.
  */
@@ -58,8 +56,8 @@ class CertificateEnglishHelper
     }
 
     /**
-     * Translate Arabic text to English for certificate (course/level titles).
-     * Uses config glossary first; fallback to romanization then original.
+     * Convert content text to English script (transliteration style).
+     * Used for course titles per current requirement.
      */
     public static function translateToEnglish(string $text): string
     {
@@ -68,22 +66,46 @@ class CertificateEnglishHelper
             return '';
         }
 
-        $glossary = config('certificate.glossary', []);
-        if (isset($glossary[$text])) {
-            return $glossary[$text];
+        if (!self::isMostlyArabic($text)) {
+            return $text;
         }
 
-        foreach ($glossary as $ar => $en) {
-            if (mb_stripos($text, $ar) !== false) {
-                $text = str_ireplace($ar, $en, $text);
-            }
+        return self::romanizeArabicName($text);
+    }
+
+    /**
+     * Convert level number to English phrase up to 20; fallback to numeric label.
+     */
+    public static function levelLabelFromNumber(?int $levelNumber): ?string
+    {
+        if ($levelNumber === null || $levelNumber < 1) {
+            return null;
         }
 
-        if (self::isMostlyArabic($text)) {
-            return self::romanizeArabicName($text);
-        }
+        $ordinals = [
+            1 => 'First Level',
+            2 => 'Second Level',
+            3 => 'Third Level',
+            4 => 'Fourth Level',
+            5 => 'Fifth Level',
+            6 => 'Sixth Level',
+            7 => 'Seventh Level',
+            8 => 'Eighth Level',
+            9 => 'Ninth Level',
+            10 => 'Tenth Level',
+            11 => 'Eleventh Level',
+            12 => 'Twelfth Level',
+            13 => 'Thirteenth Level',
+            14 => 'Fourteenth Level',
+            15 => 'Fifteenth Level',
+            16 => 'Sixteenth Level',
+            17 => 'Seventeenth Level',
+            18 => 'Eighteenth Level',
+            19 => 'Nineteenth Level',
+            20 => 'Twentieth Level',
+        ];
 
-        return $text;
+        return $ordinals[$levelNumber] ?? ("Level " . $levelNumber);
     }
 
     private static function isMostlyArabic(string $s): bool

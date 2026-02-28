@@ -21,10 +21,17 @@
             position: relative;
             width: 100%;
             min-height: 297mm;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center center;
             background-color: #fafafa;
+        }
+
+        .template-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
         }
 
         .certificate-content {
@@ -34,6 +41,7 @@
             width: 100%;
             height: 100%;
             padding: 8% 10%;
+            z-index: 2;
         }
 
         .intro-text {
@@ -79,6 +87,13 @@
             line-height: 1.4;
         }
 
+        .completion-statement {
+            text-align: center;
+            font-size: 11pt;
+            color: #2d2d2d;
+            margin-bottom: 8px;
+        }
+
         .footer-left {
             position: absolute;
             bottom: 12%;
@@ -112,21 +127,25 @@
 
         .qr-code {
             margin-top: 10px;
-            width: 80px;
-            height: 80px;
+            width: 115px;
+            height: 115px;
         }
 
         .qr-code img { width: 100%; height: 100%; object-fit: contain; }
     </style>
 </head>
 <body>
-    <div class="certificate-page" @if(!empty($template_image_path) && file_exists($template_image_path)) style="background-image: url('data:image/png;base64,{{ base64_encode(file_get_contents($template_image_path)) }}');" @endif>
+    <div class="certificate-page">
+        @if(!empty($template_image_data_uri))
+        <img class="template-bg" src="{{ $template_image_data_uri }}" alt="Certificate Template">
+        @endif
         <div class="certificate-content">
             <p class="intro-text">This document certifies that</p>
             <div class="recipient-name">{{ $recipient_name_en ?? '—' }}</div>
             <div class="badge-wrap">
                 <span class="badge-line">HAS COMPLETED</span>
             </div>
+            <p class="completion-statement">{{ $completion_statement ?? '' }}</p>
             <p class="program-display">{{ $program_display ?? '—' }}</p>
 
             <div class="footer-left">
@@ -143,9 +162,9 @@
             <div class="footer-right">
                 <div class="signatory-name">Stavros C. Fatta – MD OF CERTIFICATE</div>
                 <div class="signatory-title">CORPORATE PROGRAMMES</div>
-                @if(!empty($qr_code_path) && file_exists($qr_code_path))
+                @if(!empty($qr_code_data_uri))
                 <div class="qr-code">
-                    <img src="data:image/svg+xml;base64,{{ base64_encode(file_get_contents($qr_code_path)) }}" alt="QR Code">
+                    <img src="{{ $qr_code_data_uri }}" alt="QR Code">
                 </div>
                 @endif
             </div>

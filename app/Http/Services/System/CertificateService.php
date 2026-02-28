@@ -281,8 +281,8 @@ class CertificateService
     }
 
     /**
-     * Build English certificate payload for the Blade template.
-     * Names are romanized; course/level titles are translated via glossary or romanized.
+     * Build certificate payload in English-script style.
+     * Names and course titles are romanized; level text is generated from level number.
      */
     public function buildEnglishCertificatePayload(Certificate $certificate): array
     {
@@ -300,9 +300,8 @@ class CertificateService
         $levelTitleEn = null;
         $levelNumber = null;
         if ($level) {
-            $levelTitleAr = $level->title ?? '';
-            $levelTitleEn = $levelTitleAr !== '' ? CertificateEnglishHelper::translateToEnglish($levelTitleAr) : null;
             $levelNumber = $level->level_number ?? null;
+            $levelTitleEn = CertificateEnglishHelper::levelLabelFromNumber($levelNumber);
         }
 
         $isLevelCertificate = $certificate->level_id !== null;
@@ -320,6 +319,7 @@ class CertificateService
         if (!file_exists($templatePath)) {
             $templatePath = null;
         }
+        $templateImageDataUri = $this->buildDataUriFromPath($templatePath);
 
         return [
             'recipient_name_en' => $recipientNameEn,
@@ -336,6 +336,7 @@ class CertificateService
             'hours' => $hours,
             'hours_text_en' => $hoursTextEn,
             'template_image_path' => $templatePath,
+            'template_image_data_uri' => $templateImageDataUri,
         ];
     }
 
@@ -356,10 +357,7 @@ class CertificateService
     private function getProgramDisplayLine(Certificate $certificate, string $courseTitleEn, ?string $levelTitleEn, $levelNumber): string
     {
         if ($certificate->level_id !== null && ($levelTitleEn !== null || $levelNumber !== null)) {
-            $levelPart = $levelNumber !== null ? "Level {$levelNumber}" : '';
-            if ($levelTitleEn !== null && $levelTitleEn !== '') {
-                $levelPart = $levelPart ? "{$levelPart}: {$levelTitleEn}" : $levelTitleEn;
-            }
+            $levelPart = $levelTitleEn ?: (($levelNumber !== null) ? ("Level " . $levelNumber) : '');
             return $levelPart !== '' ? "{$levelPart} — {$courseTitleEn}" : $courseTitleEn;
         }
         return $courseTitleEn;
@@ -382,6 +380,7 @@ class CertificateService
                 }
             }
             $payload['qr_code_path'] = $qrCodePath;
+            $payload['qr_code_data_uri'] = $this->buildDataUriFromPath($qrCodePath);
 
             $html = View::make('certificates.image_template', $payload)->render();
 
@@ -476,6 +475,7 @@ class CertificateService
                 }
             }
             $payload['qr_code_path'] = $qrCodePath;
+            $payload['qr_code_data_uri'] = $this->buildDataUriFromPath($qrCodePath);
 
             $html = View::make('certificates.image_template', $payload)->render();
 
@@ -555,10 +555,10 @@ class CertificateService
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_AREA'), 64);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_DISK'), 1024);
                 call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_FILE'), 384);
-                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30); // 30 ثانية فقط
+                call_user_func([$imagickClass, 'setResourceLimit'], constant('Imagick::RESOURCETYPE_TIME'), 30); // 30 seconds max
 
                 $imagick = new $imagickClass();
-                $imagick->setResolution(50, 50); // دقة منخفضة جداً (50 DPI) لتوفير الذاكرة
+                $imagick->setResolution(200, 200); // keep enough detail for QR readability
                 $imagick->readImage($tempPdfPath . '[0]');
                 $imagick->setImageFormat('png');
                 $imagickPixelClass = 'ImagickPixel';
@@ -567,7 +567,7 @@ class CertificateService
 
                 // تحسين الصورة لتقليل الحجم
                 $imagick->stripImage();
-                $imagick->setImageCompressionQuality(75); // جودة أقل قليلاً
+                $imagick->setImageCompressionQuality(95);
 
                 // حفظ PNG
                 $imagePath = 'certificates/' . $certificate->certificate_code . '.png';
@@ -868,12 +868,12 @@ class CertificateService
             // -dNOPAUSE: لا توقف بين الصفحات
             // -dBATCH: إنهاء بعد المعالجة
             // -sDEVICE=png16m: استخدام PNG 24-bit
-            // -r72: دقة 72 DPI
+            // -r300: higher output resolution for better QR readability
             // -dFirstPage=1 -dLastPage=1: الصفحة الأولى فقط
             // -sOutputFile: ملف الإخراج
             $command = escapeshellarg($gsPath) .
                 ' -dNOPAUSE -dBATCH -sDEVICE=png16m' .
-                ' -r72' . // دقة 72 DPI
+                ' -r300' .
                 ' -dFirstPage=1 -dLastPage=1' .
                 ' -sOutputFile=' . escapeshellarg($fullImagePath) .
                 ' ' . escapeshellarg($pdfPath) .
@@ -1116,35 +1116,49 @@ class CertificateService
                 File::makeDirectory($qrFolderPath, 0755, true, true);
             }
 
-            $qrCodePath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.png");
-
-            // توليد QR Code باستخدام SVG (لأن PNG يحتاج imagick extension)
-            // SVG يعمل بدون imagick extension
+            $qrCodePngPath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.png");
             $qrCodeSvgPath = storage_path("app/public/{$qrFolder}/{$certificate->certificate_code}.svg");
 
-            QrCode::format('svg')
-                ->size(300)
-                ->generate($verificationUrl, $qrCodeSvgPath);
+            $returnPath = null;
+            try {
+                // Preferred: PNG for stronger compatibility in rendered image/PDF
+                QrCode::format('png')
+                    ->size(520)
+                    ->margin(2)
+                    ->errorCorrection('H')
+                    ->generate($verificationUrl, $qrCodePngPath);
 
-            // التحقق من أن SVG تم إنشاؤه
-            if (!File::exists($qrCodeSvgPath)) {
-                throw new \Exception(trans('messages.certificate.qr_code_svg_generation_failed'));
+                if (File::exists($qrCodePngPath)) {
+                    $returnPath = "{$qrFolder}/{$certificate->certificate_code}.png";
+                }
+            } catch (\Throwable $pngError) {
+                Log::warning("PNG QR generation failed, trying SVG fallback", [
+                    'certificate_id' => $certificate->id,
+                    'error' => $pngError->getMessage(),
+                ]);
             }
 
-            // استخدام SVG مباشرة (أو يمكن تحويله إلى PNG لاحقاً إذا كان imagick مثبت)
-            // حالياً سنستخدم SVG لأنه يعمل بدون imagick
-            $qrCodePath = $qrCodeSvgPath;
+            // Fallback: SVG
+            if ($returnPath === null) {
+                QrCode::format('svg')
+                    ->size(520)
+                    ->margin(2)
+                    ->errorCorrection('H')
+                    ->generate($verificationUrl, $qrCodeSvgPath);
 
-            // تحديث المسار للإرجاع ليشير إلى SVG
-            $qrFolder = 'certificates/qr';
-            $returnPath = "{$qrFolder}/{$certificate->certificate_code}.svg";
+                if (!File::exists($qrCodeSvgPath)) {
+                    throw new \Exception(trans('messages.certificate.qr_code_svg_generation_failed'));
+                }
+                $returnPath = "{$qrFolder}/{$certificate->certificate_code}.svg";
+            }
 
             // التحقق من أن الملف تم إنشاؤه بنجاح
-            if (!File::exists($qrCodePath)) {
+            $fullGeneratedQr = storage_path('app/public/' . $returnPath);
+            if (!File::exists($fullGeneratedQr)) {
                 Log::error("Failed to generate QR code", [
                     'certificate_id' => $certificate->id,
                     'certificate_code' => $certificate->certificate_code,
-                    'qr_code_path' => $qrCodePath,
+                    'qr_code_path' => $fullGeneratedQr,
                 ]);
                 throw new \Exception(trans('messages.certificate.qr_code_generation_failed'));
             }
@@ -1152,8 +1166,8 @@ class CertificateService
             Log::info("QR code generated successfully", [
                 'certificate_id' => $certificate->id,
                 'certificate_code' => $certificate->certificate_code,
-                'qr_code_path' => $qrCodePath,
-                'format' => 'svg',
+                'qr_code_path' => $fullGeneratedQr,
+                'format' => pathinfo($returnPath, PATHINFO_EXTENSION),
             ]);
 
             return $returnPath;
@@ -1212,6 +1226,35 @@ class CertificateService
         }
 
         return response()->download($imagePath, $certificate->certificate_code . '.png');
+    }
+
+    /**
+     * Build a data-uri from local file path for safe embedding in mPDF HTML.
+     */
+    private function buildDataUriFromPath(?string $path): ?string
+    {
+        if (!$path || !file_exists($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mime = match ($extension) {
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'svg' => 'image/svg+xml',
+            default => null,
+        };
+
+        if ($mime === null) {
+            return null;
+        }
+
+        $contents = @file_get_contents($path);
+        if ($contents === false || $contents === '') {
+            return null;
+        }
+
+        return 'data:' . $mime . ';base64,' . base64_encode($contents);
     }
 
     /**
