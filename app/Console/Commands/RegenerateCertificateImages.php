@@ -41,12 +41,12 @@ class RegenerateCertificateImages extends Command
         $all = $this->option('all');
         $force = $this->option('force');
 
-        // التحقق من وجود صورة القالب
-        $templatePath = storage_path('app/public/certificates/templates/certificate-template.png');
+        // التحقق من وجود صورة القالب (القالب الموحد في public)
+        $templatePath = public_path('images/certificate-template.png');
         if (!File::exists($templatePath)) {
             $this->error("❌ صورة القالب غير موجودة!");
             $this->info("📁 الموقع المطلوب: {$templatePath}");
-            $this->info("💡 يرجى رفع صورة القالب أولاً إلى: storage/app/public/certificates/templates/certificate-template.png");
+            $this->info("💡 يرجى وضع صورة القالب في: public/images/certificate-template.png");
             return 1;
         }
 
@@ -127,14 +127,21 @@ class RegenerateCertificateImages extends Command
             // تحميل العلاقات المطلوبة
             $certificate->load(['user', 'course', 'level']);
 
-            // توليد صورة الشهادة
-            $imagePath = $this->certificateService->generateCertificateImage($certificate);
+            // توليد صورة الشهادة (قالب إنجليزي عبر PDF)
+            $imagePath = $this->certificateService->generateCertificateImageFromPdf($certificate);
 
-            // تحديث الشهادة
+            if ($imagePath === null) {
+                if ($verbose) {
+                    $this->warn("  ⚠️ تعذّر توليد PNG (PDF متاح). تحديث image_url تم تخطيه.");
+                }
+                $certificate->image_url = null;
+                $certificate->save();
+                return 'success';
+            }
+
             $certificate->image_url = $imagePath;
             $certificate->save();
 
-            // التحقق من أن الملف تم إنشاؤه
             $fullPath = storage_path('app/public/' . $imagePath);
             if (!File::exists($fullPath)) {
                 throw new \Exception(trans('messages.certificate.image_not_created') . ": {$fullPath}");

@@ -19,6 +19,11 @@ class MediaUrlService
             return $value;
         }
 
-        return url('storage/' . ltrim($value, '/'));
+        $value = ltrim($value, '/');
+        // Public assets under public/ (e.g. images/) are served from root
+        if (str_starts_with($value, 'images/')) {
+            return asset($value);
+        }
+        return url('storage/' . $value);
     }
 }

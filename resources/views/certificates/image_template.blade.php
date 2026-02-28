@@ -1,145 +1,154 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الشهادة</title>
+    <title>Certificate of Completion</title>
     <style>
-        /* الخط العربي يتم تسجيله في mPDF مباشرة - لا حاجة لـ @font-face */
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'dejavusans', 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #FFFFFF;
+            font-family: 'dejavusans', 'Helvetica', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: ltr;
+            text-align: left;
             width: 100%;
-            height: 100%;
+            min-height: 100%;
             position: relative;
             overflow: hidden;
-            direction: rtl;
-            text-align: right;
         }
 
-        .certificate-container {
+        .certificate-page {
+            position: relative;
+            width: 100%;
+            min-height: 297mm;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-color: #fafafa;
+        }
+
+        .certificate-content {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            position: relative;
-            padding: 60px 80px;
-            box-sizing: border-box;
+            padding: 8% 10%;
         }
 
-        .certificate-title {
+        .intro-text {
             text-align: center;
-            font-size: 32px;
-            color: #1a1a5e;
-            margin-bottom: 40px;
-            font-weight: normal;
+            font-size: 14pt;
+            color: #333;
+            margin-top: 18%;
+            margin-bottom: 4px;
         }
 
-        .certificate-text {
+        .recipient-name {
             text-align: center;
-            font-size: 28px;
-            color: #1a1a5e;
-            margin-bottom: 30px;
-            line-height: 1.8;
+            font-size: 22pt;
+            font-weight: bold;
+            color: #1a1a2e;
+            margin-bottom: 20px;
+            line-height: 1.3;
         }
 
-        .user-name {
+        .badge-line {
             text-align: center;
-            font-size: 64px;
-            color: #1a1a5e;
-            margin: 40px 0;
-            font-weight: normal;
-            line-height: 1.5;
+            font-size: 11pt;
+            font-weight: bold;
+            color: #fff;
+            background-color: #1e3a5f;
+            display: inline-block;
+            padding: 8px 24px;
+            border-radius: 6px;
+            margin: 0 auto 12px;
+            width: auto;
         }
 
-        .course-title {
+        .badge-wrap {
             text-align: center;
-            font-size: 52px;
-            color: #D4A017;
-            margin: 30px 0;
-            font-weight: normal;
-            line-height: 1.6;
+            margin-bottom: 8px;
         }
 
-        .company-text {
+        .program-display {
             text-align: center;
-            font-size: 24px;
-            color: #1a1a5e;
-            margin: 30px 0;
-            line-height: 1.8;
+            font-size: 16pt;
+            color: #1a1a2e;
+            margin-bottom: 24px;
+            line-height: 1.4;
         }
 
-        .training-hours {
-            text-align: center;
-            font-size: 28px;
-            color: #1a1a5e;
-            margin: 30px 0;
-            line-height: 1.8;
-        }
-
-        .date {
+        .footer-left {
             position: absolute;
-            bottom: 50px;
-            left: 80px;
-            font-size: 20px;
-            color: #1a1a5e;
-            direction: rtl;
+            bottom: 12%;
+            left: 10%;
+            font-size: 9pt;
+            color: #333;
         }
+
+        .footer-left .date-line { margin-bottom: 8px; }
+        .footer-left .date-value { border-bottom: 1px solid #333; padding: 2px 8px; min-width: 140px; display: inline-block; }
+        .footer-left .no-line { margin-bottom: 6px; }
+        .footer-left .no-value { border: 1px solid #333; padding: 2px 8px; min-width: 120px; display: inline-block; font-family: monospace; }
+        .footer-left .provider { margin-top: 10px; }
+        .footer-left .provider-label { font-weight: bold; }
+        .footer-left .provider-value { margin-left: 4px; }
+
+        .footer-right {
+            position: absolute;
+            bottom: 12%;
+            right: 10%;
+            text-align: right;
+            font-size: 9pt;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .signatory-name { font-weight: bold; }
+        .signatory-title { font-size: 8pt; margin-top: 2px; }
 
         .qr-code {
-            position: absolute;
-            bottom: 40px;
-            right: 60px;
-            width: 150px;
-            height: 150px;
+            margin-top: 10px;
+            width: 80px;
+            height: 80px;
         }
 
-        .qr-code img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        .qr-code img { width: 100%; height: 100%; object-fit: contain; }
     </style>
 </head>
 <body>
-    <div class="certificate-container">
-        <div class="certificate-title">
-            تمنح هذه الشهادة الى:
-        </div>
+    <div class="certificate-page" @if(!empty($template_image_path) && file_exists($template_image_path)) style="background-image: url('data:image/png;base64,{{ base64_encode(file_get_contents($template_image_path)) }}');" @endif>
+        <div class="certificate-content">
+            <p class="intro-text">This document certifies that</p>
+            <div class="recipient-name">{{ $recipient_name_en ?? '—' }}</div>
+            <div class="badge-wrap">
+                <span class="badge-line">HAS COMPLETED</span>
+            </div>
+            <p class="program-display">{{ $program_display ?? '—' }}</p>
 
-        <div class="user-name">
-            {{ $user_name }}
-        </div>
+            <div class="footer-left">
+                <div class="date-line">DATE <span class="date-value">{{ $issued_date_en ?? '—' }}</span></div>
+                <div class="no-line">NO. <span class="no-value">{{ $certificate_code ?? '—' }}</span></div>
+                <div class="provider">
+                    <span class="provider-label">Training Provider:</span><span class="provider-value">{{ $training_provider ?? 'Diplomasi' }}</span>
+                </div>
+                <div class="provider">
+                    <span class="provider-label">Exam Provider:</span><span class="provider-value">{{ $exam_provider ?? 'Diplomasi' }}</span>
+                </div>
+            </div>
 
-        <div class="certificate-text">
-            وذلك لحضوره / ها الدورة التدريبية بعنوان:
-        </div>
-
-        <div class="course-title">
-            {{ $course_title }}
-        </div>
-
-        <div class="company-text">
-            التي اقامتها شركة دبلوماسي - diplomasi وذلك ضمن برامجها وفعالياتها الريادية
-        </div>
-
-        <div class="training-hours">
-            بمدة تدريبية قدرها {{ $hours_text }} ({{ $hours }}) ساعة تدريبية
-        </div>
-
-        @if($qr_code_path && file_exists($qr_code_path))
-        <div class="qr-code">
-            <img src="data:image/png;base64,{{ base64_encode(file_get_contents($qr_code_path)) }}" alt="QR Code">
-        </div>
-        @endif
-
-        <div class="date">
-            التاريخ: {{ $date }}
+            <div class="footer-right">
+                <div class="signatory-name">Stavros C. Fatta – MD OF CERTIFICATE</div>
+                <div class="signatory-title">CORPORATE PROGRAMMES</div>
+                @if(!empty($qr_code_path) && file_exists($qr_code_path))
+                <div class="qr-code">
+                    <img src="data:image/svg+xml;base64,{{ base64_encode(file_get_contents($qr_code_path)) }}" alt="QR Code">
+                </div>
+                @endif
+            </div>
         </div>
     </div>
 </body>

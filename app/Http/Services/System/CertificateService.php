@@ -9,6 +9,7 @@ use App\Models\Progress\UserCourse;
 use App\Models\Progress\UserLevelProgress;
 use App\Models\System\Certificate;
 use App\Services\ArabicTextRenderer;
+use App\Services\CertificateEnglishHelper;
 use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
@@ -26,10 +27,8 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class CertificateService
 {
-    // مسار صورة القالب
-    // يمكن أن يكون في templates/ أو qr/templates/
-    private const TEMPLATE_PATH = 'certificates/templates/certificate-template.png';
-    private const TEMPLATE_PATH_ALTERNATIVE = 'certificates/qr/templates/certificate-template.png';
+    /** Single authoritative certificate template (English design) - relative to public/ */
+    public const TEMPLATE_PATH = 'images/certificate-template.png';
 
     public function index($filters = [])
     {
@@ -282,22 +281,99 @@ class CertificateService
     }
 
     /**
+     * Build English certificate payload for the Blade template.
+     * Names are romanized; course/level titles are translated via glossary or romanized.
+     */
+    public function buildEnglishCertificatePayload(Certificate $certificate): array
+    {
+        $certificate->load(['user', 'course', 'level']);
+
+        $firstName = $certificate->user->first_name ?? '';
+        $lastName = $certificate->user->last_name ?? '';
+        $fullNameAr = trim($firstName . ' ' . $lastName);
+        $recipientNameEn = $fullNameAr !== '' ? CertificateEnglishHelper::romanizeArabicName($fullNameAr) : '—';
+
+        $courseTitleAr = $certificate->course->title ?? '';
+        $courseTitleEn = $courseTitleAr !== '' ? CertificateEnglishHelper::translateToEnglish($courseTitleAr) : '—';
+
+        $level = $certificate->level;
+        $levelTitleEn = null;
+        $levelNumber = null;
+        if ($level) {
+            $levelTitleAr = $level->title ?? '';
+            $levelTitleEn = $levelTitleAr !== '' ? CertificateEnglishHelper::translateToEnglish($levelTitleAr) : null;
+            $levelNumber = $level->level_number ?? null;
+        }
+
+        $isLevelCertificate = $certificate->level_id !== null;
+        $completionStatement = $this->getCompletionStatement($certificate);
+        $programDisplay = $this->getProgramDisplayLine($certificate, $courseTitleEn, $levelTitleEn, $levelNumber);
+
+        $issuedDateEn = CertificateEnglishHelper::formatDateInEnglish($certificate->issued_at);
+        $hours = $this->calculateTrainingHours($certificate);
+        $hoursTextEn = CertificateEnglishHelper::numberToEnglishWords($hours);
+
+        $trainingProvider = config('certificate.training_provider_default', 'Diplomasi');
+        $examProvider = config('certificate.exam_provider_default', 'Diplomasi');
+
+        $templatePath = public_path(self::TEMPLATE_PATH);
+        if (!file_exists($templatePath)) {
+            $templatePath = null;
+        }
+
+        return [
+            'recipient_name_en' => $recipientNameEn,
+            'course_title_en' => $courseTitleEn,
+            'level_title_en' => $levelTitleEn,
+            'level_number' => $levelNumber,
+            'is_level_certificate' => $isLevelCertificate,
+            'completion_statement' => $completionStatement,
+            'program_display' => $programDisplay,
+            'issued_date_en' => $issuedDateEn,
+            'certificate_code' => $certificate->certificate_code ?? '—',
+            'training_provider' => $trainingProvider,
+            'exam_provider' => $examProvider,
+            'hours' => $hours,
+            'hours_text_en' => $hoursTextEn,
+            'template_image_path' => $templatePath,
+        ];
+    }
+
+    /**
+     * Dynamic completion wording: level vs full course.
+     */
+    private function getCompletionStatement(Certificate $certificate): string
+    {
+        if ($certificate->level_id !== null) {
+            return 'has successfully completed the following level';
+        }
+        return 'has successfully completed the full programme';
+    }
+
+    /**
+     * Line under "HAS COMPLETED": specific level within course, or full course title.
+     */
+    private function getProgramDisplayLine(Certificate $certificate, string $courseTitleEn, ?string $levelTitleEn, $levelNumber): string
+    {
+        if ($certificate->level_id !== null && ($levelTitleEn !== null || $levelNumber !== null)) {
+            $levelPart = $levelNumber !== null ? "Level {$levelNumber}" : '';
+            if ($levelTitleEn !== null && $levelTitleEn !== '') {
+                $levelPart = $levelPart ? "{$levelPart}: {$levelTitleEn}" : $levelTitleEn;
+            }
+            return $levelPart !== '' ? "{$levelPart} — {$courseTitleEn}" : $courseTitleEn;
+        }
+        return $courseTitleEn;
+    }
+
+    /**
      * توليد PDF الشهادة مباشرة للعرض في المتصفح (الطريقة الجديدة - أفضل للعربية)
      */
     public function generateCertificatePdf(Certificate $certificate): \Illuminate\Http\Response
     {
         try {
-            // تحميل العلاقات المطلوبة
             $certificate->load(['user', 'course', 'level']);
 
-            // تجهيز البيانات للـ Blade template
-            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
-            $courseTitle = $certificate->course->title ?? '';
-            $hours = $this->calculateTrainingHours($certificate);
-            $hoursText = $this->numberToArabicWords($hours);
-            $date = $this->formatDateInArabic($certificate->issued_at);
-
-            // مسار QR Code
+            $payload = $this->buildEnglishCertificatePayload($certificate);
             $qrCodePath = null;
             if ($certificate->qr_code) {
                 $qrCodeFullPath = storage_path('app/public/' . $certificate->qr_code);
@@ -305,20 +381,13 @@ class CertificateService
                     $qrCodePath = $qrCodeFullPath;
                 }
             }
+            $payload['qr_code_path'] = $qrCodePath;
 
-            // إنشاء HTML من Blade template
-            $html = View::make('certificates.image_template', [
-                'user_name' => $userName,
-                'course_title' => $courseTitle,
-                'hours' => $hours,
-                'hours_text' => $hoursText,
-                'date' => $date,
-                'qr_code_path' => $qrCodePath,
-            ])->render();
+            $html = View::make('certificates.image_template', $payload)->render();
 
             Log::info("Generated HTML from Blade template for PDF", [
                 'certificate_id' => $certificate->id,
-                'user_name' => $userName,
+                'recipient_name_en' => $payload['recipient_name_en'],
             ]);
 
             // إنشاء PDF باستخدام mPDF
@@ -339,7 +408,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => 'A4-L', // A4 Landscape - حجم معقول
+                'format' => 'A4', // A4 Portrait to match certificate template
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
@@ -359,16 +428,10 @@ class CertificateService
                 'dpi' => 96,
             ]);
 
-            // إعداد mPDF للعربية
-            $mpdf->SetDirectionality('rtl');
-            $mpdf->SetTitle("شهادة - {$certificate->certificate_code}");
+            $mpdf->SetDirectionality('ltr');
+            $mpdf->SetTitle("Certificate - {$certificate->certificate_code}");
             $mpdf->SetAuthor('Diplomasi');
             $mpdf->SetCreator('Diplomasi Certificate System');
-
-            // dejavusans يدعم العربية بشكل ممتاز - لا حاجة لتسجيل خط إضافي
-            Log::info("Using dejavusans font for Arabic support in mPDF", [
-                'note' => 'dejavusans has excellent Arabic support built-in',
-            ]);
 
             // كتابة HTML إلى PDF
             $mpdf->WriteHTML($html);
@@ -402,17 +465,9 @@ class CertificateService
     public function generateCertificateImageFromPdf(Certificate $certificate): ?string
     {
         try {
-            // تحميل العلاقات المطلوبة
             $certificate->load(['user', 'course', 'level']);
 
-            // تجهيز البيانات للـ Blade template
-            $userName = trim($certificate->user->first_name . ' ' . $certificate->user->last_name);
-            $courseTitle = $certificate->course->title ?? '';
-            $hours = $this->calculateTrainingHours($certificate);
-            $hoursText = $this->numberToArabicWords($hours);
-            $date = $this->formatDateInArabic($certificate->issued_at);
-
-            // مسار QR Code
+            $payload = $this->buildEnglishCertificatePayload($certificate);
             $qrCodePath = null;
             if ($certificate->qr_code) {
                 $qrCodeFullPath = storage_path('app/public/' . $certificate->qr_code);
@@ -420,16 +475,9 @@ class CertificateService
                     $qrCodePath = $qrCodeFullPath;
                 }
             }
+            $payload['qr_code_path'] = $qrCodePath;
 
-            // إنشاء HTML من Blade template
-            $html = View::make('certificates.image_template', [
-                'user_name' => $userName,
-                'course_title' => $courseTitle,
-                'hours' => $hours,
-                'hours_text' => $hoursText,
-                'date' => $date,
-                'qr_code_path' => $qrCodePath,
-            ])->render();
+            $html = View::make('certificates.image_template', $payload)->render();
 
             // إنشاء PDF باستخدام mPDF
             $fontPath = storage_path('app/fonts/itfHuwiyaDisplay-Regular.otf');
@@ -449,7 +497,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => 'A4-L', // A4 Landscape - حجم معقول
+                'format' => 'A4', // A4 Portrait to match certificate template
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
@@ -465,11 +513,7 @@ class CertificateService
                 'dpi' => 96,
             ]);
 
-            Log::info("Using dejavusans font for Arabic support (PNG conversion)", [
-                'note' => 'dejavusans has excellent Arabic support built-in',
-            ]);
-
-            $mpdf->SetDirectionality('rtl');
+            $mpdf->SetDirectionality('ltr');
             $mpdf->WriteHTML($html);
 
             // حفظ PDF مؤقتاً
@@ -641,7 +685,7 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => 'A4-L', // A4 Landscape - حجم معقول
+                'format' => 'A4', // A4 Portrait to match certificate template
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
