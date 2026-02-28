@@ -19,6 +19,7 @@ class UpdateArticleRequest extends BaseFormRequest
             'is_published' => 'sometimes|nullable|boolean',
             'published_at' => 'sometimes|nullable|date',
             'image_url' => 'sometimes|nullable|string|max:255',
+            'pdf_url' => 'sometimes|nullable|string|max:500',
         ];
     }
 }

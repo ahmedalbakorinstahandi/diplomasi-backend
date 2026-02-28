@@ -24,6 +24,7 @@ class ArticleResource extends JsonResource
             'author_id' => $this->author_id,
             'is_published' => $this->is_published,
             'image_url' => $this->image_url ? MediaUrlService::toUrl($this->image_url) : null,
+            'pdf_url' => $this->pdf_url ? MediaUrlService::toUrl($this->pdf_url) : null,
             'published_at' => $this->published_at,
             'order_index' => $this->order_index,
             'created_at' => $this->created_at,

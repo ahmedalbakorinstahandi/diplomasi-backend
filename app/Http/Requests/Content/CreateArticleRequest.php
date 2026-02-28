@@ -16,6 +16,7 @@ class CreateArticleRequest extends BaseFormRequest
             'is_published' => 'nullable|boolean',
             'published_at' => 'nullable|date',
             'image_url' => 'required|string|max:255',
+            'pdf_url' => 'nullable|string|max:500',
         ];
     }
 }
