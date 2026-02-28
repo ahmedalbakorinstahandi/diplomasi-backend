@@ -63,6 +63,10 @@ Route::group(['prefix' => 'user'], function () {
     Route::get('plans', [PlanController::class, 'index']);
     Route::get('plans/{id}', [PlanController::class, 'show']);
 
+    //Setting
+    Route::get('settings', [SettingController::class, 'index']);
+    Route::get('settings/{idOrKey}', [SettingController::class, 'show']);
+
 
 
     // Sanctum routes
@@ -124,7 +128,5 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
         Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
         Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
-
     });
 });
-
