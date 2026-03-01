@@ -102,6 +102,13 @@ class PermissionSeeder extends Seeder
             ['name' => 'setting.update', 'description' => 'Update settings'],
             ['name' => 'setting.delete', 'description' => 'Delete settings'],
             ['name' => 'setting.update_many', 'description' => 'Update many settings'],
+
+            // Faqs
+            ['name' => 'faq.view', 'description' => 'View faqs'],
+            ['name' => 'faq.create', 'description' => 'Create faqs'],
+            ['name' => 'faq.update', 'description' => 'Update faqs'],
+            ['name' => 'faq.delete', 'description' => 'Delete faqs'],
+            ['name' => 'faq.reorder', 'description' => 'Reorder faqs'],
         ];
 
         foreach ($permissions as $perm) {
