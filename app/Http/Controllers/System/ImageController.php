@@ -19,7 +19,7 @@ class ImageController extends Controller
 
         $imageName = ImageService::storeImage($request->image, $request->folder);
 
-        return response()->json([
+        return response()->json([ 
             'success' => true,
             'data' => [
                 'image_name' => $imageName,
