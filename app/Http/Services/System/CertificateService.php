@@ -541,10 +541,10 @@ class CertificateService
                     }
                 }
 
-                // إذا فشل Ghostscript، استخدم Imagick
+                // إذا فشل Ghostscript، استخدم Imagick أو GD كبديل
                 if (!extension_loaded('imagick') || !class_exists('\Imagick')) {
-                    Log::warning("Imagick not available, Ghostscript also failed");
-                    return null;
+                    Log::warning("Imagick not available, Ghostscript also failed, trying GD fallback");
+                    return $this->tryGenerateCertificateImageWithGd($certificate);
                 }
 
                 // Imagick class is available via PHP extension (checked above)
@@ -621,6 +621,126 @@ class CertificateService
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
                 'note' => 'PDF is available and works perfectly - PNG is optional',
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Fallback: توليد PNG بالاعتماد على GD فقط (عند عدم توفر Ghostscript و Imagick)
+     */
+    private function tryGenerateCertificateImageWithGd(Certificate $certificate): ?string
+    {
+        if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) {
+            Log::warning("GD extension not available; cannot generate PNG fallback", [
+                'certificate_id' => $certificate->id,
+            ]);
+            return null;
+        }
+
+        try {
+            $certificate->load(['user', 'course', 'level']);
+            $payload = $this->buildEnglishCertificatePayload($certificate);
+
+            $templatePath = public_path(self::TEMPLATE_PATH);
+            if (!file_exists($templatePath)) {
+                $templatePath = public_path('images/certificate-template.jpg');
+            }
+            if (!file_exists($templatePath)) {
+                $templatePath = public_path('images/certificate-template.png');
+            }
+
+            $img = null;
+            if ($templatePath && file_exists($templatePath)) {
+                $ext = strtolower(pathinfo($templatePath, PATHINFO_EXTENSION));
+                $img = ($ext === 'jpg' || $ext === 'jpeg') ? @imagecreatefromjpeg($templatePath) : @imagecreatefrompng($templatePath);
+            }
+            if (!$img) {
+                $img = imagecreatetruecolor(1200, 850);
+                if ($img) {
+                    imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
+                }
+            }
+            if (!$img) {
+                return null;
+            }
+
+            $w = imagesx($img);
+            $h = imagesy($img);
+            $black = imagecolorallocate($img, 30, 30, 50);
+            $blue = imagecolorallocate($img, 30, 58, 95);
+            $white = imagecolorallocate($img, 255, 255, 255);
+
+            $cx = (int)($w / 2);
+            $font = 5;
+            $lineH = imagefontheight($font);
+            $y = (int)($h * 0.18);
+
+            imagestring($img, $font, (int)($cx - 4.5 * imagefontwidth($font) * 9), $y, 'This document certifies that', $black);
+            $y += $lineH + 10;
+            $name = $payload['recipient_name_en'] ?? '—';
+            $nameW = imagefontwidth($font) * strlen($name);
+            imagestring($img, $font, (int)($cx - $nameW / 2), $y, $name, $black);
+            $y += $lineH + 14;
+
+            $badgeW = 180;
+            $badgeH = 32;
+            imagefilledrectangle($img, (int)($cx - $badgeW / 2), $y, (int)($cx + $badgeW / 2), $y + $badgeH, $blue);
+            imagestring($img, $font, (int)($cx - 4.5 * imagefontwidth($font) * 6), $y + 8, 'HAS COMPLETED', $white);
+            $y += $badgeH + 12;
+
+            $stmt = $payload['completion_statement'] ?? '';
+            $stmtW = imagefontwidth($font) * strlen($stmt);
+            imagestring($img, $font, (int)($cx - $stmtW / 2), $y, $stmt, $black);
+            $y += $lineH + 8;
+            $prog = $payload['program_display'] ?? '—';
+            $progW = imagefontwidth($font) * strlen($prog);
+            imagestring($img, $font, (int)($cx - $progW / 2), $y, $prog, $black);
+
+            $left = (int)($w * 0.08);
+            $bottomY = (int)($h * 0.82);
+            imagestring($img, $font, $left, $bottomY, 'DATE ' . ($payload['issued_date_en'] ?? '—'), $black);
+            imagestring($img, $font, $left, $bottomY + $lineH + 4, 'NO. ' . ($payload['certificate_code'] ?? '—'), $black);
+            imagestring($img, $font, $left, $bottomY + 2 * ($lineH + 4), 'Training Provider: ' . ($payload['training_provider'] ?? 'Diplomasi'), $black);
+            imagestring($img, $font, $left, $bottomY + 3 * ($lineH + 4), 'Exam Provider: ' . ($payload['exam_provider'] ?? 'Diplomasi'), $black);
+
+            if ($certificate->qr_code) {
+                $qrPath = storage_path('app/public/' . $certificate->qr_code);
+                if (file_exists($qrPath)) {
+                    $ext = strtolower(pathinfo($qrPath, PATHINFO_EXTENSION));
+                    $qrImg = ($ext === 'png') ? @imagecreatefrompng($qrPath) : @imagecreatefromjpeg($qrPath);
+                    if ($qrImg) {
+                        $qrW = imagesx($qrImg);
+                        $qrH = imagesy($qrImg);
+                        $sz = min(120, (int)($h * 0.18));
+                        $qx = (int)($w - $sz - 40);
+                        $qy = (int)($h - $sz - 40);
+                        imagecopyresampled($img, $qrImg, $qx, $qy, 0, 0, $sz, $sz, $qrW, $qrH);
+                        imagedestroy($qrImg);
+                    }
+                }
+            }
+
+            $outDir = storage_path('app/public/certificates');
+            if (!File::isDirectory($outDir)) {
+                File::makeDirectory($outDir, 0755, true);
+            }
+            $outPath = $outDir . '/' . $certificate->certificate_code . '.png';
+            imagepng($img, $outPath, 6);
+            imagedestroy($img);
+
+            if (file_exists($outPath)) {
+                Log::info("Certificate PNG generated via GD fallback", [
+                    'certificate_id' => $certificate->id,
+                    'path' => 'certificates/' . $certificate->certificate_code . '.png',
+                ]);
+                return 'certificates/' . $certificate->certificate_code . '.png';
+            }
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning("GD fallback certificate image failed", [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
             ]);
             return null;
         }
@@ -821,20 +941,38 @@ class CertificateService
     }
 
     /**
-     * البحث عن مسار Ghostscript
+     * البحث عن مسار Ghostscript (يدعم Windows و Linux)
      */
     private function findGhostscriptPath(): ?string
     {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $output = [];
+            @exec('where gswin64c 2>nul', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+            $output = [];
+            @exec('where gswin32c 2>nul', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+            $output = [];
+            @exec('where gs 2>nul', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+            return null;
+        }
+
         $possiblePaths = [
             '/usr/bin/gs',
             '/usr/local/bin/gs',
             '/bin/gs',
-            'gs', // في PATH
+            'gs',
         ];
 
         foreach ($possiblePaths as $path) {
             if ($path === 'gs') {
-                // محاولة استخدام which/whereis
                 $output = [];
                 $returnVar = 0;
                 @exec('which gs 2>/dev/null', $output, $returnVar);
