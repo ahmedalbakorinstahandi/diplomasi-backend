@@ -19,14 +19,14 @@ class ScenarioQuestionPermission
     public static function canView(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('scenario_question.view');
+            AuthorizationService::authorize('scenario.view');
         }
     }
 
     public static function canCreate(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('scenario_question.create');
+            AuthorizationService::authorize('scenario.create');
             return;
         }
 
@@ -36,7 +36,7 @@ class ScenarioQuestionPermission
     public static function canUpdate(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('scenario_question.update');
+            AuthorizationService::authorize('scenario.update');
             return;
         }
 
@@ -46,7 +46,7 @@ class ScenarioQuestionPermission
     public static function canDelete(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('scenario_question.delete');
+            AuthorizationService::authorize('scenario.delete');
             return;
         }
 
@@ -56,7 +56,7 @@ class ScenarioQuestionPermission
     public static function canReorder(): void
     {
         if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('scenario_question.reorder');
+            AuthorizationService::authorize('scenario.reorder');
             return;
         }
 

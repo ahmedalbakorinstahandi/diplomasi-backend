@@ -19,4 +19,6 @@ class CreateArticleRequest extends BaseFormRequest
             'pdf_url' => 'nullable|string|max:500',
         ];
     }
+
+    
 }
