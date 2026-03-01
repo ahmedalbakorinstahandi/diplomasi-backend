@@ -128,7 +128,7 @@ class UserService
 
         $user->update($data);
 
-        return $this->getProfile();
+        return $user->load(['roles', 'userRoles']);
     }
 
     /**
