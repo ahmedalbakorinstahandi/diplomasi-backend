@@ -263,30 +263,22 @@ class ScenarioService
             $attempt->finished_at = now();
             $attempt->save();
 
+            // Update progress after finishing (100%)
+            $trackProgressService = app(TrackProgressService::class);
+            $trackProgressService->calculateAndUpdateScenarioProgress($attempt->scenario, $attempt->user_id, $attempt);
+
             return [
                 'finished' => true,
                 'message' => 'messages.scenario.finished',
             ];
         }
 
-        // Check if this question was already answered
-        $existingAnswer = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
-            ->where('question_id', $currentQuestion->id)
-            ->first();
-
-        if ($existingAnswer) {
-            // Question already answered, return it with answer details
-            $existingAnswer->load(['userScenarioAnswerOptions.scenarioQuestionOption.nextQuestion']);
-            return [
-                'question' => $currentQuestion,
-                'answered' => true,
-                'answer' => $existingAnswer,
-            ];
-        }
-
+        // في السيناريوهات المسارية، قد نعود لنفس السؤال مرة أخرى (loop/retry).
+        // لذلك نعيده دائماً كسؤال نشط قابل للإجابة من جديد.
         return [
             'question' => $currentQuestion,
             'answered' => false,
+            'answer' => null,
         ];
     }
 
@@ -319,14 +311,7 @@ class ScenarioService
             MessageService::abort(404, 'messages.question.not_found');
         }
 
-        // Check if question was already answered
-        $existingAnswer = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
-            ->where('question_id', $questionId)
-            ->first();
-
-        if ($existingAnswer) {
-            MessageService::abort(400, 'messages.question.already_answered');
-        }
+        // نسمح بتكرار الإجابة لنفس السؤال في حال المسارات الحلقية (العودة للبداية/التجربة مرة أخرى).
 
         // Validate answer based on question type
         if ($question->type === 'single_choice' || $question->type === 'true_false') {
