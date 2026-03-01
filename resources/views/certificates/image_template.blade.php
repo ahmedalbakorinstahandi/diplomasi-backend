@@ -16,12 +16,13 @@
             color: #1a1a2e;
         }
 
+        /* padding أوضح للورقة — الصفحة متناسقة وممتلئة */
         .certificate-page {
             position: relative;
             width: 297mm;
             height: 210mm;
             background-color: #ffffff;
-            padding: 10mm 14mm 14mm 14mm;
+            padding: 18mm 20mm 18mm 20mm;
         }
 
         .template-bg {
@@ -35,102 +36,104 @@
 
         .app-logo {
             position: absolute;
-            top: 10mm;
-            right: 14mm;
-            width: 26mm;
+            top: 18mm;
+            right: 20mm;
+            width: 28mm;
             z-index: 3;
         }
         .app-logo img {
             width: 100%;
             height: auto;
-            max-height: 12mm;
+            max-height: 14mm;
         }
 
-        /* المحتوى الرئيسي: تدفق عادي حتى يظهر النص في mPDF */
+        /* المحتوى المركزي: أكبر ومحاذي بالنص — تصميم ممتلئ */
         .main-content {
             position: relative;
             z-index: 2;
             text-align: center;
-            padding-bottom: 2mm;
+            padding-top: 4mm;
+            padding-bottom: 8mm;
+            max-width: 100%;
         }
 
         .intro-text {
-            font-size: 12pt;
+            font-size: 14pt;
             color: #333333;
-            margin-bottom: 3mm;
+            margin-bottom: 5mm;
         }
 
         .recipient-name {
-            font-size: 20pt;
+            font-size: 24pt;
             font-weight: bold;
             color: #1a1a2e;
-            margin-bottom: 6mm;
-            line-height: 1.2;
+            margin-bottom: 8mm;
+            line-height: 1.25;
         }
 
         .badge-wrap {
-            margin-bottom: 4mm;
+            margin-bottom: 6mm;
         }
 
         .badge-line {
-            font-size: 10pt;
+            font-size: 12pt;
             font-weight: bold;
             color: #ffffff;
             background-color: #1e3a5f;
-            padding: 5px 18px;
-            border-radius: 4px;
+            padding: 7px 24px;
+            border-radius: 5px;
         }
 
         .completion-statement {
-            font-size: 10pt;
+            font-size: 12pt;
             color: #2d2d2d;
-            margin-bottom: 3mm;
+            margin-bottom: 5mm;
         }
 
         .program-display {
-            font-size: 14pt;
+            font-size: 17pt;
             color: #1a1a2e;
-            line-height: 1.3;
+            line-height: 1.35;
         }
 
         .footer-left {
             position: absolute;
-            bottom: 12mm;
-            left: 14mm;
-            font-size: 8.5pt;
+            bottom: 18mm;
+            left: 20mm;
+            font-size: 9.5pt;
             color: #333333;
             z-index: 2;
         }
 
-        .footer-left .date-line { margin-bottom: 3px; }
-        .footer-left .date-value { border-bottom: 1px solid #333; padding: 1px 4px; }
-        .footer-left .no-line { margin-bottom: 3px; }
-        .footer-left .no-value { border: 1px solid #333; padding: 1px 4px; font-family: monospace; font-size: 7.5pt; }
-        .footer-left .provider { margin-top: 4px; }
+        .footer-left .date-line { margin-bottom: 4px; }
+        .footer-left .date-value { border-bottom: 1px solid #333; padding: 2px 5px; }
+        .footer-left .no-line { margin-bottom: 4px; }
+        .footer-left .no-value { border: 1px solid #333; padding: 2px 5px; font-family: monospace; font-size: 8.5pt; }
+        .footer-left .provider { margin-top: 5px; }
         .footer-left .provider-label { font-weight: bold; }
 
         .footer-right {
             position: absolute;
-            bottom: 12mm;
-            right: 14mm;
+            bottom: 18mm;
+            right: 20mm;
             text-align: right;
-            font-size: 8.5pt;
+            font-size: 9.5pt;
             color: #333333;
             z-index: 2;
         }
 
         .signatory-name { font-weight: bold; }
-        .signatory-title { font-size: 7.5pt; margin-top: 1px; }
+        .signatory-title { font-size: 8.5pt; margin-top: 2px; }
 
         .qr-code {
-            margin-top: 6px;
-            width: 20mm;
-            height: 20mm;
+            margin-top: 8px;
+            width: 22mm;
+            height: 22mm;
         }
 
         .qr-code img {
-            width: 20mm;
-            height: 20mm;
+            width: 22mm;
+            height: 22mm;
         }
     </style>
 </head>
