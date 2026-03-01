@@ -321,6 +321,10 @@ class CertificateService
         }
         $templateImageDataUri = $this->buildDataUriFromPath($templatePath);
 
+        $showAppLogo = (bool) config('certificate.show_app_logo', true);
+        $appLogoPath = public_path(ltrim((string) config('certificate.app_logo_path', 'images/logo.png'), '/'));
+        $appLogoDataUri = ($showAppLogo && $appLogoPath && file_exists($appLogoPath)) ? $this->buildDataUriFromPath($appLogoPath) : null;
+
         return [
             'recipient_name_en' => $recipientNameEn,
             'course_title_en' => $courseTitleEn,
@@ -337,6 +341,8 @@ class CertificateService
             'hours_text_en' => $hoursTextEn,
             'template_image_path' => $templatePath,
             'template_image_data_uri' => $templateImageDataUri,
+            'show_app_logo' => $showAppLogo,
+            'app_logo_data_uri' => $appLogoDataUri,
         ];
     }
 
@@ -407,14 +413,14 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => 'A4', // A4 Portrait to match certificate template
+                'format' => 'A4-L', // A4 بالعرض (landscape)
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => 'dejavusans', // dejavusans يدعم العربية بشكل ممتاز
+                'default_font' => 'dejavusans',
                 'default_font_size' => 12,
                 'fontDir' => array_merge($fontDirs, [$fontDir]),
                 'fontdata' => $customFontData,
@@ -497,14 +503,14 @@ class CertificateService
             $mpdf = new Mpdf([
                 'tempDir' => storage_path('framework/cache'),
                 'mode' => 'utf-8',
-                'format' => 'A4', // A4 Portrait to match certificate template
+                'format' => 'A4-L', // A4 Landscape
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
                 'margin_bottom' => 0,
                 'margin_header' => 0,
                 'margin_footer' => 0,
-                'default_font' => 'dejavusans', // dejavusans يدعم العربية بشكل ممتاز
+                'default_font' => 'dejavusans',
                 'default_font_size' => 12,
                 'fontDir' => array_merge($fontDirs, [$fontDir]),
                 'fontdata' => $customFontData,
@@ -655,8 +661,9 @@ class CertificateService
                 $ext = strtolower(pathinfo($templatePath, PATHINFO_EXTENSION));
                 $img = ($ext === 'jpg' || $ext === 'jpeg') ? @imagecreatefromjpeg($templatePath) : @imagecreatefrompng($templatePath);
             }
+            /* A4 بالعرض: نسبة 297:210 */
             if (!$img) {
-                $img = imagecreatetruecolor(1200, 850);
+                $img = imagecreatetruecolor(1400, 990);
                 if ($img) {
                     imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
                 }
@@ -671,34 +678,56 @@ class CertificateService
             $blue = imagecolorallocate($img, 30, 58, 95);
             $white = imagecolorallocate($img, 255, 255, 255);
 
+            /* شعار التطبيق بالزاوية اليمنى دون التأثير على الشكل */
+            if (!empty($payload['show_app_logo']) && !empty($payload['app_logo_data_uri'])) {
+                $dataUri = $payload['app_logo_data_uri'];
+                $base64 = preg_match('/^data:\w+\/\w+;base64,(.+)$/', $dataUri, $m) ? ($m[1] ?? '') : '';
+                if ($base64 !== '') {
+                    $bin = @base64_decode($base64, true);
+                    if ($bin !== false) {
+                        $logo = @imagecreatefromstring($bin);
+                        if ($logo) {
+                            $lw = imagesx($logo);
+                            $lh = imagesy($logo);
+                            $targetW = (int) min(120, $w * 0.10);
+                            $targetH = (int) max(1, round($lh * ($targetW / max(1, $lw))));
+                            $logoX = $w - $targetW - 50;
+                            $logoY = 40;
+                            imagecopyresampled($img, $logo, $logoX, $logoY, 0, 0, $targetW, $targetH, $lw, $lh);
+                            imagedestroy($logo);
+                        }
+                    }
+                }
+            }
+
             $cx = (int)($w / 2);
             $font = 5;
             $lineH = imagefontheight($font);
-            $y = (int)($h * 0.18);
+            $y = (int)($h * 0.12);
 
             imagestring($img, $font, (int)($cx - 4.5 * imagefontwidth($font) * 9), $y, 'This document certifies that', $black);
-            $y += $lineH + 10;
+            $y += $lineH + 8;
             $name = $payload['recipient_name_en'] ?? '—';
             $nameW = imagefontwidth($font) * strlen($name);
             imagestring($img, $font, (int)($cx - $nameW / 2), $y, $name, $black);
-            $y += $lineH + 14;
+            $y += $lineH + 10;
 
             $badgeW = 180;
-            $badgeH = 32;
+            $badgeH = 28;
             imagefilledrectangle($img, (int)($cx - $badgeW / 2), $y, (int)($cx + $badgeW / 2), $y + $badgeH, $blue);
-            imagestring($img, $font, (int)($cx - 4.5 * imagefontwidth($font) * 6), $y + 8, 'HAS COMPLETED', $white);
-            $y += $badgeH + 12;
+            imagestring($img, $font, (int)($cx - 4.5 * imagefontwidth($font) * 6), $y + 6, 'HAS COMPLETED', $white);
+            $y += $badgeH + 8;
 
             $stmt = $payload['completion_statement'] ?? '';
             $stmtW = imagefontwidth($font) * strlen($stmt);
             imagestring($img, $font, (int)($cx - $stmtW / 2), $y, $stmt, $black);
-            $y += $lineH + 8;
+            $y += $lineH + 6;
             $prog = $payload['program_display'] ?? '—';
             $progW = imagefontwidth($font) * strlen($prog);
             imagestring($img, $font, (int)($cx - $progW / 2), $y, $prog, $black);
 
-            $left = (int)($w * 0.08);
-            $bottomY = (int)($h * 0.82);
+            $left = (int)($w * 0.05);
+            $bottomY = (int)($h * 0.78);
             imagestring($img, $font, $left, $bottomY, 'DATE ' . ($payload['issued_date_en'] ?? '—'), $black);
             imagestring($img, $font, $left, $bottomY + $lineH + 4, 'NO. ' . ($payload['certificate_code'] ?? '—'), $black);
             imagestring($img, $font, $left, $bottomY + 2 * ($lineH + 4), 'Training Provider: ' . ($payload['training_provider'] ?? 'Diplomasi'), $black);
