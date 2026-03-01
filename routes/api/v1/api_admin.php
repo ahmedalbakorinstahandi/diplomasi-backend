@@ -93,6 +93,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('scenario-questions/{id}', [ScenarioQuestionController::class, 'update']);
         Route::delete('scenario-questions/{id}', [ScenarioQuestionController::class, 'delete']);
         Route::put('scenario-questions/{id}/reorder', [ScenarioQuestionController::class, 'reorder']);
+        Route::get('scenario-questions/validate-flow/check', [ScenarioQuestionController::class, 'validateFlow']);
 
         // Level Tracks
         Route::get('level-tracks', [LevelTrackController::class, 'index']);

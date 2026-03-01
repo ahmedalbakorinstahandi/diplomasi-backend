@@ -190,8 +190,12 @@ return [
         'locked' => 'السيناريو مقفل',
         'no_start_question' => 'لا يوجد سؤال بداية محدد',
         'cannot_publish_without_start_question' => 'لا يمكن نشر السيناريو بدون تحديد سؤال البداية',
+        'invalid_start_question' => 'سؤال البداية غير صالح أو لا ينتمي لنفس السيناريو',
         'deadlock_question' => 'السؤال (ID: :question_id) يشكل حلقة مغلقة (deadlock): جميع خياراته تشير لنفس السؤال',
         'invalid_next_question' => 'الخيار (ID: :option_id) يشير لسؤال غير موجود في السيناريو',
+        'invalid_next_question_code' => 'رمز السؤال التالي (:code) غير موجود داخل نفس السيناريو',
+        'no_terminal_path' => 'لا يوجد مسار نهائي قابل للوصول من سؤال البداية',
+        'unreachable_questions' => 'توجد أسئلة غير قابلة للوصول من البداية: :question_ids',
     ],
 
     'scenario_question' => [

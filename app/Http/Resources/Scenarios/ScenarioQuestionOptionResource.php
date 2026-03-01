@@ -18,7 +18,12 @@ class ScenarioQuestionOptionResource extends JsonResource
             'id' => $this->id,
             'question_id' => $this->question_id,
             'option_text' => $this->option_text,
+            'feedback_text' => $this->feedback_text,
             'next_question_id' => $this->next_question_id,
+            'next_question_code' => $this->when(
+                $this->relationLoaded('nextQuestion') && $this->nextQuestion,
+                fn() => $this->nextQuestion->code
+            ),
             'attached_path' => $this->attached_path,
             'order_index' => $this->order_index,
             'created_at' => $this->created_at,

@@ -11,7 +11,7 @@ class UpdateScenarioQuestionRequest extends BaseFormRequest
         return [
             'scenario_id' => 'sometimes|exists:scenarios,id',
             'code' => 'sometimes|string|max:20',
-            'type' => 'sometimes|in:single_choice,true_false',
+            'type' => 'sometimes|in:single_choice',
             'question_text' => 'sometimes|string',
             'attached_path' => 'nullable|string|max:100',
             'explanation' => 'nullable|string',
@@ -19,6 +19,8 @@ class UpdateScenarioQuestionRequest extends BaseFormRequest
             'options.*.id' => 'nullable|exists:scenario_question_options,id',
             'options.*.option_text' => 'required_with:options|string',
             'options.*.next_question_id' => 'nullable|exists:scenario_questions,id',
+            'options.*.next_question_code' => 'nullable|string|max:20',
+            'options.*.feedback_text' => 'nullable|string',
             'options.*.attached_path' => 'nullable|string|max:100',
         ];
     }

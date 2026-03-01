@@ -15,7 +15,7 @@ class ScenarioQuestionSeeder extends Seeder
 
         foreach ($scenarios as $scenario) {
             for ($i = 1; $i <= 3; $i++) {
-                $type = $i === 2 ? 'true_false' : 'single_choice';
+                $type = 'single_choice';
                 $code = "S{$scenario->id}Q{$i}";
 
                 $q = ScenarioQuestion::withTrashed()->updateOrCreate(

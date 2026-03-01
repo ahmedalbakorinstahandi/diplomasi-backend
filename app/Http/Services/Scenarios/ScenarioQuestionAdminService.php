@@ -16,7 +16,7 @@ class ScenarioQuestionAdminService
     {
         $query = ScenarioQuestion::query()->with([
             'scenario',
-            'scenarioQuestionOptions',
+            'scenarioQuestionOptions.nextQuestion',
         ]);
 
         $filters['per_page'] = $filters['per_page'] ?? 20;
@@ -90,10 +90,18 @@ class ScenarioQuestionAdminService
         // تعيين order_index
         OrderHelper::assign($question, 'order_index');
 
+        // تعيين سؤال البداية تلقائياً إذا لم يكن محدداً.
+        if (!$scenario->start_question_id) {
+            $scenario->start_question_id = $question->id;
+            $scenario->save();
+        }
+
         // إنشاء الخيارات إذا كانت موجودة
         if (isset($data['options']) && is_array($data['options'])) {
             $this->createOptions($question, $data['options']);
         }
+
+        $this->ensureScenarioStartQuestionIntegrity($scenario->id);
 
         // التحقق من سلامة التدفق بعد الإنشاء
         $validationResult = $this->validateScenarioFlow($scenario->id);
@@ -101,6 +109,7 @@ class ScenarioQuestionAdminService
             // في حالة فشل التحقق، نحذف السؤال الذي تم إنشاؤه
             $question->scenarioQuestionOptions()->delete();
             $question->delete();
+            $this->ensureScenarioStartQuestionIntegrity($scenario->id);
             MessageService::abort(422, $validationResult['message']);
         }
 
@@ -162,6 +171,8 @@ class ScenarioQuestionAdminService
             $this->updateOptions($question, $data['options']);
         }
 
+        $this->ensureScenarioStartQuestionIntegrity($question->scenario_id);
+
         // التحقق من سلامة التدفق بعد التحديث
         $scenarioId = $question->scenario_id;
         $validationResult = $this->validateScenarioFlow($scenarioId);
@@ -177,12 +188,8 @@ class ScenarioQuestionAdminService
     public function delete($question)
     {
         $scenarioId = $question->scenario_id;
-
-        // التحقق من أن السؤال ليس start_question_id
         $scenario = Scenario::find($scenarioId);
-        if ($scenario && $scenario->start_question_id == $question->id) {
-            MessageService::abort(422, 'messages.scenario_question.cannot_delete_start_question');
-        }
+        $wasStartQuestion = $scenario && $scenario->start_question_id == $question->id;
 
         // التحقق من أن السؤال لا يُشار إليه من خيارات أخرى
         $referencedBy = ScenarioQuestionOption::where('next_question_id', $question->id)
@@ -197,6 +204,19 @@ class ScenarioQuestionAdminService
         $question->scenarioQuestionOptions()->delete();
 
         $question->delete();
+
+        // إذا حُذف سؤال البداية، نحدد بداية جديدة تلقائياً.
+        if ($wasStartQuestion && $scenario) {
+            $fallbackStartQuestion = ScenarioQuestion::where('scenario_id', $scenarioId)
+                ->orderBy('order_index')
+                ->orderBy('id')
+                ->first();
+
+            $scenario->start_question_id = $fallbackStartQuestion?->id;
+            $scenario->save();
+        }
+
+        $this->ensureScenarioStartQuestionIntegrity($scenarioId);
     }
 
     public function reorder($question, $validatedData)
@@ -215,7 +235,8 @@ class ScenarioQuestionAdminService
             $option = ScenarioQuestionOption::create([
                 'question_id' => $question->id,
                 'option_text' => $optionData['option_text'],
-                'next_question_id' => $optionData['next_question_id'] ?? null,
+                'feedback_text' => $optionData['feedback_text'] ?? null,
+                'next_question_id' => $this->resolveNextQuestionId($optionData, $question->scenario_id),
                 'attached_path' => $optionData['attached_path'] ?? null,
             ]);
 
@@ -243,7 +264,8 @@ class ScenarioQuestionAdminService
                 if ($option && $option->question_id == $question->id) {
                     $option->update([
                         'option_text' => $optionData['option_text'],
-                        'next_question_id' => $optionData['next_question_id'] ?? null,
+                        'feedback_text' => $optionData['feedback_text'] ?? null,
+                        'next_question_id' => $this->resolveNextQuestionId($optionData, $question->scenario_id),
                         'attached_path' => $optionData['attached_path'] ?? null,
                     ]);
                 }
@@ -252,7 +274,8 @@ class ScenarioQuestionAdminService
                 $option = ScenarioQuestionOption::create([
                     'question_id' => $question->id,
                     'option_text' => $optionData['option_text'],
-                    'next_question_id' => $optionData['next_question_id'] ?? null,
+                    'feedback_text' => $optionData['feedback_text'] ?? null,
+                    'next_question_id' => $this->resolveNextQuestionId($optionData, $question->scenario_id),
                     'attached_path' => $optionData['attached_path'] ?? null,
                 ]);
 
@@ -262,12 +285,67 @@ class ScenarioQuestionAdminService
     }
 
     /**
+     * تحويل next_question_code إلى next_question_id لسهولة الربط من الداش بورد.
+     */
+    private function resolveNextQuestionId(array $optionData, int $scenarioId): ?int
+    {
+        if (array_key_exists('next_question_id', $optionData)) {
+            return $optionData['next_question_id'] ?: null;
+        }
+
+        if (!empty($optionData['next_question_code'])) {
+            $nextQuestion = ScenarioQuestion::where('scenario_id', $scenarioId)
+                ->where('code', $optionData['next_question_code'])
+                ->first();
+
+            if (!$nextQuestion) {
+                MessageService::abort(422, trans('messages.scenario.invalid_next_question_code', [
+                    'code' => $optionData['next_question_code'],
+                ]));
+            }
+
+            return $nextQuestion->id;
+        }
+
+        return null;
+    }
+
+    /**
+     * ضمان سلامة start_question_id دائماً مع أسئلة السيناريو الحالية.
+     */
+    private function ensureScenarioStartQuestionIntegrity(int $scenarioId): void
+    {
+        $scenario = Scenario::find($scenarioId);
+        if (!$scenario) {
+            return;
+        }
+
+        if ($scenario->start_question_id) {
+            $isValid = ScenarioQuestion::where('scenario_id', $scenarioId)
+                ->where('id', $scenario->start_question_id)
+                ->exists();
+
+            if ($isValid) {
+                return;
+            }
+        }
+
+        $fallbackStartQuestion = ScenarioQuestion::where('scenario_id', $scenarioId)
+            ->orderBy('order_index')
+            ->orderBy('id')
+            ->first();
+
+        $scenario->start_question_id = $fallbackStartQuestion?->id;
+        $scenario->save();
+    }
+
+    /**
      * التحقق من سلامة التدفق في السيناريو
      * 
      * ملاحظة: هذا التحقق يركز على منع المشاكل الفعلية فقط (deadlock، next_question_id غير صحيح)
      * ولا يمنع إضافة أسئلة غير مرتبطة مؤقتاً (يمكن ربطها لاحقاً)
      */
-    public function validateScenarioFlow($scenarioId)
+    public function validateScenarioFlow($scenarioId, bool $strict = false)
     {
         // 1. جلب السيناريو
         $scenario = Scenario::find($scenarioId);
@@ -332,15 +410,98 @@ class ScenarioQuestionAdminService
             }
         }
 
-        // ملاحظة: لا نتحقق من:
-        // - وجود start_question_id (يمكن تحديده لاحقاً)
-        // - وجود exit path (يمكن إضافته لاحقاً)
-        // - الأسئلة غير القابلة للوصول (يمكن ربطها لاحقاً)
+        if (!$strict) {
+            return [
+                'success' => true,
+                'message' => null,
+                'details' => [
+                    'unreachable_question_ids' => [],
+                    'has_terminal_path' => null,
+                ],
+            ];
+        }
+
+        if (!$scenario->start_question_id) {
+            return [
+                'success' => false,
+                'message' => 'messages.scenario.no_start_question',
+            ];
+        }
+
+        if (!in_array($scenario->start_question_id, $allQuestionIds)) {
+            return [
+                'success' => false,
+                'message' => 'messages.scenario.invalid_start_question',
+            ];
+        }
+
+        // BFS من سؤال البداية لاكتشاف القابلية للوصول ووجود مسار نهائي.
+        $visited = [];
+        $queue = [$scenario->start_question_id];
+        $hasTerminalPath = false;
+
+        while (!empty($queue)) {
+            $currentQuestionId = array_shift($queue);
+            if (isset($visited[$currentQuestionId])) {
+                continue;
+            }
+            $visited[$currentQuestionId] = true;
+
+            $options = $optionsMap[$currentQuestionId] ?? collect();
+            $nextIds = $options->pluck('next_question_id')->filter()->toArray();
+
+            if ($options->isEmpty() || empty($nextIds)) {
+                $hasTerminalPath = true;
+            }
+
+            foreach ($nextIds as $nextId) {
+                if (!isset($visited[$nextId])) {
+                    $queue[] = $nextId;
+                }
+            }
+        }
+
+        $reachableQuestionIds = array_keys($visited);
+        $unreachableQuestionIds = array_values(array_diff($allQuestionIds, $reachableQuestionIds));
+
+        if (!$hasTerminalPath) {
+            return [
+                'success' => false,
+                'message' => 'messages.scenario.no_terminal_path',
+                'details' => [
+                    'unreachable_question_ids' => $unreachableQuestionIds,
+                    'has_terminal_path' => false,
+                ],
+            ];
+        }
+
+        if (!empty($unreachableQuestionIds)) {
+            return [
+                'success' => false,
+                'message' => trans('messages.scenario.unreachable_questions', [
+                    'question_ids' => implode(', ', $unreachableQuestionIds),
+                ]),
+                'details' => [
+                    'unreachable_question_ids' => $unreachableQuestionIds,
+                    'has_terminal_path' => true,
+                ],
+            ];
+        }
 
         return [
             'success' => true,
             'message' => null,
+            'details' => [
+                'unreachable_question_ids' => [],
+                'has_terminal_path' => true,
+            ],
         ];
+    }
+
+    public function validateFlow(int $scenarioId, bool $strict = true): array
+    {
+        $this->ensureScenarioStartQuestionIntegrity($scenarioId);
+        return $this->validateScenarioFlow($scenarioId, $strict);
     }
 
 }

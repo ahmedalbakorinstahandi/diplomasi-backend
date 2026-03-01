@@ -108,4 +108,27 @@ class ScenarioQuestionController extends Controller
 
         return $this->index(request(), 'messages.scenario_question.reordered');
     }
+
+    public function validateFlow(Request $request)
+    {
+        ScenarioQuestionPermission::canUpdate();
+
+        $scenarioId = (int) $request->query('scenario_id');
+        if (!$scenarioId) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'scenario_id is required',
+                'status' => 422,
+            ]);
+        }
+
+        $strict = filter_var($request->query('strict', true), FILTER_VALIDATE_BOOL);
+        $result = $this->scenarioQuestionAdminService->validateFlow($scenarioId, $strict);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $result,
+            'status' => 200,
+        ]);
+    }
 }

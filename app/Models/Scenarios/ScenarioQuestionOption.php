@@ -20,6 +20,7 @@ class ScenarioQuestionOption extends Model
     protected $fillable = [
         'question_id',
         'option_text',
+        'feedback_text',
         'next_question_id',
         'attached_path',
         'order_index',

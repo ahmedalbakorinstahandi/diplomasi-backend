@@ -100,6 +100,11 @@ class ScenarioService
             if (!$finalStartQuestionId) {
                 MessageService::abort(422, 'messages.scenario.cannot_publish_without_start_question');
             }
+
+            $flowValidation = app(ScenarioQuestionAdminService::class)->validateFlow((int) $scenario->id, true);
+            if (!$flowValidation['success']) {
+                MessageService::abort(422, $flowValidation['message']);
+            }
         }
         
         $scenario->update($data);
@@ -362,6 +367,7 @@ class ScenarioService
 
         // Get the next question based on the selected option
         $nextQuestionId = null;
+        $selectedOption = null;
         if ($optionId) {
             $selectedOption = ScenarioQuestionOption::where('id', $optionId)->first();
             if ($selectedOption) {
@@ -388,6 +394,7 @@ class ScenarioService
             'answer' => $answer,
             'next_question_id' => $nextQuestionId,
             'finished' => $isFinished,
+            'feedback_text' => $selectedOption?->feedback_text,
             'explanation' => $question->explanation,
         ];
     }
