@@ -15,7 +15,7 @@ class CreateScenarioQuestionRequest extends BaseFormRequest
             'question_text' => 'required|string',
             'attached_path' => 'nullable|string|max:100',
             'explanation' => 'nullable|string',
-            'options' => 'required|array|min:2',
+            'options' => 'required|array|min:1',
             'options.*.option_text' => 'required|string',
             'options.*.next_question_id' => 'nullable|exists:scenario_questions,id',
             'options.*.next_question_code' => 'nullable|string|max:20',
