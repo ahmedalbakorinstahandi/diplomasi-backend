@@ -142,6 +142,52 @@ class LessonController extends Controller
     }
 
     /**
+     * Get all attempts for the current user in a lesson
+     */
+    public function listAttempts(int $lessonId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'messages.unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $attempts = $this->lessonQuestionService->getAttemptsForLesson($lessonId, $user->id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $attempts,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Get full review payload for a finished/in-progress attempt
+     */
+    public function reviewAttempt(int $lessonId, int $attemptId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'messages.unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $review = $this->lessonQuestionService->getAttemptReview($lessonId, $attemptId, $user->id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $review,
+            'status' => 200,
+        ]);
+    }
+
+    /**
      * جلب جميع أسئلة الدرس مع حالاتها
      */
     public function getQuestions(int $lessonId, Request $request)

@@ -128,6 +128,38 @@ class ScenarioController extends Controller
         ]);
     }
 
+    /**
+     * List user attempts for a scenario.
+     */
+    public function listAttempts(int $id)
+    {
+        ScenarioPermission::canStartAttempt();
+
+        $attempts = $this->scenarioService->getAttemptsForScenario($id);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $attempts,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Get full journey for one scenario attempt.
+     */
+    public function attemptJourney(int $id, int $attemptId)
+    {
+        ScenarioPermission::canStartAttempt();
+
+        $journey = $this->scenarioService->getAttemptJourney($id, $attemptId);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $journey,
+            'status' => 200,
+        ]);
+    }
+
     public function getCurrentQuestion(int $id, int $attemptId)
     {
         ScenarioPermission::canStartAttempt();

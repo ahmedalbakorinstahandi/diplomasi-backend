@@ -86,6 +86,8 @@ Route::group(['prefix' => 'user'], function () {
 
         // Lessons - Questions and Attempts
         Route::post('lessons/{lessonId}/start-attempt', [LessonController::class, 'startAttempt']);
+        Route::get('lessons/{lessonId}/attempts', [LessonController::class, 'listAttempts']);
+        Route::get('lessons/{lessonId}/attempts/{attemptId}/review', [LessonController::class, 'reviewAttempt']);
         Route::get('lessons/{lessonId}/questions', [LessonController::class, 'getQuestions']);
         Route::get('lessons/{lessonId}/attempts/{attemptId}/current-question', [LessonController::class, 'getCurrentQuestion']);
         Route::post('lessons/{lessonId}/attempts/{attemptId}/submit-answer', [LessonController::class, 'submitAnswer']);
@@ -94,6 +96,8 @@ Route::group(['prefix' => 'user'], function () {
 
         // Scenarios - User actions
         Route::post('scenarios/{id}/start-attempt', [ScenarioController::class, 'startAttempt']);
+        Route::get('scenarios/{id}/attempts', [ScenarioController::class, 'listAttempts']);
+        Route::get('scenarios/{id}/attempts/{attemptId}/journey', [ScenarioController::class, 'attemptJourney']);
         Route::get('scenarios/{id}/attempts/{attemptId}/current-question', [ScenarioController::class, 'getCurrentQuestion']);
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
         Route::post('scenarios/{id}/attempts/{attemptId}/finish', [ScenarioController::class, 'finishAttempt']);

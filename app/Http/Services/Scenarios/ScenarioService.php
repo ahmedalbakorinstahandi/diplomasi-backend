@@ -209,6 +209,139 @@ class ScenarioService
     }
 
     /**
+     * Get user attempts for one scenario.
+     */
+    public function getAttemptsForScenario($scenarioId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $scenario = Scenario::find($scenarioId);
+        if (!$scenario) {
+            MessageService::abort(404, 'messages.scenario.not_found');
+        }
+
+        $attempts = UserScenarioAttempt::where('scenario_id', $scenarioId)
+            ->where('user_id', $user->id)
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        $attemptIds = $attempts->pluck('id')->all();
+        $stepsByAttempt = [];
+        if (!empty($attemptIds)) {
+            $stepsByAttempt = UserScenarioQuestionAnswer::whereIn('attempt_id', $attemptIds)
+                ->selectRaw('attempt_id, COUNT(*) as steps_count')
+                ->groupBy('attempt_id')
+                ->pluck('steps_count', 'attempt_id')
+                ->toArray();
+        }
+
+        return $attempts->map(function ($attempt) use ($stepsByAttempt) {
+            $stepsCount = (int) ($stepsByAttempt[$attempt->id] ?? 0);
+            return [
+                'id' => $attempt->id,
+                'user_id' => $attempt->user_id,
+                'scenario_id' => $attempt->scenario_id,
+                'status' => $attempt->status,
+                'progress_percentage' => $attempt->progress_percentage,
+                'track_status' => $attempt->track_status,
+                'is_completed' => $attempt->is_completed,
+                'started_at' => $attempt->started_at,
+                'finished_at' => $attempt->finished_at,
+                'description_read' => $attempt->description_read,
+                'description_read_at' => $attempt->description_read_at,
+                'steps_count' => $stepsCount,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Get full journey (path) for one scenario attempt.
+     */
+    public function getAttemptJourney($scenarioId, $attemptId)
+    {
+        $user = User::auth();
+        if (!$user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $attempt = UserScenarioAttempt::where('id', $attemptId)
+            ->where('user_id', $user->id)
+            ->with(['scenario'])
+            ->first();
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+        if ((int) $attempt->scenario_id !== (int) $scenarioId) {
+            MessageService::abort(400, 'messages.question.not_found');
+        }
+
+        $answers = UserScenarioQuestionAnswer::where('attempt_id', $attemptId)
+            ->with([
+                'scenarioQuestion',
+                'userScenarioAnswerOptions.scenarioQuestionOption.nextQuestion',
+            ])
+            ->orderBy('step_index')
+            ->get();
+
+        $steps = $answers->map(function ($answer) {
+            $selectedOption = $answer->userScenarioAnswerOptions->first();
+            $selectedOptionModel = $selectedOption?->scenarioQuestionOption;
+            $nextQuestion = $selectedOptionModel?->nextQuestion;
+
+            return [
+                'step_index' => $answer->step_index,
+                'answered_at' => $answer->answered_at,
+                'time_spent' => $answer->time_spent,
+                'question' => $answer->scenarioQuestion ? [
+                    'id' => $answer->scenarioQuestion->id,
+                    'code' => $answer->scenarioQuestion->code,
+                    'type' => $answer->scenarioQuestion->type,
+                    'question_text' => $answer->scenarioQuestion->question_text,
+                    'explanation' => $answer->scenarioQuestion->explanation,
+                ] : null,
+                'selected_option' => $selectedOptionModel ? [
+                    'id' => $selectedOptionModel->id,
+                    'option_text' => $selectedOptionModel->option_text,
+                    'feedback_text' => $selectedOptionModel->feedback_text,
+                    'next_question_id' => $selectedOptionModel->next_question_id,
+                ] : null,
+                'next_question' => $nextQuestion ? [
+                    'id' => $nextQuestion->id,
+                    'code' => $nextQuestion->code,
+                    'question_text' => $nextQuestion->question_text,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return [
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status,
+                'progress_percentage' => $attempt->progress_percentage,
+                'track_status' => $attempt->track_status,
+                'is_completed' => $attempt->is_completed,
+                'started_at' => $attempt->started_at,
+                'finished_at' => $attempt->finished_at,
+                'description_read' => $attempt->description_read,
+                'description_read_at' => $attempt->description_read_at,
+            ],
+            'scenario' => [
+                'id' => $attempt->scenario?->id,
+                'title' => $attempt->scenario?->title,
+                'description' => $attempt->scenario?->description,
+            ],
+            'steps' => $steps,
+            'summary' => [
+                'total_steps' => count($steps),
+                'finished' => $attempt->status === 'finished',
+            ],
+        ];
+    }
+
+    /**
      * Get the current question for an attempt
      */
     public function getCurrentQuestion($attemptId)

@@ -145,6 +145,304 @@ class LessonQuestionService
     }
 
     /**
+     * Get all attempts for a lesson (current user only).
+     */
+    public function getAttemptsForLesson($lessonId, $userId)
+    {
+        $lesson = Lesson::find($lessonId);
+        if (!$lesson) {
+            MessageService::abort(404, 'messages.lesson.not_found');
+        }
+
+        $attempts = UserLessonAttempt::where('lesson_id', $lessonId)
+            ->where('user_id', $userId)
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        $attemptIds = $attempts->pluck('id')->all();
+        $answeredByAttempt = [];
+        if (!empty($attemptIds)) {
+            $answeredByAttempt = UserLessonQuestionAnswer::whereIn('attempt_id', $attemptIds)
+                ->select('attempt_id', DB::raw('COUNT(*) as answered_count'))
+                ->groupBy('attempt_id')
+                ->pluck('answered_count', 'attempt_id')
+                ->toArray();
+        }
+
+        $totalQuestions = LessonQuestion::where('lesson_id', $lessonId)->count();
+
+        return $attempts->map(function ($attempt) use ($answeredByAttempt, $totalQuestions) {
+            $answered = (int) ($answeredByAttempt[$attempt->id] ?? 0);
+            return [
+                'id' => $attempt->id,
+                'user_id' => $attempt->user_id,
+                'lesson_id' => $attempt->lesson_id,
+                'status' => $attempt->status,
+                'score' => $attempt->score,
+                'current_question_id' => $attempt->current_question_id,
+                'started_at' => $attempt->started_at,
+                'finished_at' => $attempt->finished_at,
+                'total_time' => $attempt->total_time,
+                'video_watched' => $attempt->video_watched,
+                'video_watched_at' => $attempt->video_watched_at,
+                'progress' => [
+                    'answered' => $answered,
+                    'total' => $totalQuestions,
+                    'percentage' => $totalQuestions > 0 ? round(($answered / $totalQuestions) * 100, 2) : 0,
+                ],
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Get full review payload for one attempt.
+     */
+    public function getAttemptReview($lessonId, $attemptId, $userId)
+    {
+        $attempt = UserLessonAttempt::where('id', $attemptId)
+            ->where('user_id', $userId)
+            ->first();
+        if (!$attempt) {
+            MessageService::abort(404, 'messages.attempt.not_found');
+        }
+        if ((int) $attempt->lesson_id !== (int) $lessonId) {
+            MessageService::abort(400, 'messages.question.not_belongs_to_lesson');
+        }
+
+        $questions = LessonQuestion::where('lesson_id', $lessonId)
+            ->with(['lessonQuestionOptions' => function ($q) {
+                $q->orderBy('order_index');
+            }])
+            ->orderBy('order_index')
+            ->get();
+
+        $answers = UserLessonQuestionAnswer::where('attempt_id', $attemptId)
+            ->with([
+                'userLessonAnswerOptions.lessonQuestionOption',
+                'userLessonAnswerMatches.leftOption',
+                'userLessonAnswerMatches.rightOption',
+            ])
+            ->get()
+            ->keyBy('question_id');
+
+        $questionsPayload = $questions->map(function ($question) use ($answers) {
+            $answer = $answers->get($question->id);
+            $options = $question->lessonQuestionOptions->map(function ($option) {
+                return [
+                    'id' => $option->id,
+                    'option_text' => $option->option_text,
+                    'pair_key' => $option->pair_key,
+                    'is_correct' => $option->is_correct,
+                    'attached_path' => $option->attached_path,
+                    'order_index' => $option->order_index,
+                ];
+            })->values()->all();
+
+            [$leftOptions, $rightOptions] = $this->buildMatchColumns($question->lessonQuestionOptions);
+
+            $userAnswerPayload = null;
+            if ($answer) {
+                $userAnswerPayload = [
+                    'is_correct' => $answer->is_correct,
+                    'score' => $answer->score,
+                    'answered_at' => $answer->answered_at,
+                    'options' => $answer->userLessonAnswerOptions->map(function ($answerOption) {
+                        return [
+                            'option_id' => $answerOption->option_id,
+                            'option_text' => optional($answerOption->lessonQuestionOption)->option_text,
+                            'is_correct' => $answerOption->is_correct,
+                        ];
+                    })->values()->all(),
+                    'matches' => $answer->userLessonAnswerMatches->map(function ($match) {
+                        return [
+                            'left_option_id' => $match->left_option_id,
+                            'left_option_text' => optional($match->leftOption)->option_text,
+                            'right_option_id' => $match->right_option_id,
+                            'right_option_text' => optional($match->rightOption)->option_text,
+                            'is_correct' => $match->is_correct,
+                        ];
+                    })->values()->all(),
+                ];
+            }
+
+            $correctAnswerPayload = null;
+            if ($question->type === 'single_choice' || $question->type === 'true_false') {
+                $correctOption = $question->lessonQuestionOptions->firstWhere('is_correct', true);
+                $correctAnswerPayload = [
+                    'correct_option_id' => $correctOption?->id,
+                    'correct_option_text' => $correctOption?->option_text,
+                ];
+            } elseif ($question->type === 'multiple_choice') {
+                $correctOptions = $question->lessonQuestionOptions->where('is_correct', true)->values();
+                $correctAnswerPayload = [
+                    'correct_option_ids' => $correctOptions->pluck('id')->values()->all(),
+                    'correct_option_texts' => $correctOptions->pluck('option_text')->values()->all(),
+                ];
+            } elseif ($question->type === 'match') {
+                $correctPairs = $this->buildCorrectMatchPairs($question->lessonQuestionOptions);
+                $correctAnswerPayload = [
+                    'correct_pairs' => $correctPairs,
+                    'correct_count' => $answer ? $answer->userLessonAnswerMatches->where('is_correct', true)->count() : 0,
+                    'total_count' => $answer ? $answer->userLessonAnswerMatches->count() : count($correctPairs),
+                ];
+            }
+
+            return [
+                'id' => $question->id,
+                'type' => $question->type,
+                'question_text' => $question->question_text,
+                'attached_path' => $question->attached_path,
+                'explanation' => $question->explanation,
+                'score' => $question->score,
+                'order_index' => $question->order_index,
+                'options' => $options,
+                'left_options' => $leftOptions,
+                'right_options' => $rightOptions,
+                'user_answer' => $userAnswerPayload,
+                'correct_answer_payload' => $correctAnswerPayload,
+            ];
+        })->values()->all();
+
+        $answeredCount = $answers->count();
+        $totalQuestions = $questions->count();
+
+        return [
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status,
+                'score' => $attempt->score,
+                'started_at' => $attempt->started_at,
+                'finished_at' => $attempt->finished_at,
+                'total_time' => $attempt->total_time,
+                'video_watched' => $attempt->video_watched,
+                'video_watched_at' => $attempt->video_watched_at,
+                'progress' => [
+                    'answered' => $answeredCount,
+                    'total' => $totalQuestions,
+                    'percentage' => $totalQuestions > 0 ? round(($answeredCount / $totalQuestions) * 100, 2) : 0,
+                ],
+            ],
+            'questions' => $questionsPayload,
+        ];
+    }
+
+    /**
+     * Build left/right columns for match review.
+     */
+    private function buildMatchColumns($options)
+    {
+        if (!$options || $options->isEmpty()) {
+            return [[], []];
+        }
+
+        $hasNull = $options->contains(fn ($o) => $o->pair_key === null || $o->pair_key === '');
+        $hasNonNull = $options->contains(fn ($o) => $o->pair_key !== null && $o->pair_key !== '');
+
+        $toOption = function ($option) {
+            return [
+                'id' => $option->id,
+                'option_text' => $option->option_text,
+                'pair_key' => $option->pair_key,
+                'is_correct' => $option->is_correct,
+                'attached_path' => $option->attached_path,
+                'order_index' => $option->order_index,
+            ];
+        };
+
+        if ($hasNull && $hasNonNull) {
+            $left = $options->filter(fn ($o) => $o->pair_key === null || $o->pair_key === '')
+                ->sortBy('order_index')
+                ->map($toOption)
+                ->values()
+                ->all();
+            $right = $options->filter(fn ($o) => $o->pair_key !== null && $o->pair_key !== '')
+                ->sortBy('order_index')
+                ->map($toOption)
+                ->values()
+                ->all();
+            return [$left, $right];
+        }
+
+        $grouped = $options->groupBy('pair_key');
+        $pairs = [];
+        foreach ($grouped as $group) {
+            $sorted = $group->sortBy('order_index')->values();
+            $first = $sorted->get(0);
+            $second = $sorted->get(1);
+            if ($first && $second) {
+                $pairs[] = ['left' => $first, 'right' => $second];
+            }
+        }
+
+        $leftItems = array_map(fn ($pair) => $pair['left'], $pairs);
+        $rightItems = array_map(fn ($pair) => $pair['right'], $pairs);
+        usort($leftItems, fn ($a, $b) => $a->order_index <=> $b->order_index);
+        usort($rightItems, fn ($a, $b) => $a->order_index <=> $b->order_index);
+
+        return [
+            array_map($toOption, $leftItems),
+            array_map($toOption, $rightItems),
+        ];
+    }
+
+    /**
+     * Build correct match pairs for review payload.
+     */
+    private function buildCorrectMatchPairs($options)
+    {
+        if (!$options || $options->isEmpty()) {
+            return [];
+        }
+
+        $hasNull = $options->contains(fn ($o) => $o->pair_key === null || $o->pair_key === '');
+        $hasNonNull = $options->contains(fn ($o) => $o->pair_key !== null && $o->pair_key !== '');
+
+        $pairs = [];
+
+        if ($hasNull && $hasNonNull) {
+            $rightWithKeys = $options->filter(fn ($o) => $o->pair_key !== null && $o->pair_key !== '')
+                ->sortBy('order_index')
+                ->values();
+            $leftWithoutKeys = $options->filter(fn ($o) => $o->pair_key === null || $o->pair_key === '')
+                ->sortBy('order_index')
+                ->values();
+
+            $count = min($leftWithoutKeys->count(), $rightWithKeys->count());
+            for ($i = 0; $i < $count; $i++) {
+                $left = $leftWithoutKeys->get($i);
+                $right = $rightWithKeys->get($i);
+                $pairs[] = [
+                    'left_option_id' => $left->id,
+                    'left_option_text' => $left->option_text,
+                    'right_option_id' => $right->id,
+                    'right_option_text' => $right->option_text,
+                    'pair_key' => $right->pair_key,
+                ];
+            }
+
+            return $pairs;
+        }
+
+        $grouped = $options->groupBy('pair_key');
+        foreach ($grouped as $key => $group) {
+            $sorted = $group->sortBy('order_index')->values();
+            $left = $sorted->get(0);
+            $right = $sorted->get(1);
+            if ($left && $right) {
+                $pairs[] = [
+                    'left_option_id' => $left->id,
+                    'left_option_text' => $left->option_text,
+                    'right_option_id' => $right->id,
+                    'right_option_text' => $right->option_text,
+                    'pair_key' => $key,
+                ];
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
      * جلب السؤال الحالي بالتفاصيل الكاملة
      */
     public function getCurrentQuestion($attemptId)

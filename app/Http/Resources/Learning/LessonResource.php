@@ -31,6 +31,7 @@ class LessonResource extends JsonResource
 
         $status = 'locked';
         $progressPercentage = 0;
+        $hasPreviousAttempts = false;
 
         if ($userId) {
             // Use stored data directly (faster, no recursion)
@@ -47,6 +48,10 @@ class LessonResource extends JsonResource
                 // Fallback: check if completed
                 $status = $this->trackProgressService->isTrackCompleted($this->resource, $userId) ? 'completed' : 'open';
             }
+
+            $hasPreviousAttempts = \App\Models\Progress\UserLessonAttempt::where('user_id', $userId)
+                ->where('lesson_id', $this->id)
+                ->exists();
         }
 
         return [
@@ -65,6 +70,7 @@ class LessonResource extends JsonResource
             // Progress fields
             'status' => $status, // locked, open, completed
             'progress_percentage' => $progressPercentage, // 0-100
+            'has_previous_attempts' => $hasPreviousAttempts,
 
             // Relationships
             'level' => new LevelResource($this->whenLoaded('level')),
