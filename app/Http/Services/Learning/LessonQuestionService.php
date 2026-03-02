@@ -399,13 +399,18 @@ class LessonQuestionService
         $trackProgressService = app(TrackProgressService::class);
         $trackProgressService->calculateAndUpdateLessonProgress($attempt->lesson, $attempt->user_id, $attempt);
 
-        return [
+        $data = [
             'is_correct' => $result['is_correct'],
             'score' => $result['score'],
             'explanation' => $question->explanation,
             'next_question_id' => $nextQuestion ? $nextQuestion->id : null,
             'attempt_finished' => !$nextQuestion,
         ];
+        if (isset($result['correct_count']) && isset($result['total_count'])) {
+            $data['correct_count'] = $result['correct_count'];
+            $data['total_count'] = $result['total_count'];
+        }
+        return $data;
     }
 
     /**
@@ -416,6 +421,8 @@ class LessonQuestionService
         $options = $question->lessonQuestionOptions;
         $isCorrect = false;
         $score = 0;
+        $correctCount = null;
+        $totalCount = null;
 
         switch ($question->type) {
             case 'single_choice':
@@ -532,16 +539,22 @@ class LessonQuestionService
 
                 $isCorrect = $allCorrect && $correctCount === $totalMatches;
                 $score = $totalMatches > 0 ? (($correctCount / $totalMatches) * ($question->score ?? 1)) : 0;
+                $totalCount = $totalMatches;
                 break;
 
             default:
                 MessageService::abort(400, 'messages.question.invalid_type');
         }
 
-        return [
+        $result = [
             'is_correct' => $isCorrect,
             'score' => $score,
         ];
+        if ($correctCount !== null && $totalCount !== null) {
+            $result['correct_count'] = $correctCount;
+            $result['total_count'] = $totalCount;
+        }
+        return $result;
     }
 
     /**
