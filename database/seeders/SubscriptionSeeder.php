@@ -31,7 +31,12 @@ class SubscriptionSeeder extends Seeder
             $plan = $plans[$idx % $plans->count()];
 
             $start = now()->subDays(10 + ($idx % 20));
-            $end = (clone $start)->addDays($plan->interval === 'annual' ? 365 : 30);
+            $end = (clone $start)->addDays(match ($plan->interval) {
+                'annual' => 365,
+                'semi_annual' => 180,
+                'quarterly' => 90,
+                default => 30,
+            });
 
             $subscription = Subscription::withTrashed()->updateOrCreate(
                 ['user_id' => $user->id, 'plan_id' => $plan->id],

@@ -924,6 +924,7 @@ class MoyasarPaymentService
         return match ($interval) {
             'annual' => $currentEndDate->copy()->addYear(),
             'semi_annual' => $currentEndDate->copy()->addMonths(6),
+            'quarterly' => $currentEndDate->copy()->addMonths(3),
             default => $currentEndDate->copy()->addMonth(),
         };
     }
