@@ -109,8 +109,17 @@ class PermissionSeeder extends Seeder
             ['name' => 'faq.update', 'description' => 'Update faqs'],
             ['name' => 'faq.delete', 'description' => 'Delete faqs'],
             ['name' => 'faq.reorder', 'description' => 'Reorder faqs'],
+
+            // Glossary Terms
+            ['name' => 'glossary_term.view', 'description' => 'View glossary terms'],
+            ['name' => 'glossary_term.create', 'description' => 'Create glossary terms'],
+            ['name' => 'glossary_term.update', 'description' => 'Update glossary terms'],
+            ['name' => 'glossary_term.delete', 'description' => 'Delete glossary terms'],
+            ['name' => 'glossary_term.reorder', 'description' => 'Reorder glossary terms'],
         ];
 
+        // php artisan db:seed --class=PermissionSeeder
+        // php artisan db:seed --class=RolePermissionSeeder
         foreach ($permissions as $perm) {
             Permission::withTrashed()->updateOrCreate(
                 ['name' => $perm['name']],
