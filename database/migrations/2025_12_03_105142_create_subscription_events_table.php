@@ -26,10 +26,6 @@ return new class extends Migration
             $table->decimal('amount_charged', 10, 2)->nullable();
             $table->decimal('amount_refunded', 10, 2)->nullable();
             $table->string('currency', 10)->nullable()->default('USD');
-            $table->string('stripe_invoice_id', 100)->nullable();
-            $table->string('stripe_payment_intent_id', 100)->nullable();
-            $table->string('stripe_charge_id', 100)->nullable();
-            $table->string('stripe_event_id', 255)->nullable();
             $table->json('meta')->nullable();
             $table->timestamp('created_at')->nullable()->useCurrent();
             $table->softDeletes();

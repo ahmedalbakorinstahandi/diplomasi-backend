@@ -33,10 +33,8 @@ class SubscriptionSeeder extends Seeder
             $start = now()->subDays(10 + ($idx % 20));
             $end = (clone $start)->addDays($plan->interval === 'annual' ? 365 : 30);
 
-            $stripeId = 'sub_' . str_replace(['@', '.'], '_', $user->email);
-
             $subscription = Subscription::withTrashed()->updateOrCreate(
-                ['stripe_subscription_id' => $stripeId],
+                ['user_id' => $user->id, 'plan_id' => $plan->id],
                 [
                     'user_id' => $user->id,
                     'plan_id' => $plan->id,
@@ -64,7 +62,6 @@ class SubscriptionSeeder extends Seeder
                     'amount_charged' => $plan->price,
                     'amount_refunded' => 0,
                     'currency' => 'USD',
-                    'stripe_event_id' => 'evt_' . $stripeId,
                     'meta' => ['source' => 'seed', 'note' => 'initial subscription'],
                     'deleted_at' => null,
                 ]

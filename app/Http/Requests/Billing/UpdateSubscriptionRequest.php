@@ -16,7 +16,6 @@ class UpdateSubscriptionRequest extends BaseFormRequest
             'status' => 'sometimes|nullable|in:active,inactive,cancelled,expired',
             'price' => 'sometimes|required|numeric|min:0',
             'currency' => 'sometimes|nullable|string|max:3',
-            'stripe_subscription_id' => 'sometimes|nullable|string|max:255',
             'auto_renew' => 'sometimes|nullable|boolean',
         ];
     }

@@ -24,11 +24,9 @@ return new class extends Migration
             $table->enum('status', ["active","cancelled","expired","past_due"]);
             $table->decimal('price', 10, 2)->nullable();
             $table->string('currency', 10)->default('USD');
-            $table->string('stripe_subscription_id', 100)->nullable();
             $table->boolean('auto_renew')->default(true);
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['stripe_subscription_id', 'deleted_at']);
             $table->index(['user_id', 'status', 'deleted_at']);
         });
 

@@ -16,14 +16,13 @@ return new class extends Migration
         Schema::create('plans', function (Blueprint $table) {
             $table->id();
             $table->string('name', 100);
-            $table->string('stripe_plan_id', 100);
             $table->decimal('price', 10, 2);
             $table->enum('interval', ["monthly","semi_annual","annual"]);
             $table->text('description')->nullable();
             $table->string('icon_url', 100);
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['stripe_plan_id', 'deleted_at']);
+            $table->unique(['name', 'interval', 'deleted_at']);
         });
 
         Schema::enableForeignKeyConstraints();
