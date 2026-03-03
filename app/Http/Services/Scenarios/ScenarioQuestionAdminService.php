@@ -450,7 +450,8 @@ class ScenarioQuestionAdminService
             $options = $optionsMap[$currentQuestionId] ?? collect();
             $nextIds = $options->pluck('next_question_id')->filter()->toArray();
 
-            if ($options->isEmpty() || empty($nextIds)) {
+            // مسار نهائي = يمكن الوصول لسؤال فيه خيار واحد على الأقل ينتهي بالتدفق (next_question_id = null)
+            if ($options->isEmpty() || $options->whereNull('next_question_id')->isNotEmpty()) {
                 $hasTerminalPath = true;
             }
 
