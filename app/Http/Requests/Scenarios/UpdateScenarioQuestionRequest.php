@@ -15,7 +15,7 @@ class UpdateScenarioQuestionRequest extends BaseFormRequest
             'question_text' => 'sometimes|string',
             'attached_path' => 'nullable|string|max:100',
             'explanation' => 'nullable|string',
-            'options' => 'sometimes|array|min:2',
+            'options' => 'sometimes|array|min:1',
             'options.*.id' => 'nullable|exists:scenario_question_options,id',
             'options.*.option_text' => 'required_with:options|string',
             'options.*.next_question_id' => 'nullable|exists:scenario_questions,id',
