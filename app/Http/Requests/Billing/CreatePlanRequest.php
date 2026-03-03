@@ -13,6 +13,8 @@ class CreatePlanRequest extends BaseFormRequest
             'price' => 'required|numeric|min:0',
             'interval' => 'required|in:monthly,quarterly,semi_annual,annual',
             'description' => 'nullable|string',
+            'caption' => 'nullable|string|max:255',
+            'is_featured' => 'nullable|boolean',
             'features' => 'nullable|array',
             'features.*' => 'nullable|string',
             'icon_url' => 'nullable|string|max:100',

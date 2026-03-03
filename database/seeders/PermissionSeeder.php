@@ -116,6 +116,13 @@ class PermissionSeeder extends Seeder
             ['name' => 'glossary_term.update', 'description' => 'Update glossary terms'],
             ['name' => 'glossary_term.delete', 'description' => 'Delete glossary terms'],
             ['name' => 'glossary_term.reorder', 'description' => 'Reorder glossary terms'],
+
+            // Plans
+            ['name' => 'plan.view', 'description' => 'View plans'],
+            ['name' => 'plan.create', 'description' => 'Create plans'],
+            ['name' => 'plan.update', 'description' => 'Update plans'],
+            ['name' => 'plan.delete', 'description' => 'Delete plans'],
+            ['name' => 'plan.reorder', 'description' => 'Reorder plans'],
         ];
 
         // php artisan db:seed --class=PermissionSeeder

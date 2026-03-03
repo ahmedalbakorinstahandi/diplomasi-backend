@@ -23,6 +23,8 @@ class Plan extends Model
         'price',
         'interval',
         'description',
+        'caption',
+        'is_featured',
         'features',
         'icon_url',
     ];
@@ -37,6 +39,7 @@ class Plan extends Model
         return [
             'features' => 'json',
             'price' => 'decimal:2',
+            'is_featured' => 'boolean',
         ];
     }
 
@@ -62,5 +65,24 @@ class Plan extends Model
             get: fn(?string $value) => $value ? json_decode($value, true) : null,
             set: fn($value) => $value ? json_encode($value) : null,
         );
+    }
+
+    /**
+     * تسمية المدة للعرض (شهري، 3 أشهر، 6 أشهر، سنة، إلخ).
+     */
+    public static function intervalToLabel(string $interval): string
+    {
+        return match (strtolower($interval)) {
+            'monthly' => 'شهري',
+            'quarterly' => '3 أشهر',
+            'semi_annual' => '6 أشهر',
+            'annual' => 'سنة',
+            default => $interval,
+        };
+    }
+
+    public function getIntervalLabelAttribute(): string
+    {
+        return self::intervalToLabel((string) $this->interval);
     }
 }

@@ -13,6 +13,8 @@ class UpdatePlanRequest extends BaseFormRequest
             'price' => 'sometimes|required|numeric|min:0',
             'interval' => 'sometimes|required|in:monthly,quarterly,semi_annual,annual',
             'description' => 'sometimes|nullable|string',
+            'caption' => 'sometimes|nullable|string|max:255',
+            'is_featured' => 'sometimes|nullable|boolean',
             'features' => 'sometimes|nullable|array',
             'features.*' => 'sometimes|nullable|string',
             'icon_url' => 'sometimes|nullable|string|max:100',
