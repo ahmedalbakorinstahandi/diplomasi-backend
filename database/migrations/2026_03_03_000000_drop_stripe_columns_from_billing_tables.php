@@ -11,25 +11,34 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('plans', function (Blueprint $table) {
-            $table->dropUnique(['stripe_plan_id', 'deleted_at']);
-            $table->dropColumn('stripe_plan_id');
-            $table->unique(['name', 'interval', 'deleted_at']);
-        });
+        if (Schema::hasColumn('plans', 'stripe_plan_id')) {
+            Schema::table('plans', function (Blueprint $table) {
+                $table->dropUnique(['stripe_plan_id', 'deleted_at']);
+                $table->dropColumn('stripe_plan_id');
+                $table->unique(['name', 'interval', 'deleted_at']);
+            });
+        }
 
-        Schema::table('subscriptions', function (Blueprint $table) {
-            $table->dropUnique(['stripe_subscription_id', 'deleted_at']);
-            $table->dropColumn('stripe_subscription_id');
-        });
+        if (Schema::hasColumn('subscriptions', 'stripe_subscription_id')) {
+            Schema::table('subscriptions', function (Blueprint $table) {
+                $table->dropUnique(['stripe_subscription_id', 'deleted_at']);
+                $table->dropColumn('stripe_subscription_id');
+            });
+        }
 
-        Schema::table('subscription_events', function (Blueprint $table) {
-            $table->dropColumn([
-                'stripe_invoice_id',
-                'stripe_payment_intent_id',
-                'stripe_charge_id',
-                'stripe_event_id',
-            ]);
-        });
+        $stripeColumns = [
+            'stripe_invoice_id',
+            'stripe_payment_intent_id',
+            'stripe_charge_id',
+            'stripe_event_id',
+        ];
+        foreach ($stripeColumns as $column) {
+            if (Schema::hasColumn('subscription_events', $column)) {
+                Schema::table('subscription_events', function (Blueprint $table) use ($column) {
+                    $table->dropColumn($column);
+                });
+            }
+        }
     }
 
     /**
