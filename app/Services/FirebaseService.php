@@ -441,7 +441,7 @@ class FirebaseService
      */
     protected static function loadServiceAccount()
     {
-        $serviceAccountPath = storage_path('firebase/ajar-b6b42-firebase-adminsdk-fbsvc-549b968f42.json');
+        $serviceAccountPath = storage_path('firebase/diplomasi-18e18-firebase-adminsdk-fbsvc-00d77851e0.json');
 
         if (!file_exists($serviceAccountPath)) {
             throw new \Exception("Firebase service account file not found.");
