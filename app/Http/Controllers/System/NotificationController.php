@@ -55,7 +55,34 @@ class NotificationController extends Controller
     {
         NotificationPermission::canCreate();
 
-        $notification = $this->notificationService->create($request->validated());
+        $validated = $request->validated();
+        $type = $validated['type'] ?? 'admin';
+        $data = $validated['data'] ?? [];
+
+        if (!empty($validated['user_ids'])) {
+            $notification = $this->notificationService->sendToUsers(
+                userIds: $validated['user_ids'],
+                title: $validated['title'],
+                body: $validated['body'],
+                type: $type,
+                data: $data
+            );
+        } elseif (($validated['send_to_all'] ?? false) === true) {
+            $notification = $this->notificationService->sendToAll(
+                title: $validated['title'],
+                body: $validated['body'],
+                type: $type,
+                data: $data
+            );
+        } else {
+            $notification = $this->notificationService->sendToUser(
+                userId: (int) $validated['user_id'],
+                title: $validated['title'],
+                body: $validated['body'],
+                type: $type,
+                data: $data
+            );
+        }
 
         return ResponseService::response([
             'success' => true,

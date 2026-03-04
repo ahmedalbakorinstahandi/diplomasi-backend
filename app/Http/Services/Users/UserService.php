@@ -3,6 +3,7 @@
 namespace App\Http\Services\Users;
 
 use App\Http\Permissions\Users\UserPermission;
+use App\Http\Notifications\AccountNotification;
 use App\Models\Users\Role;
 use App\Models\Users\User;
 use App\Models\Users\UserRole;
@@ -74,6 +75,8 @@ class UserService
 
     public function update($data, $user)
     {
+        $oldStatus = (string) $user->status;
+
         if (isset($data['email'])) {
             $existingUser = User::where('email', $data['email'])->where('id', '!=', $user->id)->first();
             if ($existingUser) {
@@ -86,6 +89,10 @@ class UserService
         }
 
         $user->update($data);
+
+        if (($data['status'] ?? null) === 'banned' && $oldStatus !== 'banned') {
+            AccountNotification::banned((int) $user->id);
+        }
 
         return $this->show($user->id);
     }

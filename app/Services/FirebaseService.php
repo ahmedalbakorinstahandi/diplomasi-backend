@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Http\Services\NotificationService;
-use App\Models\PersonalAccessToken;
-use App\Models\User;
+use App\Http\Services\System\NotificationService;
+use App\Models\Users\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\PersonalAccessToken;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Illuminate\Support\Facades\Log;
@@ -115,30 +115,38 @@ class FirebaseService
     }
 
 
-    public static function sendToTokensAndStorage($users_ids, $notificationable, $title, $body, $replace, $data = [], $isCustom = false, $channelId = null)
+    public static function sendToTokensAndStorage(
+        $users_ids,
+        $notificationable,
+        $title,
+        $body,
+        $replace,
+        $data = [],
+        $isCustom = false,
+        $channelId = null,
+        bool $storeInDatabase = true
+    )
     {
         $messaging = self::getFirebaseMessaging()->createMessaging();
 
         // اجلب جميع device tokens
         $tokens = PersonalAccessToken::whereIn('tokenable_id', $users_ids)
-            ->whereNull('deleted_at')
             ->whereNotNull('device_token')
             ->pluck('device_token')
             ->unique()
             ->toArray();
 
-        Log::info('tokens', $tokens);
-
-        // خزّن الإشعار في قاعدة البيانات
-        NotificationService::storeNotification(
-            $users_ids,
-            $notificationable,
-            $title,
-            $body,
-            $replace,
-            $data,
-            $isCustom
-        );
+        if ($storeInDatabase) {
+            NotificationService::storeNotification(
+                $users_ids,
+                $notificationable,
+                $title,
+                $body,
+                $replace,
+                $data,
+                $isCustom
+            );
+        }
 
         // تجهيز بيانات الإشعار
         $data['notificationable_id'] = $notificationable['id'] ?? null;
@@ -314,17 +322,7 @@ class FirebaseService
         // $data['notificationable'] = $notificationable;
 
 
-        $language = 'ar';
-
-        if (count($users_ids) == 1) {
-            $user = User::find($users_ids[0]);
-
-            $language = $user->language;
-        }
-
-
-
-        $messageConfig = self::createMessageConfig($topic, __($title, $replace, $language), __($body, $replace, $language), $data, $channelId);
+        $messageConfig = self::createMessageConfig($topic, $title, $body, $data, $channelId);
         $message = CloudMessage::fromArray($messageConfig);
 
 

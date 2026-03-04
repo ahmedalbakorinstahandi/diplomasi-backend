@@ -12,6 +12,7 @@ class VerifyCodeRequest extends BaseFormRequest
         return [
             'email' => 'required|email',
             'otp' => 'required|numeric|digits:5',
+            'device_token' => 'nullable|string|max:500',
         ];
     }
 }

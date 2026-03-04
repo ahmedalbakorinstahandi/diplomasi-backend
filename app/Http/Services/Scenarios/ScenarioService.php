@@ -504,6 +504,7 @@ class ScenarioService
             // Update progress after finishing (100%)
             $trackProgressService = app(TrackProgressService::class);
             $trackProgressService->calculateAndUpdateScenarioProgress($attempt->scenario, $attempt->user_id, $attempt);
+
         }
 
         $answer->load(['userScenarioAnswerOptions.scenarioQuestionOption']);

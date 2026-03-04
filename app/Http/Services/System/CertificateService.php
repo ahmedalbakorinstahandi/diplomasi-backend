@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\System;
 
+use App\Http\Notifications\CertificateNotification;
 use App\Http\Permissions\System\CertificatePermission;
 use App\Models\Learning\Course;
 use App\Models\Learning\Level;
@@ -254,7 +255,7 @@ class CertificateService
         }
 
         // إرسال إشعار للمستخدم
-        $this->sendCertificateIssuedNotification($certificate);
+        CertificateNotification::issued($certificate);
 
         return $this->show($certificate->id);
     }
@@ -1573,22 +1574,6 @@ class CertificateService
         $certificate->delete();
 
         return $certificate;
-    }
-
-    /**
-     * إرسال إشعار للمستخدم عند إصدار الشهادة
-     */
-    private function sendCertificateIssuedNotification(Certificate $certificate): void
-    {
-        // TODO: إضافة إشعار للمستخدم
-        // يمكن استخدام NotificationService الموجود
-        // $notificationService = app(\App\Http\Services\System\NotificationService::class);
-        // $notificationService->create([
-        //     'user_id' => $certificate->user_id,
-        //     'title' => 'تم إصدار شهادة جديدة',
-        //     'body' => 'تهانينا! تم إصدار شهادتك في ' . $certificate->course->title,
-        //     'type' => 'certificate_issued',
-        // ]);
     }
 
     /**

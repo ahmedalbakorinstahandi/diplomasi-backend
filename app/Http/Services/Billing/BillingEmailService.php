@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\Billing;
 
+use App\Http\Notifications\BillingNotification;
 use App\Models\Billing\BillingEmailNotification;
 use App\Models\Billing\Invoice;
 use App\Models\Billing\PaymentTransaction;
@@ -47,6 +48,12 @@ class BillingEmailService
             'send_at' => now(),
             'status' => 'pending',
         ]);
+
+        BillingNotification::invoiceIssued(
+            userId: (int) $user->id,
+            invoiceId: (int) $invoice->id,
+            invoiceNumber: (string) $invoice->invoice_number
+        );
     }
 
     /**
@@ -175,6 +182,12 @@ class BillingEmailService
             'send_at' => now(),
             'status' => 'pending',
         ]);
+
+        if ($success) {
+            BillingNotification::renewalSuccess((int) $user->id);
+        } else {
+            BillingNotification::renewalFailed((int) $user->id);
+        }
 
         if (!$success) {
             BillingEmailNotification::query()->create([

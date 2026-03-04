@@ -3,6 +3,7 @@
 namespace App\Http\Services\Content;
 
 use App\Http\Permissions\Content\ArticlePermission;
+use App\Http\Notifications\ContentNotification;
 use App\Models\Content\Article;
 use App\Services\FilterService;
 use App\Services\MessageService;
@@ -61,6 +62,8 @@ class ArticleService
 
         OrderHelper::assign($article);
 
+        $this->notifyIfPublished($article, false);
+
         $article = $this->show($article->id);
 
         return $article;
@@ -68,7 +71,10 @@ class ArticleService
 
     public function update($data, $article)
     {
+        $wasPublished = (bool) $article->is_published;
         $article->update($data);
+
+        $this->notifyIfPublished($article, $wasPublished);
 
         $article = $this->show($article->id);
 
@@ -85,5 +91,18 @@ class ArticleService
         OrderHelper::reorder($article, $validatedData['new_order_index'], 'order_index');
 
         return $article;
+    }
+
+    private function notifyIfPublished(Article $article, bool $wasPublished): void
+    {
+        if ((bool) $article->is_published !== true) {
+            return;
+        }
+
+        if ($wasPublished === true) {
+            return;
+        }
+
+        ContentNotification::articlePublished($article);
     }
 }

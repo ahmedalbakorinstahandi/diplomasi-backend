@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Notifications\AccountNotification;
 use App\Http\Requests\Auth\ConfirmAccountDeletionRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
@@ -12,8 +13,10 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\VerifyCodeRequest;
 use App\Http\Resources\Users\UserResource;
 use App\Http\Services\Auth\AuthService;
+use App\Models\Users\User;
 use App\Services\FirebaseService;
 use App\Services\ResponseService;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -28,7 +31,7 @@ class AuthController extends Controller
     {
         $data = $this->authService->login($request->validated());
 
-        // FirebaseService::subscribeToAllTopic($request, $data['user']);
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -72,6 +75,7 @@ class AuthController extends Controller
     public function verifyOtp(VerifyCodeRequest $request)
     {
         $data = $this->authService->verifyOtp($request->all());
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -136,5 +140,26 @@ class AuthController extends Controller
             'status' => 200,
             'message' => $data['message'],
         ]);
+    }
+
+    private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, VerifyCodeRequest|LoginRequest $request, User $user): void
+    {
+        $deviceToken = trim((string) $deviceToken);
+        if ($deviceToken === '') {
+            return;
+        }
+
+        $isKnownToken = DB::table('personal_access_tokens')
+            ->where('tokenable_id', $user->id)
+            ->where('device_token', $deviceToken)
+            ->exists();
+
+        FirebaseService::subscribeToAllTopic($request, $user);
+
+        if ($isKnownToken) {
+            return;
+        }
+
+        AccountNotification::newDeviceLogin((int) $user->id);
     }
 }

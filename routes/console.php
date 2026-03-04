@@ -16,3 +16,5 @@ Schedule::command('billing:send-notifications')->everyFiveMinutes()->withoutOver
 
 Schedule::command('billing:sync-artifacts')->everyFiveMinutes()->withoutOverlapping();
 
+Schedule::command('billing:send-ending-reminders --days=3')->dailyAt('09:00')->withoutOverlapping();
+

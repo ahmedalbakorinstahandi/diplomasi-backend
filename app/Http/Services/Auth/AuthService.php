@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\Auth;
 
+use App\Http\Notifications\AccountNotification;
 use App\Mail\AccountDeletionCodeMail;
 use App\Mail\VerificationCodeMail;
 use App\Models\Users\Role;
@@ -148,6 +149,8 @@ class AuthService
             'otp_expire_at' => null,
         ]);
 
+        AccountNotification::verified((int) $user->id);
+
         return [
             'user' => $user,
             'token' => $user->createToken($user->first_name . 'auth_token')->plainTextToken,
@@ -200,6 +203,8 @@ class AuthService
         $user->tokens()->delete();
 
         $newToken = $user->createToken($user->first_name)->plainTextToken;
+
+        AccountNotification::passwordChanged((int) $user->id);
 
         return [
             'user' => $user,

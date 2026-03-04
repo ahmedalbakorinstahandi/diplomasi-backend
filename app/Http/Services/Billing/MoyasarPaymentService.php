@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\Billing;
 
+use App\Http\Notifications\BillingNotification;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Plan;
 use App\Models\Billing\RefundTransaction;
@@ -780,11 +781,16 @@ class MoyasarPaymentService
 
         if ($subscription) {
             $subscription->update($payload);
+            $subscription = $subscription->fresh();
         } else {
-            Subscription::query()->create([
+            $subscription = Subscription::query()->create([
                 'user_id' => (int) $transaction->user_id,
                 ...$payload,
             ]);
+        }
+
+        if ($subscription) {
+            BillingNotification::subscriptionActivated($subscription);
         }
     }
 
