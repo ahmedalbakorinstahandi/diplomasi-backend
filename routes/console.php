@@ -18,3 +18,11 @@ Schedule::command('billing:sync-artifacts')->everyFiveMinutes()->withoutOverlapp
 
 Schedule::command('billing:send-ending-reminders --days=3')->dailyAt('09:00')->withoutOverlapping();
 
+Schedule::command('users:mark-inactive --minutes=2 --limit=2000')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('users:send-reengagement-reminders --window=10 --limit=500')
+    ->everyTenMinutes()
+    ->withoutOverlapping();
+

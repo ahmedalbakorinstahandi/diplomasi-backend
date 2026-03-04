@@ -35,6 +35,10 @@ class User extends Authenticatable
         'status',
         'otp',
         'otp_expire_at',
+        'last_activity_at',
+        'last_opened_app_at',
+        'is_active',
+        'inactive_since_at',
     ];
 
     /**
@@ -59,6 +63,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'otp_expire_at' => 'datetime',
+            'last_activity_at' => 'datetime',
+            'last_opened_app_at' => 'datetime',
+            'is_active' => 'boolean',
+            'inactive_since_at' => 'datetime',
         ];
     }
 

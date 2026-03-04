@@ -96,6 +96,12 @@ class PermissionSeeder extends Seeder
             ['name' => 'notification.mark_all_as_read', 'description' => 'Mark all notifications as read'],
             ['name' => 'notification.unread_count', 'description' => 'Get unread notifications count'],
 
+            // Re-engagement reminders
+            ['name' => 'reengagement_reminder.view', 'description' => 'View re-engagement reminders'],
+            ['name' => 'reengagement_reminder.create', 'description' => 'Create re-engagement reminders'],
+            ['name' => 'reengagement_reminder.update', 'description' => 'Update re-engagement reminders'],
+            ['name' => 'reengagement_reminder.delete', 'description' => 'Delete re-engagement reminders'],
+
             // Settings
             ['name' => 'setting.view', 'description' => 'View settings'],
             ['name' => 'setting.create', 'description' => 'Create settings'],

@@ -13,6 +13,7 @@ use App\Http\Controllers\Scenarios\ScenarioController;
 use App\Http\Controllers\Scenarios\ScenarioQuestionController;
 use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\NotificationController;
+use App\Http\Controllers\System\ReengagementReminderController;
 use App\Http\Controllers\System\SettingController;
 use App\Http\Controllers\Users\PermissionListController;
 use App\Http\Controllers\Users\RoleController;
@@ -142,6 +143,13 @@ Route::group(['prefix' => 'admin'], function () {
         Route::post('notifications', [NotificationController::class, 'create']);
         Route::put('notifications/{id}', [NotificationController::class, 'update']);
         Route::delete('notifications/{id}', [NotificationController::class, 'delete']);
+
+        // Re-engagement reminders (تذكيرات العودة)
+        Route::get('reengagement-reminders', [ReengagementReminderController::class, 'index']);
+        Route::get('reengagement-reminders/{id}', [ReengagementReminderController::class, 'show']);
+        Route::post('reengagement-reminders', [ReengagementReminderController::class, 'create']);
+        Route::put('reengagement-reminders/{id}', [ReengagementReminderController::class, 'update']);
+        Route::delete('reengagement-reminders/{id}', [ReengagementReminderController::class, 'delete']);
 
         // Settings
         Route::get('settings', [SettingController::class, 'index']);
