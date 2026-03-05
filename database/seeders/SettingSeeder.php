@@ -14,7 +14,7 @@ class SettingSeeder extends Seeder
             ['key_name' => 'support.email', 'value' => 'support@demo.test', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'support.phone', 'value' => '+201000000999', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'app.version', 'value' => '1.0.0', 'type' => 'text', 'is_settings' => true],
-            ['key_name' => 'app.min_version', 'value' => '1.0.0', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'app.min_version', 'value' => '1.0.1', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'app.suggested_min_version', 'value' => '1.0.0', 'type' => 'text', 'is_settings' => true],
             // ['key_name' => 'app.google_play_link', 'value' => 'https://play.google.com/store/apps/details?id=com.example.diplomasi', 'type' => 'text', 'is_settings' => true],
             // ['key_name' => 'app.apple_store_link', 'value' => 'https://apps.apple.com/app/diplomasi/id123456789', 'type' => 'text', 'is_settings' => true],

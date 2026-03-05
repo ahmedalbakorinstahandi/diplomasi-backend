@@ -29,8 +29,14 @@ class SetLocaleMiddleware
         if (Auth::guard('sanctum')->check()) {
             $user = Auth::guard('sanctum')->user();
 
-            // Banned user: block all requests and return same response
+            // Banned user: block all requests except logout and help center
             if ($user->status === 'banned') {
+                $path = $request->path();
+                $allowLogout = str_contains($path, 'auth/logout') || str_contains($path, 'logout');
+                $allowHelpCenter = str_contains($path, 'help_center') && $request->isMethod('GET');
+                if ($allowLogout || $allowHelpCenter) {
+                    return $next($request);
+                }
                 return response()->json([
                     'success' => false,
                     'key' => 'messages.user.is_banned',
