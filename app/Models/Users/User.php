@@ -266,23 +266,43 @@ class User extends Authenticatable
 
     /**
      * Check if user has an active subscription.
+     * Includes grace period: if end_date passed but within renewal window (e.g. 15 min) and auto_renew, still considered active.
      */
     public function hasActiveSubscription(): bool
     {
+        $graceMinutes = (int) config('services.billing.renewal_grace_period_minutes', 15);
+        $graceCutoff = now()->subMinutes($graceMinutes);
+
         return $this->subscriptions()
-            ->where('status', 'active')
-            ->where('end_date', '>=', now())
+            ->whereIn('status', ['active', 'past_due'])
+            ->where(function ($query) use ($graceMinutes, $graceCutoff) {
+                $query->where('end_date', '>=', now())
+                    ->orWhere(function ($q) use ($graceCutoff) {
+                        $q->where('auto_renew', true)
+                            ->where('end_date', '>=', $graceCutoff);
+                    });
+            })
             ->exists();
     }
 
     /**
      * Get the active subscription.
+     * Uses same grace period as hasActiveSubscription.
      */
     public function getActiveSubscription()
     {
+        $graceMinutes = (int) config('services.billing.renewal_grace_period_minutes', 15);
+        $graceCutoff = now()->subMinutes($graceMinutes);
+
         return $this->subscriptions()
-            ->where('status', 'active')
-            ->where('end_date', '>=', now())
+            ->whereIn('status', ['active', 'past_due'])
+            ->where(function ($query) use ($graceCutoff) {
+                $query->where('end_date', '>=', now())
+                    ->orWhere(function ($q) use ($graceCutoff) {
+                        $q->where('auto_renew', true)
+                            ->where('end_date', '>=', $graceCutoff);
+                    });
+            })
             ->with(['plan'])
             ->orderBy('created_at', 'desc')
             ->first();

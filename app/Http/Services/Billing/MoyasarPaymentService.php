@@ -8,6 +8,7 @@ use App\Models\Billing\Plan;
 use App\Models\Billing\RefundTransaction;
 use App\Models\Billing\SavedPaymentMethod;
 use App\Models\Billing\Subscription;
+use App\Models\Billing\SubscriptionEvent;
 use App\Http\Services\Billing\PaymentMethodService;
 use App\Services\MessageService;
 use Illuminate\Support\Carbon;
@@ -640,6 +641,21 @@ class MoyasarPaymentService
                             'start_date' => $periodStart,
                             'end_date' => $newEndDate,
                         ]);
+
+                        $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
+                        SubscriptionEvent::query()->create([
+                            'subscription_id' => $subscription->id,
+                            'event_type' => 'renewed',
+                            'plan_id' => (int) $subscription->plan_id,
+                            'status' => 'active',
+                            'start_date' => $periodStart,
+                            'end_date' => $newEndDate,
+                            'plan_price' => $subscription->plan?->price ?? $subscription->price,
+                            'amount_charged' => $amountCharged,
+                            'amount_refunded' => 0,
+                            'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                            'meta' => ['payment_transaction_id' => $transaction->id],
+                        ]);
                     } elseif ($nextStatus === 'failed') {
                         $subscription->update(['status' => 'past_due']);
                     }
@@ -795,6 +811,24 @@ class MoyasarPaymentService
         // إشعار "اشتراكك أصبح فعالًا" فقط عند الاشتراك لأول مرة، وليس عند التجديد
         if ($subscription && $isFirstSubscription) {
             BillingNotification::subscriptionActivated($subscription);
+        }
+
+        // تسجيل حدث الاشتراك (أول مرة فقط)
+        if ($subscription && $isFirstSubscription) {
+            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) $plan->price;
+            SubscriptionEvent::query()->create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'created',
+                'plan_id' => (int) $plan->id,
+                'status' => 'active',
+                'start_date' => $periodStart,
+                'end_date' => $periodEnd,
+                'plan_price' => $plan->price,
+                'amount_charged' => $amountCharged,
+                'amount_refunded' => 0,
+                'currency' => strtoupper((string) config('services.moyasar.currency', 'SAR')),
+                'meta' => ['payment_transaction_id' => $transaction->id],
+            ]);
         }
     }
 
@@ -1098,13 +1132,18 @@ class MoyasarPaymentService
 
     protected function hasPurchaseBlockingSubscription(int $userId): bool
     {
+        $graceMinutes = (int) config('services.billing.renewal_grace_period_minutes', 15);
+        $graceCutoff = now()->subMinutes($graceMinutes);
+
         return Subscription::query()
             ->where('user_id', $userId)
-            ->where(function ($query) {
-                $query->where(function ($activeQuery) {
-                    $activeQuery->where('status', 'active')
-                        ->where('end_date', '>=', now());
-                })->orWhere('status', 'past_due');
+            ->whereIn('status', ['active', 'past_due'])
+            ->where(function ($query) use ($graceCutoff) {
+                $query->where('end_date', '>=', now())
+                    ->orWhere(function ($q) use ($graceCutoff) {
+                        $q->where('auto_renew', true)
+                            ->where('end_date', '>=', $graceCutoff);
+                    });
             })
             ->exists();
     }

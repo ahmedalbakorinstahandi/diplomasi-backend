@@ -46,13 +46,22 @@ class SubscriptionManagementService
 
     protected function getCurrentUserSubscription(int $userId): ?Subscription
     {
+        $graceMinutes = (int) config('services.billing.renewal_grace_period_minutes', 15);
+        $graceCutoff = now()->subMinutes($graceMinutes);
+
         return Subscription::query()
             ->where('user_id', $userId)
-            ->where(function ($query) {
-                $query->where(function ($activeQuery) {
-                    $activeQuery->where('status', 'active')
-                        ->where('end_date', '>=', now());
-                })->orWhereIn('status', ['past_due', 'expired']);
+            ->where(function ($query) use ($graceCutoff) {
+                $query->where(function ($activeQuery) use ($graceCutoff) {
+                    $activeQuery->whereIn('status', ['active', 'past_due'])
+                        ->where(function ($q) use ($graceCutoff) {
+                            $q->where('end_date', '>=', now())
+                                ->orWhere(function ($grace) use ($graceCutoff) {
+                                    $grace->where('auto_renew', true)
+                                        ->where('end_date', '>=', $graceCutoff);
+                                });
+                        });
+                })->orWhere('status', 'expired');
             })
             ->orderByDesc('id')
             ->first();

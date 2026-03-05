@@ -142,34 +142,27 @@ class BillingEmailService
         $customerName = $customerName !== '' ? $customerName : 'عميلنا';
 
         $payload = ['payment_transaction_id' => $transaction->id];
-        $primaryType = $success ? 'renewal_success' : 'renewal_failed';
 
-        // عند نجاح التجديد: إرفاق الفاتورة كملف PDF في نفس الإيميل
-        $attachments = [];
+        // عند نجاح التجديد: نُسجّل سجلاً فقط لتفادي تكرار الإشعار، ولا نرسل إيميلاً (المستخدم يستلم إيميل الفاتورة المفصّل من queueInvoiceIssued)
         if ($success) {
-            $invoice = Invoice::query()->where('payment_transaction_id', $transaction->id)->first();
-            if ($invoice && $invoice->pdf_path) {
-                $attachments[] = $invoice->pdf_path;
-            }
-        }
-
-        BillingEmailNotification::query()->create([
-            'user_id' => $user->id,
-            'type' => $primaryType,
-            'to_email' => $user->email,
-            'subject' => $success
-                ? 'تم تجديد اشتراكك بنجاح - Diplomasi'
-                : 'فشل تجديد الاشتراك - يرجى التحديث',
-            'content' => $success
-                ? $this->renderEmailLayout(
-                    title: 'تم التجديد بنجاح',
-                    greeting: 'مرحباً ' . e($customerName) . '،',
-                    bodyHtml: '<p>تم تجديد اشتراكك بنجاح. الفاتورة مرفقة بهذا البريد كملف PDF.</p>'
-                        . '<p><strong>المرجع:</strong> ' . e((string) $transaction->merchant_reference_id) . '<br/>'
-                        . '<strong>المبلغ:</strong> ' . e($amount) . ' ' . e((string) $transaction->currency) . '</p>',
-                    footer: 'شكراً لبقائك مع دبلوماسي.'
-                )
-                : $this->renderEmailLayout(
+            BillingEmailNotification::query()->create([
+                'user_id' => $user->id,
+                'type' => 'renewal_success',
+                'to_email' => $user->email,
+                'subject' => 'تم تجديد اشتراكك بنجاح - Diplomasi',
+                'content' => '',
+                'attachments' => [],
+                'payload' => $payload,
+                'send_at' => now(),
+                'status' => 'pending',
+            ]);
+        } else {
+            BillingEmailNotification::query()->create([
+                'user_id' => $user->id,
+                'type' => 'renewal_failed',
+                'to_email' => $user->email,
+                'subject' => 'فشل تجديد الاشتراك - يرجى التحديث',
+                'content' => $this->renderEmailLayout(
                     title: 'لم نتمكن من تجديد اشتراكك',
                     greeting: 'مرحباً ' . e($customerName) . '،',
                     bodyHtml: '<p>لم نتمكن من خصم مبلغ التجديد تلقائياً.</p>'
@@ -177,13 +170,14 @@ class BillingEmailService
                         . '<p><strong>المرجع:</strong> ' . e((string) $transaction->merchant_reference_id) . '</p>',
                     footer: 'قد يُحدّ من وصولك إذا لم تُكمل الدفع.'
                 ),
-            'attachments' => $attachments,
-            'payload' => $payload,
-            'send_at' => now(),
-            'status' => 'pending',
-        ]);
+                'attachments' => [],
+                'payload' => $payload,
+                'send_at' => now(),
+                'status' => 'pending',
+            ]);
+        }
 
-        // إشعار التجديد للمستخدم يظهر فقط عند تجديد اشتراك موجود، وليس عند الاشتراك لأول مرة
+        // إشعار التجديد في التطبيق فقط عند تجديد اشتراك موجود، وليس عند الاشتراك لأول مرة
         $isRenewal = $transaction->subscription_id !== null;
         if ($isRenewal) {
             if ($success) {
@@ -228,7 +222,10 @@ class BillingEmailService
         foreach ($pending as $notification) {
             /** @var BillingEmailNotification $notification */
             try {
-                $this->send($notification);
+                // renewal_success: لا نرسل إيميلاً (المستخدم استلم إيميل الفاتورة المفصّل فقط)
+                if ($notification->type !== 'renewal_success') {
+                    $this->send($notification);
+                }
                 $notification->update([
                     'status' => 'sent',
                     'sent_at' => now(),

@@ -48,6 +48,10 @@ return [
         'mode' => env('MOYASAR_MODE', 'test'),
     ],
 
+    'billing' => [
+        'renewal_grace_period_minutes' => (int) env('BILLING_RENEWAL_GRACE_MINUTES', 15),
+    ],
+
     'translation' => [
         // Supported providers: mymemory, libretranslate
         'provider' => env('TRANSLATION_PROVIDER', 'mymemory'),
