@@ -24,6 +24,7 @@ class Notification extends Model
         'type',
         'data',
         'read_at',
+        'show_after_read',
     ];
 
     /**
@@ -36,6 +37,7 @@ class Notification extends Model
         return [
             'data' => 'json',
             'read_at' => 'datetime',
+            'show_after_read' => 'boolean',
         ];
     }
 

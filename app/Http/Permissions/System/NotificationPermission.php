@@ -13,7 +13,7 @@ class NotificationPermission
     {
         self::canView();
 
-        // App context: only own notifications (and optionally global/null user_id).
+        // App context: only own notifications، وتظهر إما أن show_after_read=true أو أن الإشعار غير مقروء (بعد القراءة تختفي التذكيرات من القائمة).
         if (RequestContext::isApp()) {
             $user = User::auth();
             if (!$user) {
@@ -22,6 +22,10 @@ class NotificationPermission
 
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)->orWhereNull('user_id');
+            });
+
+            $query->where(function ($q) {
+                $q->where('show_after_read', true)->orWhereNull('read_at');
             });
         }
 

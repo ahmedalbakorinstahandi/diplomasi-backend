@@ -28,7 +28,8 @@ class ReengagementNotification
                 'rule_signature' => $ruleSignature,
                 'basis_timestamp' => $basisTimestamp,
                 'deep_link' => $deepLink,
-            ], static fn($value) => $value !== null)
+            ], static fn($value) => $value !== null),
+            showAfterRead: false
         );
     }
 }

@@ -141,7 +141,8 @@ class NotificationService
         string $title,
         string $body,
         string $type,
-        array $data = []
+        array $data = [],
+        bool $showAfterRead = true
     ): Notification {
         $notification = $this->create([
             'user_id' => $userId,
@@ -149,6 +150,7 @@ class NotificationService
             'body' => $body,
             'type' => $type,
             'data' => $data,
+            'show_after_read' => $showAfterRead,
         ]);
 
         FirebaseService::sendToTokensAndStorage(
