@@ -20,7 +20,7 @@ class SettingSeeder extends Seeder
             // ['key_name' => 'app.apple_store_link', 'value' => 'https://apps.apple.com/app/diplomasi/id123456789', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'learning.max_attempts', 'value' => '3', 'type' => 'int', 'is_settings' => true],
             ['key_name' => 'ui.home_banner', 'value' => json_encode(['title' => 'ابدأ رحلتك', 'subtitle' => 'تعلم بذكاء']), 'type' => 'json', 'is_settings' => true],
-            ['key_name' => 'legal.terms_html', 'value' => '<p>نص تجريبي للشروط والأحكام.</p>', 'type' => 'html', 'is_settings' => true],
+            ['key_name' => 'legal.terms_conditions', 'value' => '<p>نص تجريبي للشروط والأحكام.</p>', 'type' => 'html', 'is_settings' => true],
         ];
 
         foreach ($settings as $s) {
