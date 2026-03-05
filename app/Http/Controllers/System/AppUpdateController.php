@@ -17,9 +17,6 @@ class AppUpdateController extends Controller
     {
         $appVersion = $request->header('X-App-Version', '0.0.0');
 
-        $minVersionSetting = Setting::where('key_name', 'app.min_version')->first();
-        $minVersion = $minVersionSetting ? (string) $minVersionSetting->value : null;
-
         $suggestedMinSetting = Setting::where('key_name', 'app.suggested_min_version')->first();
         $suggestedMinVersion = $suggestedMinSetting ? (string) $suggestedMinSetting->value : null;
 
@@ -27,15 +24,13 @@ class AppUpdateController extends Controller
         $storeLinkAndroid = null;
         $storeLinkIos = null;
 
-        if ($minVersion !== null && $suggestedMinVersion !== null && version_compare($suggestedMinVersion, $minVersion, '<')) {
-            $needsSuggest = version_compare($appVersion, $suggestedMinVersion, '>=') && version_compare($appVersion, $minVersion, '<');
-            if ($needsSuggest) {
-                $suggest = true;
-                $playLink = Setting::where('key_name', 'app.google_play_link')->first();
-                $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
-                $storeLinkAndroid = $playLink ? (string) $playLink->value : null;
-                $storeLinkIos = $appleLink ? (string) $appleLink->value : null;
-            }
+        // اقتراح تحديث: لو نسخة التطبيق أقل من suggested_min_version نعرض له "يُفضّل التحديث"
+        if ($suggestedMinVersion !== null && version_compare($appVersion, $suggestedMinVersion, '<')) {
+            $suggest = true;
+            $playLink = Setting::where('key_name', 'app.google_play_link')->first();
+            $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
+            $storeLinkAndroid = $playLink ? (string) $playLink->value : null;
+            $storeLinkIos = $appleLink ? (string) $appleLink->value : null;
         }
 
         return response()->json([
