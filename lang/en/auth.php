@@ -23,6 +23,7 @@ return [
     'verification_code_email_subject' => 'Your verification code - Diplomasi',
     'forgot_password_code_email_subject' => 'Password reset code - Diplomasi',
     'account_banned' => 'Your account is banned.',
+    'force_update' => 'Please update the app to continue.',
     'account_not_verified' => 'Your account is not verified.',
     'email_already_exists' => 'This email is already in use.',
     'email_not_exists' => 'This email does not exist.',

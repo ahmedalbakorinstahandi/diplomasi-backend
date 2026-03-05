@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\System\Setting;
 use App\Models\Users\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -27,6 +28,17 @@ class SetLocaleMiddleware
         // Store authenticated user in cache for this request
         if (Auth::guard('sanctum')->check()) {
             $user = Auth::guard('sanctum')->user();
+
+            // Banned user: block all requests and return same response
+            if ($user->status === 'banned') {
+                return response()->json([
+                    'success' => false,
+                    'key' => 'messages.user.is_banned',
+                    'message' => __('auth.account_banned'),
+                    'data' => null,
+                ], 200);
+            }
+
             $token = $request->bearerToken();
             if ($token) {
                 $cacheKey = 'request_user_' . $token;
@@ -38,17 +50,54 @@ class SetLocaleMiddleware
             $this->touchUserActivity((int) $user->id, $user);
         }
 
-        // // Update user language if needed
-        // $user = User::auth();
-        // if ($user && $user->language != $locale) {
-        //     $user->language = $locale;
-        //     $user->save();
-        // }
+        // Force update: app version below min_version
+        $appVersion = $request->header('X-App-Version', '0.0.0');
+        $minVersionSetting = Setting::where('key_name', 'app.min_version')->first();
+        $minVersion = $minVersionSetting ? (string) $minVersionSetting->value : null;
+
+        if ($minVersion !== null && version_compare($appVersion, $minVersion, '<')) {
+            $playLink = Setting::where('key_name', 'app.google_play_link')->first();
+            $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
+
+            return response()->json([
+                'success' => false,
+                'key' => 'app.force_update',
+                'message' => __('auth.force_update'),
+                'data' => [
+                    'store_link_android' => $playLink ? (string) $playLink->value : null,
+                    'store_link_ios' => $appleLink ? (string) $appleLink->value : null,
+                ],
+            ], 200);
+        }
 
         $response = $next($request);
 
-        // Don't manually clean up cache - let Redis handle TTL expiration
-        // This prevents issues with concurrent requests and ensures data consistency
+        // Optional update: inject app_update into successful JSON responses when version is in suggest range
+        $contentType = $response->headers->get('Content-Type', '');
+        if (str_contains($contentType, 'application/json') && $response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
+            $suggestedMin = Setting::where('key_name', 'app.suggested_min_version')->first();
+            $suggestedMinVersion = $suggestedMin ? (string) $suggestedMin->value : null;
+
+            if ($minVersion !== null && $suggestedMinVersion !== null && version_compare($suggestedMinVersion, $minVersion, '<')) {
+                $needsSuggest = version_compare($appVersion, $suggestedMinVersion, '>=') && version_compare($appVersion, $minVersion, '<');
+                if ($needsSuggest) {
+                    $playLink = Setting::where('key_name', 'app.google_play_link')->first();
+                    $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
+                    $appUpdate = [
+                        'suggest' => true,
+                        'store_link_android' => $playLink ? (string) $playLink->value : null,
+                        'store_link_ios' => $appleLink ? (string) $appleLink->value : null,
+                    ];
+
+                    $content = $response->getContent();
+                    $decoded = json_decode($content, true);
+                    if (is_array($decoded)) {
+                        $decoded['app_update'] = $appUpdate;
+                        $response->setContent(json_encode($decoded));
+                    }
+                }
+            }
+        }
 
         return $response;
     }

@@ -26,6 +26,7 @@ return [
     'forgot_password_code_email_title' => 'رمز إعادة تعيين كلمة المرور',
     'forgot_password_code_email_intro' => 'استخدم الرمز أدناه لإعادة تعيين كلمة المرور الخاصة بحسابك.',
     'account_banned' => 'حسابك محظور.',
+    'force_update' => 'يجب تحديث التطبيق للمتابعة.',
     'account_not_verified' => 'حسابك غير مفعل.',
     'email_already_exists' => 'البريد الإلكتروني هذا مستخدم بالفعل.',
     'email_not_exists' => 'البريد الإلكتروني هذا غير موجود.',
