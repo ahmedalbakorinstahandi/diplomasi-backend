@@ -183,10 +183,14 @@ class BillingEmailService
             'status' => 'pending',
         ]);
 
-        if ($success) {
-            BillingNotification::renewalSuccess((int) $user->id);
-        } else {
-            BillingNotification::renewalFailed((int) $user->id);
+        // إشعار التجديد للمستخدم يظهر فقط عند تجديد اشتراك موجود، وليس عند الاشتراك لأول مرة
+        $isRenewal = $transaction->subscription_id !== null;
+        if ($isRenewal) {
+            if ($success) {
+                BillingNotification::renewalSuccess((int) $user->id);
+            } else {
+                BillingNotification::renewalFailed((int) $user->id);
+            }
         }
 
         if (!$success) {

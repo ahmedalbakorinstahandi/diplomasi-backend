@@ -779,17 +779,20 @@ class MoyasarPaymentService
             'canceled_at' => null,
         ];
 
+        $isFirstSubscription = false;
         if ($subscription) {
             $subscription->update($payload);
             $subscription = $subscription->fresh();
         } else {
+            $isFirstSubscription = true;
             $subscription = Subscription::query()->create([
                 'user_id' => (int) $transaction->user_id,
                 ...$payload,
             ]);
         }
 
-        if ($subscription) {
+        // إشعار "اشتراكك أصبح فعالًا" فقط عند الاشتراك لأول مرة، وليس عند التجديد
+        if ($subscription && $isFirstSubscription) {
             BillingNotification::subscriptionActivated($subscription);
         }
     }

@@ -43,7 +43,9 @@ class SyncBillingArtifacts extends Command
                 }
             }
 
-            if (in_array((string) $transaction->status, ['paid', 'failed'], true)) {
+            // إشعار/إيميل التجديد للمستخدم فقط عند تجديد اشتراك موجود (subscription_id معرّف)، وليس عند الاشتراك لأول مرة
+            $isRenewal = $transaction->subscription_id !== null;
+            if ($isRenewal && in_array((string) $transaction->status, ['paid', 'failed'], true)) {
                 $type = $transaction->status === 'paid' ? 'renewal_success' : 'renewal_failed';
 
                 $statusQueued = BillingEmailNotification::query()
