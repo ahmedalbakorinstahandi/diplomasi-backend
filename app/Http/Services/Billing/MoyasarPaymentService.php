@@ -296,7 +296,7 @@ class MoyasarPaymentService
         $subscription = Subscription::query()
             ->where('user_id', $userId)
             ->whereIn('status', ['active', 'past_due'])
-            ->whereDate('end_date', '<=', now()->toDateString())
+            ->where('end_date', '<=', now())
             ->where('auto_renew', true)
             ->where(function ($query) {
                 $query->whereNull('cancel_at_period_end')->orWhere('cancel_at_period_end', false);
@@ -331,7 +331,7 @@ class MoyasarPaymentService
     {
         $subscriptions = Subscription::query()
             ->whereIn('status', ['active', 'past_due'])
-            ->whereDate('end_date', '<=', now()->toDateString())
+            ->where('end_date', '<=', now())
             ->where('auto_renew', true)
             ->where(function ($query) {
                 $query->whereNull('cancel_at_period_end')->orWhere('cancel_at_period_end', false);
@@ -378,8 +378,8 @@ class MoyasarPaymentService
         $latestAttempt = PaymentTransaction::query()
             ->where('provider', 'moyasar')
             ->where('subscription_id', $subscription->id)
-            ->whereDate('billing_period_start', $periodStart->toDateString())
-            ->whereDate('billing_period_end', $periodEnd->toDateString())
+            ->where('billing_period_start', $periodStart->toDateTimeString())
+            ->where('billing_period_end', $periodEnd->toDateTimeString())
             ->orderByDesc('attempt_no')
             ->first();
 
@@ -431,8 +431,8 @@ class MoyasarPaymentService
             'amount_minor' => $amountMinor,
             'currency' => $currency,
             'attempt_no' => $attemptNo,
-            'billing_period_start' => $periodStart->toDateString(),
-            'billing_period_end' => $periodEnd->toDateString(),
+            'billing_period_start' => $periodStart,
+            'billing_period_end' => $periodEnd,
             'status' => 'pending',
         ]);
 
@@ -629,15 +629,16 @@ class MoyasarPaymentService
                 if ($subscription) {
                     if ($nextStatus === 'paid' && $previousStatus !== 'paid') {
                         $subscription->loadMissing('plan');
+                        $periodStart = Carbon::parse($subscription->end_date)->addSecond();
                         $newEndDate = $this->computeNextEndDate(
-                            Carbon::parse($subscription->end_date),
+                            $periodStart->copy(),
                             $subscription->plan?->interval ?? 'monthly'
                         );
 
                         $subscription->update([
                             'status' => 'active',
-                            'start_date' => Carbon::parse($subscription->end_date)->addDay()->toDateString(),
-                            'end_date' => $newEndDate->toDateString(),
+                            'start_date' => $periodStart,
+                            'end_date' => $newEndDate,
                         ]);
                     } elseif ($nextStatus === 'failed') {
                         $subscription->update(['status' => 'past_due']);
@@ -759,8 +760,8 @@ class MoyasarPaymentService
             return;
         }
 
-        $periodStart = now()->startOfDay();
-        $periodEnd = $this->computeNextEndDate($periodStart->copy()->subDay(), (string) $plan->interval);
+        $periodStart = now();
+        $periodEnd = $this->computeNextEndDate($periodStart->copy(), (string) $plan->interval);
 
         $subscription = Subscription::query()
             ->where('user_id', $transaction->user_id)
@@ -770,8 +771,8 @@ class MoyasarPaymentService
         $payload = [
             'plan_id' => (int) $plan->id,
             'status' => 'active',
-            'start_date' => $periodStart->toDateString(),
-            'end_date' => $periodEnd->toDateString(),
+            'start_date' => $periodStart,
+            'end_date' => $periodEnd,
             'price' => (string) $plan->price,
             'currency' => strtoupper((string) config('services.moyasar.currency', 'SAR')),
             'auto_renew' => true,
@@ -922,19 +923,22 @@ class MoyasarPaymentService
 
     protected function computeRenewalPeriod(Subscription $subscription, string $interval): array
     {
-        $periodStart = Carbon::parse($subscription->end_date)->addDay()->startOfDay();
-        $periodEnd = $this->computeNextEndDate($periodStart->copy()->subDay(), $interval);
+        $periodStart = Carbon::parse($subscription->end_date)->addSecond();
+        $periodEnd = $this->computeNextEndDate($periodStart->copy(), $interval);
 
         return [$periodStart, $periodEnd];
     }
 
-    protected function computeNextEndDate(Carbon $currentEndDate, string $interval): Carbon
+    /**
+     * احتساب تاريخ نهاية الفترة من بدايتها + المدة (شهر / 3 أشهر / 6 أشهر / سنة) بدقة بالثانية.
+     */
+    protected function computeNextEndDate(Carbon $periodStart, string $interval): Carbon
     {
         return match ($interval) {
-            'annual' => $currentEndDate->copy()->addYear(),
-            'semi_annual' => $currentEndDate->copy()->addMonths(6),
-            'quarterly' => $currentEndDate->copy()->addMonths(3),
-            default => $currentEndDate->copy()->addMonth(),
+            'annual' => $periodStart->copy()->addYear(),
+            'semi_annual' => $periodStart->copy()->addMonths(6),
+            'quarterly' => $periodStart->copy()->addMonths(3),
+            default => $periodStart->copy()->addMonth(),
         };
     }
 
@@ -1099,7 +1103,7 @@ class MoyasarPaymentService
             ->where(function ($query) {
                 $query->where(function ($activeQuery) {
                     $activeQuery->where('status', 'active')
-                        ->whereDate('end_date', '>=', now()->toDateString());
+                        ->where('end_date', '>=', now());
                 })->orWhere('status', 'past_due');
             })
             ->exists();

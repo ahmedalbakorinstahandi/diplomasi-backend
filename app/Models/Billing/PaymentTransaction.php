@@ -46,8 +46,8 @@ class PaymentTransaction extends Model
         return [
             'amount_minor' => 'integer',
             'attempt_no' => 'integer',
-            'billing_period_start' => 'date',
-            'billing_period_end' => 'date',
+            'billing_period_start' => 'datetime',
+            'billing_period_end' => 'datetime',
             'next_retry_at' => 'datetime',
             'raw_response' => 'array',
             'finalized_at' => 'datetime',

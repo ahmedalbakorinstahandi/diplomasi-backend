@@ -17,11 +17,11 @@ class SendSubscriptionEndingReminders extends Command
     {
         $days = max(1, (int) $this->option('days'));
         $limit = max(1, (int) $this->option('limit'));
-        $targetDate = now()->addDays($days)->toDateString();
+        $targetDate = now()->addDays($days);
 
         $subscriptions = Subscription::query()
             ->where('status', 'active')
-            ->whereDate('end_date', $targetDate)
+            ->whereBetween('end_date', [$targetDate->copy()->startOfDay(), $targetDate->copy()->endOfDay()])
             ->whereNotNull('user_id')
             ->orderBy('id')
             ->limit($limit)
@@ -43,7 +43,7 @@ class SendSubscriptionEndingReminders extends Command
             BillingNotification::endingReminder(
                 userId: (int) $subscription->user_id,
                 subscriptionId: (int) $subscription->id,
-                endDate: (string) $subscription->end_date?->format('Y-m-d')
+                endDate: (string) $subscription->end_date?->format('Y-m-d H:i')
             );
             $sent++;
         }

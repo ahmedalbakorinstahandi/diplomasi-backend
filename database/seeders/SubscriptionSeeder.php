@@ -31,20 +31,21 @@ class SubscriptionSeeder extends Seeder
             $plan = $plans[$idx % $plans->count()];
 
             $start = now()->subDays(10 + ($idx % 20));
-            $end = (clone $start)->addDays(match ($plan->interval) {
-                'annual' => 365,
-                'semi_annual' => 180,
-                'quarterly' => 90,
-                default => 30,
-            });
+            $end = (clone $start);
+            match ($plan->interval) {
+                'annual' => $end->addYear(),
+                'semi_annual' => $end->addMonths(6),
+                'quarterly' => $end->addMonths(3),
+                default => $end->addMonth(),
+            };
 
             $subscription = Subscription::withTrashed()->updateOrCreate(
                 ['user_id' => $user->id, 'plan_id' => $plan->id],
                 [
                     'user_id' => $user->id,
                     'plan_id' => $plan->id,
-                    'start_date' => $start->toDateString(),
-                    'end_date' => $end->toDateString(),
+                    'start_date' => $start,
+                    'end_date' => $end,
                     'status' => $idx % 6 === 0 ? 'expired' : 'active',
                     'price' => $plan->price,
                     'currency' => 'USD',

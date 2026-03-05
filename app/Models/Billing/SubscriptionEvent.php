@@ -39,8 +39,8 @@ class SubscriptionEvent extends Model
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'end_date' => 'date',
+            'start_date' => 'datetime',
+            'end_date' => 'datetime',
             'plan_price' => 'decimal:2',
             'amount_charged' => 'decimal:2',
             'amount_refunded' => 'decimal:2',

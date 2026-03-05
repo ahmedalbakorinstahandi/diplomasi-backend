@@ -51,7 +51,7 @@ class SubscriptionManagementService
             ->where(function ($query) {
                 $query->where(function ($activeQuery) {
                     $activeQuery->where('status', 'active')
-                        ->whereDate('end_date', '>=', now()->toDateString());
+                        ->where('end_date', '>=', now());
                 })->orWhereIn('status', ['past_due', 'expired']);
             })
             ->orderByDesc('id')

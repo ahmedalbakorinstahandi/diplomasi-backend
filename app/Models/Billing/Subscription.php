@@ -38,8 +38,8 @@ class Subscription extends Model
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'end_date' => 'date',
+            'start_date' => 'datetime',
+            'end_date' => 'datetime',
             'price' => 'decimal:2',
             'auto_renew' => 'boolean',
             'cancel_at_period_end' => 'boolean',

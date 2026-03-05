@@ -271,7 +271,7 @@ class User extends Authenticatable
     {
         return $this->subscriptions()
             ->where('status', 'active')
-            ->where('end_date', '>=', now()->toDateString())
+            ->where('end_date', '>=', now())
             ->exists();
     }
 
@@ -282,7 +282,7 @@ class User extends Authenticatable
     {
         return $this->subscriptions()
             ->where('status', 'active')
-            ->where('end_date', '>=', now()->toDateString())
+            ->where('end_date', '>=', now())
             ->with(['plan'])
             ->orderBy('created_at', 'desc')
             ->first();
