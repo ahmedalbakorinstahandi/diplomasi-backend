@@ -375,6 +375,16 @@ class MoyasarPaymentService
             ->limit($limit)
             ->get();
 
+        // #region agent log
+        $countEndDateDue = Subscription::query()->whereIn('status', ['active', 'past_due'])->where('end_date', '<=', now())->count();
+        $countDueWithAutoRenew = Subscription::query()->whereIn('status', ['active', 'past_due'])->where('end_date', '<=', now())->where('auto_renew', true)->count();
+        $logPath = function_exists('storage_path') ? storage_path('logs/debug-3f6903.log') : base_path('../../debug-3f6903.log');
+        if (is_string($logPath) && $logPath !== '') {
+            $payload = ['sessionId' => '3f6903', 'runId' => 'renewal', 'hypothesisId' => 'A', 'location' => 'MoyasarPaymentService.php:processDueRenewalsBatch', 'message' => 'Renewal due counts', 'data' => ['due_subscription_ids' => $subscriptions->pluck('id')->values()->all(), 'count_end_date_due' => $countEndDateDue, 'count_due_with_auto_renew' => $countDueWithAutoRenew, 'due_count' => $subscriptions->count()], 'timestamp' => (int) round(microtime(true) * 1000)];
+            @file_put_contents($logPath, json_encode($payload) . "\n", \FILE_APPEND | \LOCK_EX);
+        }
+        // #endregion
+
         if ($subscriptions->isEmpty()) {
             Log::channel('single')->info('[billing.renewal] No subscriptions due (end_date > now or not auto_renew)', []);
         }
