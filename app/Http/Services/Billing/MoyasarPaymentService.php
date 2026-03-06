@@ -375,6 +375,9 @@ class MoyasarPaymentService
             ->limit($limit)
             ->get();
 
+        if ($subscriptions->isEmpty()) {
+            Log::channel('single')->info('[billing.renewal] No subscriptions due (end_date > now or not auto_renew)', []);
+        }
         $processed = 0;
         $created = 0;
         foreach ($subscriptions as $subscription) {
@@ -576,33 +579,36 @@ class MoyasarPaymentService
             }
         }
 
-        // عند نجاح الدفع فوراً (بدون انتظار الويب هوك): تحديث الاشتراك، الفاتورة، والإشعارات — فقط عند paid/captured مؤكد
+        // عند نجاح الدفع فوراً (بدون انتظار الويب هوك): تحديث الاشتراك + حدث renewed في transaction واحد (لا تحديث بدون حدث)
         if (in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true) && $status === 'paid') {
             Log::channel('single')->info('[billing.renewal] Charge succeeded (sync)', [
                 'subscription_id' => $subscription->id,
                 'transaction_id' => $transaction->id,
                 'provider_payment_id' => $transaction->provider_payment_id,
+                'plan_interval' => $plan->interval ?? null,
                 'new_end_date' => $periodEnd->toIso8601String(),
             ]);
-            $subscription->update([
-                'status' => 'active',
-                'start_date' => $periodStart,
-                'end_date' => $periodEnd,
-            ]);
-            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
-            SubscriptionEvent::query()->create([
-                'subscription_id' => $subscription->id,
-                'event_type' => 'renewed',
-                'plan_id' => (int) $subscription->plan_id,
-                'status' => 'active',
-                'start_date' => $periodStart,
-                'end_date' => $periodEnd,
-                'plan_price' => $subscription->plan?->price ?? $subscription->price,
-                'amount_charged' => $amountCharged,
-                'amount_refunded' => 0,
-                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
-                'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'attempt_renewal'],
-            ]);
+            DB::transaction(function () use ($subscription, $transaction, $periodStart, $periodEnd, $plan) {
+                $subscription->update([
+                    'status' => 'active',
+                    'start_date' => $periodStart,
+                    'end_date' => $periodEnd,
+                ]);
+                $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $plan->price ?? 0);
+                SubscriptionEvent::query()->create([
+                    'subscription_id' => $subscription->id,
+                    'event_type' => 'renewed',
+                    'plan_id' => (int) $subscription->plan_id,
+                    'status' => 'active',
+                    'start_date' => $periodStart,
+                    'end_date' => $periodEnd,
+                    'plan_price' => $subscription->plan?->price ?? $subscription->price,
+                    'amount_charged' => $amountCharged,
+                    'amount_refunded' => 0,
+                    'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                    'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'attempt_renewal'],
+                ]);
+            });
             try {
                 $invoiceService = app(InvoiceService::class);
                 $billingEmailService = app(BillingEmailService::class);
@@ -1259,6 +1265,18 @@ class MoyasarPaymentService
             $givenId = (string) Str::uuid();
         }
 
+        $billingPeriodStart = null;
+        $billingPeriodEnd = null;
+        if ($subscriptionId) {
+            $sub = Subscription::query()->with('plan')->find($subscriptionId);
+            if ($sub && $sub->end_date) {
+                $periodStart = Carbon::parse($sub->end_date)->addSecond();
+                $interval = (string) ($sub->plan?->interval ?? 'monthly');
+                $billingPeriodStart = $periodStart;
+                $billingPeriodEnd = $this->computeNextEndDate($periodStart->copy(), $interval);
+            }
+        }
+
         return PaymentTransaction::query()->updateOrCreate(
             [
                 'provider' => 'moyasar',
@@ -1272,6 +1290,8 @@ class MoyasarPaymentService
                 'given_id' => $givenId,
                 'amount_minor' => max(0, (int) ($payment['amount'] ?? 0)),
                 'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR'))),
+                'billing_period_start' => $billingPeriodStart,
+                'billing_period_end' => $billingPeriodEnd,
                 'status' => $status,
                 'gateway_status' => $gatewayStatus,
                 'raw_response' => $this->sanitizeGatewayResponse($payment),

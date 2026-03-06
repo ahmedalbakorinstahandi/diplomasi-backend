@@ -67,23 +67,27 @@ class SyncBillingArtifacts extends Command
                 }
             }
 
-            // تصحيح تواريخ الاشتراك إذا الويب هوك لم يحدّثها: تحديث من المعاملة المدفوعة للتجديد
-            if ($isRenewal && (string) $transaction->status === 'paid' && $transaction->billing_period_start && $transaction->billing_period_end) {
+            // تصحيح تواريخ الاشتراك و/أو إنشاء حدث renewed من المعاملة المدفوعة للتجديد
+            if ($isRenewal && (string) $transaction->status === 'paid') {
                 $subscription = Subscription::query()->find($transaction->subscription_id);
-                if ($subscription) {
+                if (!$subscription) {
+                    continue;
+                }
+                $alreadyEvent = SubscriptionEvent::query()
+                    ->where('subscription_id', $subscription->id)
+                    ->where('event_type', 'renewed')
+                    ->where('meta->payment_transaction_id', $transaction->id)
+                    ->exists();
+
+                if ($transaction->billing_period_start && $transaction->billing_period_end) {
                     $subEnd = $subscription->end_date ? $subscription->end_date->format('Y-m-d H:i:s') : null;
-                    $txEnd = $transaction->billing_period_end ? \Illuminate\Support\Carbon::parse($transaction->billing_period_end)->format('Y-m-d H:i:s') : null;
-                    if ($txEnd && ($subEnd === null || $subEnd < $txEnd)) {
+                    $txEnd = \Illuminate\Support\Carbon::parse($transaction->billing_period_end)->format('Y-m-d H:i:s');
+                    if ($subEnd === null || $subEnd < $txEnd) {
                         $subscription->update([
                             'status' => 'active',
                             'start_date' => $transaction->billing_period_start,
                             'end_date' => $transaction->billing_period_end,
                         ]);
-                        $alreadyEvent = SubscriptionEvent::query()
-                            ->where('subscription_id', $subscription->id)
-                            ->where('event_type', 'renewed')
-                            ->where('meta->payment_transaction_id', $transaction->id)
-                            ->exists();
                         if (!$alreadyEvent) {
                             Log::channel('single')->info('[billing.sync-artifacts] Subscription dates corrected from transaction', [
                                 'subscription_id' => $subscription->id,
@@ -104,8 +108,35 @@ class SyncBillingArtifacts extends Command
                                 'currency' => (string) ($subscription->currency ?? 'SAR'),
                                 'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'sync_artifacts'],
                             ]);
+                            $alreadyEvent = true;
                         }
+                    } elseif (!$alreadyEvent) {
+                        // الاشتراك محدّث مسبقاً (مثلاً من attemptRenewal) لكن حدث renewed مفقود — إنشاء الحدث فقط (معالجة بيانات قديمة)
+                        Log::channel('single')->info('[billing.sync-artifacts] Heal: create missing renewed event', [
+                            'subscription_id' => $subscription->id,
+                            'transaction_id' => $transaction->id,
+                        ]);
+                        $subscription->loadMissing('plan');
+                        $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $subscription->price);
+                        SubscriptionEvent::query()->create([
+                            'subscription_id' => $subscription->id,
+                            'event_type' => 'renewed',
+                            'plan_id' => (int) $subscription->plan_id,
+                            'status' => 'active',
+                            'start_date' => $transaction->billing_period_start,
+                            'end_date' => $transaction->billing_period_end,
+                            'plan_price' => $subscription->plan?->price ?? $subscription->price,
+                            'amount_charged' => $amountCharged,
+                            'amount_refunded' => 0,
+                            'currency' => (string) ($subscription->currency ?? 'SAR'),
+                            'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'sync_artifacts_heal'],
+                        ]);
                     }
+                } else {
+                    Log::channel('single')->debug('[billing.sync-artifacts] Paid renewal transaction without billing_period (e.g. from webhook)', [
+                        'transaction_id' => $transaction->id,
+                        'subscription_id' => $transaction->subscription_id,
+                    ]);
                 }
             }
         }
