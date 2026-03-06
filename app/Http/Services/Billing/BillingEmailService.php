@@ -21,6 +21,16 @@ class BillingEmailService
             return;
         }
 
+        $alreadyQueued = BillingEmailNotification::query()
+            ->where('type', 'invoice_issued')
+            ->where('payload->invoice_id', $invoice->id)
+            ->whereIn('status', ['pending', 'sent'])
+            ->exists();
+        if ($alreadyQueued) {
+            Log::channel('single')->info('[billing.email] Invoice already queued, skip', ['invoice_id' => $invoice->id]);
+            return;
+        }
+
         $invoice->loadMissing(['paymentTransaction']);
         $isRenewal = $invoice->paymentTransaction
             && (int) ($invoice->paymentTransaction->subscription_id ?? 0) > 0;
@@ -65,6 +75,12 @@ class BillingEmailService
             invoiceId: (int) $invoice->id,
             invoiceNumber: (string) $invoice->invoice_number
         );
+        Log::channel('single')->info('[billing.email] Invoice issued queued', [
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+            'user_id' => $user->id,
+            'is_renewal' => $isRenewal,
+        ]);
     }
 
     /**
@@ -149,6 +165,11 @@ class BillingEmailService
 
     public function queueRenewalStatus(PaymentTransaction $transaction, bool $success): void
     {
+        Log::channel('single')->info('[billing.email] Queue renewal status', [
+            'transaction_id' => $transaction->id,
+            'subscription_id' => $transaction->subscription_id,
+            'success' => $success,
+        ]);
         $user = User::query()->find($transaction->user_id);
         if (!$user || !$user->email) {
             return;

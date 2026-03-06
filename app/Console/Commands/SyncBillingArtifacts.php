@@ -9,6 +9,7 @@ use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class SyncBillingArtifacts extends Command
 {
@@ -27,6 +28,10 @@ class SyncBillingArtifacts extends Command
             ->limit($limit)
             ->get();
 
+        Log::channel('single')->info('[billing.sync-artifacts] Start', [
+            'limit' => $limit,
+            'transactions_count' => $transactions->count(),
+        ]);
         $issued = 0;
         $queued = 0;
 
@@ -80,6 +85,10 @@ class SyncBillingArtifacts extends Command
                             ->where('meta->payment_transaction_id', $transaction->id)
                             ->exists();
                         if (!$alreadyEvent) {
+                            Log::channel('single')->info('[billing.sync-artifacts] Subscription dates corrected from transaction', [
+                                'subscription_id' => $subscription->id,
+                                'transaction_id' => $transaction->id,
+                            ]);
                             $subscription->loadMissing('plan');
                             $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $subscription->price);
                             SubscriptionEvent::query()->create([
@@ -101,6 +110,10 @@ class SyncBillingArtifacts extends Command
             }
         }
 
+        Log::channel('single')->info('[billing.sync-artifacts] Done', [
+            'invoices_issued' => $issued,
+            'notifications_queued' => $queued,
+        ]);
         $this->info('Invoices processed: ' . $issued . ', notifications queued: ' . $queued);
 
         return self::SUCCESS;

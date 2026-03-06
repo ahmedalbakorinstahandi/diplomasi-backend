@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Http\Services\Billing\MoyasarPaymentService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class ProcessSubscriptionRenewals extends Command
 {
@@ -30,6 +31,11 @@ class ProcessSubscriptionRenewals extends Command
 
         $result = $this->moyasarPaymentService->processDueRenewalsBatch($limit);
 
+        Log::channel('single')->info('[billing.renewal] Batch completed', [
+            'processed_subscriptions' => $result['processed_subscriptions'],
+            'created_attempts' => $result['created_attempts'],
+            'limit' => $limit,
+        ]);
         $this->info('Renewal batch completed.');
         $this->line('Processed subscriptions: ' . $result['processed_subscriptions']);
         $this->line('Created attempts: ' . $result['created_attempts']);

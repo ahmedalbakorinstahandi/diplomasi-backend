@@ -5,6 +5,7 @@ namespace App\Http\Services\Billing;
 use App\Models\Billing\WebhookEvent;
 use App\Services\MessageService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class MoyasarWebhookService
 {
@@ -19,9 +20,17 @@ class MoyasarWebhookService
      */
     public function ingest(array $payload): array
     {
+        $eventType = (string) ($payload['type'] ?? '');
+        $paymentId = $this->extractPaymentId($payload);
+        Log::channel('single')->info('[billing.webhook] Received', [
+            'event_type' => $eventType,
+            'payment_id' => $paymentId,
+            'payload_id' => $payload['id'] ?? null,
+        ]);
+
         $this->validatePayload($payload);
         $this->validateSecretToken($payload['secret_token']);
-        $isSupportedType = $this->isSupportedEventType((string) $payload['type']);
+        $isSupportedType = $this->isSupportedEventType($eventType);
 
         $event = WebhookEvent::firstOrCreate(
             [
@@ -39,6 +48,10 @@ class MoyasarWebhookService
         );
 
         if (!$event->wasRecentlyCreated) {
+            Log::channel('single')->info('[billing.webhook] Duplicate event ignored', [
+                'event_type' => $eventType,
+                'payment_id' => $paymentId,
+            ]);
             return [
                 'event' => $event,
                 'duplicate' => true,
@@ -53,6 +66,11 @@ class MoyasarWebhookService
 
         if ($isSupportedType && !empty($event->payment_id)) {
             $gatewayStatus = (string) ($payload['data']['status'] ?? $this->mapEventTypeToGatewayStatus((string) $payload['type']));
+            Log::channel('single')->info('[billing.webhook] Processing', [
+                'event_type' => $eventType,
+                'payment_id' => $event->payment_id,
+                'gateway_status' => $gatewayStatus,
+            ]);
             if ((string) $payload['type'] === 'payment_refunded') {
                 $this->moyasarPaymentService->processRefundWebhook($payload, $gatewayStatus);
             }
@@ -61,6 +79,11 @@ class MoyasarWebhookService
                 $gatewayStatus,
                 $payload
             );
+        } else {
+            Log::channel('single')->info('[billing.webhook] Event ignored (unsupported or no payment_id)', [
+                'event_type' => $eventType,
+                'supported' => $isSupportedType,
+            ]);
         }
 
         return [

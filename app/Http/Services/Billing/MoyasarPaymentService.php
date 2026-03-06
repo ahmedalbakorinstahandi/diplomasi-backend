@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class MoyasarPaymentService
@@ -126,7 +127,31 @@ class MoyasarPaymentService
         ]);
 
         if ($transaction->subscription_id === null && in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true)) {
+            Log::channel('single')->info('[billing.checkout] First purchase (sync paid)', [
+                'transaction_id' => $transaction->id,
+                'user_id' => $transaction->user_id,
+                'plan_id' => $transaction->plan_id,
+            ]);
             $this->activateSubscriptionFromFirstPurchase($transaction);
+            try {
+                $invoiceService = app(InvoiceService::class);
+                $billingEmailService = app(BillingEmailService::class);
+                $freshTransaction = $transaction->fresh();
+                if ($freshTransaction) {
+                    $invoice = $invoiceService->issueFromTransaction($freshTransaction);
+                    $billingEmailService->queueInvoiceIssued($invoice);
+                    Log::channel('single')->info('[billing.checkout] First purchase invoice queued', [
+                        'invoice_id' => $invoice->id,
+                        'transaction_id' => $freshTransaction->id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::channel('single')->error('[billing.checkout] First purchase invoice failed', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+                report($e);
+            }
         }
 
         return [
@@ -373,10 +398,17 @@ class MoyasarPaymentService
         ?string &$blockedReason = null
     ): ?array
     {
+        Log::channel('single')->info('[billing.renewal] Attempt start', [
+            'subscription_id' => $subscription->id,
+            'user_id' => $subscription->user_id,
+            'trigger' => $trigger,
+        ]);
+
         $subscription->loadMissing('plan');
         $plan = $subscription->plan;
         if (!$plan) {
             $blockedReason = 'plan_not_found';
+            Log::channel('single')->warning('[billing.renewal] Blocked: plan_not_found', ['subscription_id' => $subscription->id]);
             return null;
         }
 
@@ -395,12 +427,14 @@ class MoyasarPaymentService
 
         if ($latestAttempt && $latestAttempt->status === 'paid') {
             $blockedReason = 'already_paid_for_period';
+            Log::channel('single')->info('[billing.renewal] Blocked: already_paid_for_period', ['subscription_id' => $subscription->id]);
             return null;
         }
 
         $attemptNo = $latestAttempt ? ((int) $latestAttempt->attempt_no + 1) : 1;
         if ($attemptNo > self::MAX_RENEWAL_ATTEMPTS) {
             $blockedReason = 'max_attempts_reached';
+            Log::channel('single')->warning('[billing.renewal] Blocked: max_attempts_reached', ['subscription_id' => $subscription->id]);
             return null;
         }
 
@@ -411,6 +445,10 @@ class MoyasarPaymentService
             Carbon::parse($latestAttempt->next_retry_at)->isFuture()
         ) {
             $blockedReason = 'backoff_not_elapsed';
+            Log::channel('single')->info('[billing.renewal] Blocked: backoff_not_elapsed', [
+                'subscription_id' => $subscription->id,
+                'next_retry_at' => $latestAttempt->next_retry_at,
+            ]);
             return null;
         }
 
@@ -425,6 +463,7 @@ class MoyasarPaymentService
         if (!$paymentMethod) {
             $subscription->update(['status' => 'past_due']);
             $blockedReason = 'no_active_payment_method';
+            Log::channel('single')->warning('[billing.renewal] Blocked: no_active_payment_method', ['subscription_id' => $subscription->id]);
             return null;
         }
 
@@ -466,6 +505,11 @@ class MoyasarPaymentService
 
         $response = $this->createPayment($payload);
         if ($response->failed()) {
+            Log::channel('single')->warning('[billing.renewal] CreatePayment HTTP failed', [
+                'subscription_id' => $subscription->id,
+                'transaction_id' => $transaction->id,
+                'http_status' => $response->status(),
+            ]);
             $failure = $this->extractFailureDetails($response->json() ?? [], (string) $response->status(), 'Create payment failed');
             $nextRetryAt = $this->computeNextRetryAt($attemptNo);
             $transaction->update([
@@ -515,14 +559,31 @@ class MoyasarPaymentService
         ]);
 
         if ($status === 'failed') {
+            Log::channel('single')->info('[billing.renewal] Charge failed', [
+                'subscription_id' => $subscription->id,
+                'transaction_id' => $transaction->id,
+                'attempt_no' => $attemptNo,
+            ]);
             $subscription->update([
                 'status' => $attemptNo >= self::MAX_RENEWAL_ATTEMPTS ? 'expired' : 'past_due',
                 'auto_renew' => $attemptNo >= self::MAX_RENEWAL_ATTEMPTS ? false : $subscription->auto_renew,
             ]);
+            try {
+                app(BillingEmailService::class)->queueRenewalStatus($transaction->fresh(), false);
+                BillingNotification::renewalFailed((int) $subscription->user_id);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
-        // عند نجاح الدفع فوراً (بدون انتظار الويب هوك): تحديث الاشتراك، الفاتورة، والإشعارات
-        if ($status === 'paid') {
+        // عند نجاح الدفع فوراً (بدون انتظار الويب هوك): تحديث الاشتراك، الفاتورة، والإشعارات — فقط عند paid/captured مؤكد
+        if (in_array($gatewayStatus, self::FINAL_SUCCESS_STATUSES, true) && $status === 'paid') {
+            Log::channel('single')->info('[billing.renewal] Charge succeeded (sync)', [
+                'subscription_id' => $subscription->id,
+                'transaction_id' => $transaction->id,
+                'provider_payment_id' => $transaction->provider_payment_id,
+                'new_end_date' => $periodEnd->toIso8601String(),
+            ]);
             $subscription->update([
                 'status' => 'active',
                 'start_date' => $periodStart,
@@ -618,6 +679,11 @@ class MoyasarPaymentService
 
     public function finalizeByGatewayPaymentId(string $paymentId, string $gatewayStatus, array $rawPayload = []): void
     {
+        Log::channel('single')->info('[billing.finalize] Start', [
+            'payment_id' => $paymentId,
+            'gateway_status' => $gatewayStatus,
+        ]);
+
         DB::transaction(function () use ($paymentId, $gatewayStatus, $rawPayload) {
             /** @var PaymentTransaction|null $transaction */
             $transaction = PaymentTransaction::query()
@@ -629,6 +695,7 @@ class MoyasarPaymentService
             if (!$transaction) {
                 $created = $this->createTransactionFromGatewayPayload($paymentId, $gatewayStatus, $rawPayload);
                 if (!$created) {
+                    Log::channel('single')->warning('[billing.finalize] Could not create transaction from payload', ['payment_id' => $paymentId]);
                     return;
                 }
                 $transaction = PaymentTransaction::query()
@@ -654,6 +721,7 @@ class MoyasarPaymentService
                 'last_error_message' => $failure['message'],
                 'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
             ]);
+            $transaction = $transaction->fresh();
 
             if (in_array($gatewayStatus, ['refunded', 'partially_refunded'], true)) {
                 $this->syncRefundStatusForTransaction($transaction, $gatewayStatus);
@@ -664,13 +732,26 @@ class MoyasarPaymentService
                 $nextStatus = (string) $transaction->status;
             }
 
+            // لا تمديد ولا تفعيل إلا بعد تأكد فعلي: معاملة مدفوعة، finalized_at معيّن، ووجود provider_payment_id
+            $confirmedPaid = in_array($nextStatus, self::FINAL_SUCCESS_STATUSES, true)
+                && $transaction->finalized_at !== null
+                && !empty($transaction->provider_payment_id);
+
+            Log::channel('single')->info('[billing.finalize] Transaction updated', [
+                'payment_id' => $paymentId,
+                'transaction_id' => $transaction->id,
+                'next_status' => $nextStatus,
+                'confirmed_paid' => $confirmedPaid,
+                'subscription_id' => $transaction->subscription_id,
+            ]);
+
             if ($transaction->subscription_id) {
                 $subscription = Subscription::query()
                     ->lockForUpdate()
                     ->find($transaction->subscription_id);
 
                 if ($subscription) {
-                    if ($nextStatus === 'paid' && $previousStatus !== 'paid') {
+                    if ($confirmedPaid && $nextStatus === 'paid' && $previousStatus !== 'paid') {
                         $subscription->loadMissing('plan');
                         $periodStart = Carbon::parse($subscription->end_date)->addSecond();
                         $newEndDate = $this->computeNextEndDate(
@@ -682,6 +763,12 @@ class MoyasarPaymentService
                             'status' => 'active',
                             'start_date' => $periodStart,
                             'end_date' => $newEndDate,
+                        ]);
+
+                        Log::channel('single')->info('[billing.finalize] Subscription renewed (webhook)', [
+                            'subscription_id' => $subscription->id,
+                            'transaction_id' => $transaction->id,
+                            'new_end_date' => $newEndDate->toIso8601String(),
                         ]);
 
                         $alreadyEvent = SubscriptionEvent::query()
@@ -709,24 +796,63 @@ class MoyasarPaymentService
                         $subscription->update(['status' => 'past_due']);
                     }
                 }
-            } elseif (in_array($nextStatus, self::FINAL_SUCCESS_STATUSES, true)) {
+            } elseif ($confirmedPaid) {
+                Log::channel('single')->info('[billing.finalize] First purchase activation', [
+                    'transaction_id' => $transaction->id,
+                    'user_id' => $transaction->user_id,
+                ]);
                 $this->activateSubscriptionFromFirstPurchase($transaction);
             }
         });
 
-        // إنشاء الفاتورة فوراً عند اكتمال دفع ناجح (بدون انتظار أمر sync كل 5 دقائق)
         $finalized = PaymentTransaction::query()
             ->where('provider', 'moyasar')
             ->where('provider_payment_id', $paymentId)
             ->first();
-        if ($finalized && in_array((string) $finalized->status, self::FINAL_SUCCESS_STATUSES, true)) {
+
+        $confirmedPaid = $finalized
+            && in_array((string) $finalized->status, self::FINAL_SUCCESS_STATUSES, true)
+            && $finalized->finalized_at !== null
+            && !empty($finalized->provider_payment_id);
+
+        if ($confirmedPaid) {
             try {
                 $invoiceService = app(InvoiceService::class);
                 $billingEmailService = app(BillingEmailService::class);
                 $invoice = $invoiceService->issueFromTransaction($finalized);
                 $billingEmailService->queueInvoiceIssued($invoice);
+                Log::channel('single')->info('[billing.finalize] Invoice queued', [
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'transaction_id' => $finalized->id,
+                ]);
+                // إشعار تجديد عند نجاح من الويب هوك (إن لم يُسجّل مسبقاً من attemptRenewal)
+                if ($finalized->subscription_id && !\App\Models\Billing\BillingEmailNotification::query()
+                    ->where('type', 'renewal_success')
+                    ->where('payload->payment_transaction_id', $finalized->id)
+                    ->exists()) {
+                    $billingEmailService->queueRenewalStatus($finalized, true);
+                    Log::channel('single')->info('[billing.finalize] Renewal notification queued', ['transaction_id' => $finalized->id]);
+                }
             } catch (\Throwable $e) {
-                // لا نفشل الويب هوك؛ أمر billing:sync-artifacts يعوّض لاحقاً
+                Log::channel('single')->error('[billing.finalize] Invoice/notification failed', [
+                    'payment_id' => $paymentId,
+                    'error' => $e->getMessage(),
+                ]);
+                report($e);
+            }
+        }
+
+        // إشعار فشل التجديد عند دفعة فاشلة لاشتراك
+        if ($finalized && $finalized->subscription_id && (string) $finalized->status === 'failed') {
+            Log::channel('single')->info('[billing.finalize] Renewal failed, queuing failure notification', [
+                'transaction_id' => $finalized->id,
+                'user_id' => $finalized->user_id,
+            ]);
+            try {
+                app(BillingEmailService::class)->queueRenewalStatus($finalized, false);
+                BillingNotification::renewalFailed((int) $finalized->user_id);
+            } catch (\Throwable $e) {
                 report($e);
             }
         }
@@ -857,8 +983,9 @@ class MoyasarPaymentService
             ]);
         }
 
-        // إشعار "اشتراكك أصبح فعالًا" فقط عند الاشتراك لأول مرة، وليس عند التجديد
-        if ($subscription && $isFirstSubscription) {
+        // إشعار "اشتراكك أصبح فعالًا" عند أول شراء (معاملة بلا subscription_id) سواء وُجد اشتراك قديم أو تم إنشاء جديد
+        $isFirstPurchase = $transaction->subscription_id === null;
+        if ($subscription && $isFirstPurchase) {
             BillingNotification::subscriptionActivated($subscription);
         }
 
@@ -1013,14 +1140,21 @@ class MoyasarPaymentService
     }
 
     /**
-     * احتساب تاريخ نهاية الفترة من بدايتها + المدة (شهر / 3 أشهر / 6 أشهر / سنة) بدقة بالثانية.
+     * احتساب تاريخ نهاية الفترة من بدايتها + مدة الباقة (شهر / 3 / 4 / 6 أشهر / سنة) — التجديد بنفس مدة الباقة فقط.
      */
     protected function computeNextEndDate(Carbon $periodStart, string $interval): Carbon
     {
+        $interval = strtolower(trim($interval));
+        if (preg_match('/^(\d+)_months?$/', $interval, $m)) {
+            $months = (int) $m[1];
+            return $periodStart->copy()->addMonths($months >= 1 && $months <= 60 ? $months : 1);
+        }
         return match ($interval) {
-            'annual' => $periodStart->copy()->addYear(),
+            'annual', 'yearly' => $periodStart->copy()->addYear(),
             'semi_annual' => $periodStart->copy()->addMonths(6),
             'quarterly' => $periodStart->copy()->addMonths(3),
+            '4_months', 'four_months' => $periodStart->copy()->addMonths(4),
+            'monthly' => $periodStart->copy()->addMonth(),
             default => $periodStart->copy()->addMonth(),
         };
     }

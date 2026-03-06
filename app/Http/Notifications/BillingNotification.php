@@ -9,7 +9,8 @@ class BillingNotification
 {
     public static function subscriptionActivated(Subscription $subscription): void
     {
-        $planName = (string) ($subscription->plan_snapshot['name'] ?? 'الباقة');
+        $subscription->loadMissing('plan');
+        $planName = (string) ($subscription->plan?->name ?? 'الباقة');
 
         app(NotificationService::class)->sendToUser(
             userId: (int) $subscription->user_id,
