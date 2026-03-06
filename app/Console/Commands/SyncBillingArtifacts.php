@@ -20,9 +20,10 @@ class SyncBillingArtifacts extends Command
     {
         $limit = (int) $this->option('limit');
 
+        // معاملات الأحدث أولاً حتى لا تُتخطى معاملات التجديد الأخيرة (الحد 200 كان يهمل الجديدة عند orderBy id تصاعدي)
         $transactions = PaymentTransaction::query()
             ->whereNotNull('finalized_at')
-            ->orderBy('id')
+            ->orderByDesc('id')
             ->limit($limit)
             ->get();
 

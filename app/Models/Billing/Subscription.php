@@ -35,6 +35,18 @@ class Subscription extends Model
      *
      * @return array<string, string>
      */
+    /**
+     * Accessors to append when serializing (e.g. for API).
+     *
+     * @var array<int, string>
+     */
+    protected $appends = ['renewal_pending'];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
@@ -45,6 +57,23 @@ class Subscription extends Model
             'cancel_at_period_end' => 'boolean',
             'canceled_at' => 'datetime',
         ];
+    }
+
+    /**
+     * هل الاشتراك في فترة انتظار التجديد (انتهى end_date منذ مدة لا تتجاوز فترة السماح مع تفعيل التجديد التلقائي).
+     */
+    public function getRenewalPendingAttribute(): bool
+    {
+        if (!$this->auto_renew || !in_array((string) $this->status, ['active', 'past_due'], true)) {
+            return false;
+        }
+        $endDate = $this->end_date;
+        if (!$endDate) {
+            return false;
+        }
+        $graceMinutes = (int) config('services.billing.renewal_grace_period_minutes', 15);
+        $graceCutoff = now()->subMinutes($graceMinutes);
+        return $endDate->lt(now()) && $endDate->gte($graceCutoff);
     }
 
     /**

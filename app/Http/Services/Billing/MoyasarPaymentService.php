@@ -41,6 +41,15 @@ class MoyasarPaymentService
 
     public function createCheckoutSession(array $input): array
     {
+        $userId = (int) ($input['user_id'] ?? 0);
+        if ($userId && $this->hasPurchaseBlockingSubscription($userId)) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'لا يمكنك شراء باقة جديدة أثناء اشتراكك الحالي أو فترة انتظار التجديد.',
+                'key' => 'billing.purchase.active_subscription_exists',
+            ], 422);
+        }
+
         $plan = Plan::query()->find($input['plan_id']);
         if (!$plan) {
             MessageService::abort(404, 'messages.plan.not_found');
@@ -512,6 +521,39 @@ class MoyasarPaymentService
             ]);
         }
 
+        // عند نجاح الدفع فوراً (بدون انتظار الويب هوك): تحديث الاشتراك، الفاتورة، والإشعارات
+        if ($status === 'paid') {
+            $subscription->update([
+                'status' => 'active',
+                'start_date' => $periodStart,
+                'end_date' => $periodEnd,
+            ]);
+            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
+            SubscriptionEvent::query()->create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'renewed',
+                'plan_id' => (int) $subscription->plan_id,
+                'status' => 'active',
+                'start_date' => $periodStart,
+                'end_date' => $periodEnd,
+                'plan_price' => $subscription->plan?->price ?? $subscription->price,
+                'amount_charged' => $amountCharged,
+                'amount_refunded' => 0,
+                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'attempt_renewal'],
+            ]);
+            try {
+                $invoiceService = app(InvoiceService::class);
+                $billingEmailService = app(BillingEmailService::class);
+                $freshTransaction = $transaction->fresh();
+                $invoice = $invoiceService->issueFromTransaction($freshTransaction);
+                $billingEmailService->queueInvoiceIssued($invoice);
+                $billingEmailService->queueRenewalStatus($freshTransaction, true);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         return [
             'transaction_id' => $transaction->id,
             'merchant_reference_id' => $transaction->merchant_reference_id,
@@ -642,20 +684,27 @@ class MoyasarPaymentService
                             'end_date' => $newEndDate,
                         ]);
 
-                        $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
-                        SubscriptionEvent::query()->create([
-                            'subscription_id' => $subscription->id,
-                            'event_type' => 'renewed',
-                            'plan_id' => (int) $subscription->plan_id,
-                            'status' => 'active',
-                            'start_date' => $periodStart,
-                            'end_date' => $newEndDate,
-                            'plan_price' => $subscription->plan?->price ?? $subscription->price,
-                            'amount_charged' => $amountCharged,
-                            'amount_refunded' => 0,
-                            'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
-                            'meta' => ['payment_transaction_id' => $transaction->id],
-                        ]);
+                        $alreadyEvent = SubscriptionEvent::query()
+                            ->where('subscription_id', $subscription->id)
+                            ->where('event_type', 'renewed')
+                            ->where('meta->payment_transaction_id', $transaction->id)
+                            ->exists();
+                        if (!$alreadyEvent) {
+                            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
+                            SubscriptionEvent::query()->create([
+                                'subscription_id' => $subscription->id,
+                                'event_type' => 'renewed',
+                                'plan_id' => (int) $subscription->plan_id,
+                                'status' => 'active',
+                                'start_date' => $periodStart,
+                                'end_date' => $newEndDate,
+                                'plan_price' => $subscription->plan?->price ?? $subscription->price,
+                                'amount_charged' => $amountCharged,
+                                'amount_refunded' => 0,
+                                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                                'meta' => ['payment_transaction_id' => $transaction->id],
+                            ]);
+                        }
                     } elseif ($nextStatus === 'failed') {
                         $subscription->update(['status' => 'past_due']);
                     }
