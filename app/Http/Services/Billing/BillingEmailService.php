@@ -21,27 +21,38 @@ class BillingEmailService
             return;
         }
 
+        $invoice->loadMissing(['paymentTransaction']);
+        $isRenewal = $invoice->paymentTransaction
+            && (int) ($invoice->paymentTransaction->subscription_id ?? 0) > 0;
+
         try {
-            $content = $this->buildInvoiceEmailHtml($invoice, $user);
+            $content = $this->buildInvoiceEmailHtml($invoice, $user, $isRenewal);
         } catch (\Throwable $e) {
             Log::warning('Invoice email HTML build failed, using fallback: ' . $e->getMessage());
             $customerName = trim((string) ($user->first_name . ' ' . $user->last_name)) ?: 'عميلنا';
             $amount = number_format(((int) $invoice->amount_minor) / 100, 2);
+            $bodyText = $isRenewal
+                ? 'تم تجديد اشتراكك بنجاح. الفاتورة مرفقة بهذا البريد كملف PDF.'
+                : 'تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.';
             $content = $this->renderEmailLayout(
-                title: 'فاتورتك جاهزة',
+                title: $isRenewal ? 'فاتورة تجديد الاشتراك' : 'فاتورتك جاهزة',
                 greeting: 'مرحباً ' . e($customerName) . '،',
-                bodyHtml: '<p>تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.</p>'
+                bodyHtml: '<p>' . $bodyText . '</p>'
                     . '<p><strong>رقم الفاتورة:</strong> ' . e($invoice->invoice_number) . '<br/>'
                     . '<strong>المبلغ:</strong> ' . $amount . ' ر.س (شامل ضريبة القيمة المضافة 15%)</p>',
                 footer: 'للاستفسار يرجى التواصل مع فريق دبلوماسي.'
             );
         }
 
+        $subject = $isRenewal
+            ? 'فاتورة تجديد الاشتراك ' . $invoice->invoice_number . ' - دبلوماسي'
+            : 'فاتورة ' . $invoice->invoice_number . ' - دبلوماسي';
+
         BillingEmailNotification::query()->create([
             'user_id' => $user->id,
             'type' => 'invoice_issued',
             'to_email' => $user->email,
-            'subject' => 'فاتورة ' . $invoice->invoice_number . ' - دبلوماسي',
+            'subject' => $subject,
             'content' => $content,
             'attachments' => $invoice->pdf_path ? [$invoice->pdf_path] : [],
             'payload' => ['invoice_id' => $invoice->id],
@@ -58,8 +69,9 @@ class BillingEmailService
 
     /**
      * تصميم إيميل الفاتورة مطابق لتصميم الـ PDF (لوغو، تفاصيل، ضريبة 15%).
+     * عند التجديد: عنوان ونص يوضح أن الفاتورة لتجديد الاشتراك.
      */
-    protected function buildInvoiceEmailHtml(Invoice $invoice, User $user): string
+    protected function buildInvoiceEmailHtml(Invoice $invoice, User $user, bool $isRenewal = false): string
     {
         $invoice->loadMissing(['paymentTransaction.plan']);
         $fullName = trim((string) ($user->first_name . ' ' . $user->last_name));
@@ -85,11 +97,16 @@ class BillingEmailService
             ? '<img src="' . e($logoUrl) . '" style="height:48px;display:block;" alt="دبلوماسي" />'
             : '<span style="font-size:22px;font-weight:700;color:#1e3a5f;">دبلوماسي</span>';
 
+        $titleText = $isRenewal ? 'فاتورة تجديد الاشتراك' : 'الفاتورة';
+        $introText = $isRenewal
+            ? 'تم تجديد اشتراكك بنجاح. الفاتورة مرفقة بهذا البريد كملف PDF.'
+            : 'تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.';
+
         $html = '<div dir="rtl" style="font-family:Arial,Tahoma,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1a1a2e;font-size:14px;line-height:1.5;">'
             . '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">'
-            . '<tr><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;">' . $logoHtml . '</td><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;text-align:left;"><h1 style="margin:0;font-size:20px;color:#1e3a5f;">الفاتورة</h1></td></tr>'
+            . '<tr><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;">' . $logoHtml . '</td><td style="padding-bottom:16px;border-bottom:2px solid #1e3a5f;text-align:left;"><h1 style="margin:0;font-size:20px;color:#1e3a5f;">' . e($titleText) . '</h1></td></tr>'
             . '</table>'
-            . '<p style="margin:0 0 16px;">مرحباً ' . e($fullName) . '، تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.</p>'
+            . '<p style="margin:0 0 16px;">مرحباً ' . e($fullName) . '، ' . e($introText) . '</p>'
             . '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;">'
             . '<tr><td style="padding:6px 12px 6px 0;"><strong>التاريخ</strong></td><td style="padding:6px 12px;"><strong>تعريف الطلب</strong></td><td style="padding:6px 0 6px 12px;"><strong>رقم المستند</strong></td></tr>'
             . '<tr><td style="padding:6px 12px 6px 0;">' . $issuedAt . '</td><td style="padding:6px 12px;">' . e((string) $reference) . '</td><td style="padding:6px 0 6px 12px;">' . e($invoice->invoice_number) . '</td></tr>'
