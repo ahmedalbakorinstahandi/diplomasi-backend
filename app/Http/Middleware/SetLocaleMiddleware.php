@@ -56,24 +56,32 @@ class SetLocaleMiddleware
             $this->touchUserActivity((int) $user->id, $user);
         }
 
-        // Force update: app version below min_version
-        $appVersion = $request->header('X-App-Version', '0.0.0');
-        $minVersionSetting = Setting::where('key_name', 'app.min_version')->first();
-        $minVersion = $minVersionSetting ? (string) $minVersionSetting->value : null;
+        // Force update: app version below min_version — فقط عندما الطلب من التطبيق (X-Context: app)
+        $path = $request->path();
+        $isWebhook = str_contains($path, 'webhooks');
+        $context = strtolower((string) $request->header('X-Context', ''));
+        $isFromApp = $context === 'app';
+        $applyForceUpdate = $isFromApp && !$isWebhook;
 
-        if ($minVersion !== null && version_compare($appVersion, $minVersion, '<')) {
-            $playLink = Setting::where('key_name', 'app.google_play_link')->first();
-            $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
+        if ($applyForceUpdate) {
+            $appVersion = $request->header('X-App-Version', '0.0.0');
+            $minVersionSetting = Setting::where('key_name', 'app.min_version')->first();
+            $minVersion = $minVersionSetting ? (string) $minVersionSetting->value : null;
 
-            return response()->json([
-                'success' => false,
-                'key' => 'app.force_update',
-                'message' => __('auth.force_update'),
-                'data' => [
-                    'store_link_android' => $playLink ? (string) $playLink->value : null,
-                    'store_link_ios' => $appleLink ? (string) $appleLink->value : null,
-                ],
-            ], 200);
+            if ($minVersion !== null && version_compare($appVersion, $minVersion, '<')) {
+                $playLink = Setting::where('key_name', 'app.google_play_link')->first();
+                $appleLink = Setting::where('key_name', 'app.apple_store_link')->first();
+
+                return response()->json([
+                    'success' => false,
+                    'key' => 'app.force_update',
+                    'message' => __('auth.force_update'),
+                    'data' => [
+                        'store_link_android' => $playLink ? (string) $playLink->value : null,
+                        'store_link_ios' => $appleLink ? (string) $appleLink->value : null,
+                    ],
+                ], 200);
+            }
         }
 
         return $next($request);

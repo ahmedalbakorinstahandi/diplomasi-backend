@@ -27,3 +27,6 @@ Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddl
     // Payment Webhooks (Public)
     Route::post('billing/webhooks/moyasar', [MoyasarWebhookController::class, 'receive']);
 });
+
+
+//payment_paid,payment_failed,payment_voided,payment_authorized,payment_captured,payment_refunded,payment_abandoned,payment_verified
