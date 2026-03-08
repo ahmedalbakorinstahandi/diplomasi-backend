@@ -78,6 +78,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'article.create', 'description' => 'Create articles'],
             ['name' => 'article.update', 'description' => 'Update articles'],
             ['name' => 'article.delete', 'description' => 'Delete articles'],
+            ['name' => 'article.reorder', 'description' => 'Reorder articles'],
 
             // Subscriptions
             ['name' => 'subscription.view', 'description' => 'View subscriptions'],
