@@ -217,10 +217,10 @@ class ScenarioController extends Controller
      */
     public function importContent(ImportScenarioContentRequest $request, int $id)
     {
-        ScenarioPermission::canUpdate();
+        // ScenarioPermission::canUpdate();
 
         $scenario = $this->scenarioService->show($id);
-        ScenarioPermission::canShow($scenario);
+        // ScenarioPermission::canShow($scenario);
 
         $result = $this->scenarioQuestionAdminService->importContent($id, $request->validated());
 
