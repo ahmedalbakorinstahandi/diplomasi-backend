@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Learning;
 use App\Http\Controllers\Controller;
 use App\Http\Permissions\Learning\LessonPermission;
 use App\Http\Requests\Learning\CreateLessonRequest;
+use App\Http\Requests\Learning\ImportLessonQuestionsRequest;
 use App\Http\Requests\Learning\ReOrderLessonRequest;
 use App\Http\Requests\Learning\SubmitLessonAnswerRequest;
 use App\Http\Requests\Learning\UpdateLessonRequest;
@@ -326,6 +327,24 @@ class LessonController extends Controller
             'data' => $lessons,
             'meta' => true,
             'resource' => LessonVedioResource::class,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * استيراد أسئلة الدرس (إنشاء/استبدال كامل) من JSON.
+     * Admin-only: يُستخدم لإدخال أسئلة متعددة دفعة واحدة لدرس موجود.
+     */
+    public function importQuestions(int $lessonId, ImportLessonQuestionsRequest $request)
+    {
+        LessonPermission::canUpdate();
+
+        $result = $this->lessonQuestionService->importQuestions($lessonId, $request->validated());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $result,
+            'message' => 'messages.lesson.questions_imported',
             'status' => 200,
         ]);
     }

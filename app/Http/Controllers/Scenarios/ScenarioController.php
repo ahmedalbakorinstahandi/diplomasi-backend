@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Scenarios;
 
 use App\Http\Controllers\Controller;
 use App\Http\Permissions\Scenarios\ScenarioPermission;
+use App\Http\Requests\Scenarios\CreateScenarioMinimalRequest;
 use App\Http\Requests\Scenarios\CreateScenarioRequest;
 use App\Http\Requests\Scenarios\ReOrderScenarioRequest;
 use App\Http\Requests\Scenarios\StartScenarioAttemptRequest;
@@ -11,6 +12,7 @@ use App\Http\Requests\Scenarios\SubmitScenarioAnswerRequest;
 use App\Http\Requests\Scenarios\UpdateScenarioRequest;
 use App\Http\Resources\Scenarios\ScenarioResource;
 use App\Http\Requests\Scenarios\ImportScenarioContentRequest;
+use App\Http\Requests\Scenarios\ImportScenarioFullRequest;
 use App\Http\Services\Scenarios\ScenarioQuestionAdminService;
 use App\Http\Services\Scenarios\ScenarioService;
 use App\Services\ResponseService;
@@ -59,11 +61,36 @@ class ScenarioController extends Controller
         ]);
     }
 
+    /**
+     * إنشاء سيناريو (نسخة كاملة: عنوان، وصف، level_id، is_free).
+     */
     public function create(CreateScenarioRequest $request)
     {
         ScenarioPermission::canCreate();
 
         $scenario = $this->scenarioService->create($request->validated());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $scenario,
+            'message' => 'messages.scenario.created',
+            'status' => 201,
+            'resource' => ScenarioResource::class,
+        ]);
+    }
+
+    /**
+     * إنشاء سيناريو (نسخة مختصرة: level_id + title فقط، الباقي قيم افتراضية).
+     */
+    public function createMinimal(CreateScenarioMinimalRequest $request)
+    {
+        ScenarioPermission::canCreate();
+
+        $data = array_merge($request->validated(), [
+            'description' => null,
+            'is_free' => false,
+        ]);
+        $scenario = $this->scenarioService->create($data);
 
         return ResponseService::response([
             'success' => true,
@@ -212,7 +239,41 @@ class ScenarioController extends Controller
     }
 
     /**
-     * استيراد محتوى السيناريو (شاشات + خيارات) من JSON دفعة واحدة.
+     * استيراد كامل: إنشاء سيناريو جديد + استيراد الشاشات والخيارات في طلب واحد.
+     * Body: level_id, title, description?, is_free?, screens (نفس هيكل import-content).
+     */
+    public function importFull(ImportScenarioFullRequest $request)
+    {
+        ScenarioPermission::canCreate();
+
+        $validated = $request->validated();
+        $scenarioData = [
+            'level_id' => $validated['level_id'],
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'is_free' => isset($validated['is_free']) ? (bool) $validated['is_free'] : false,
+        ];
+        $scenario = $this->scenarioService->create($scenarioData);
+
+        $importPayload = [
+            'replace' => true,
+            'screens' => $validated['screens'],
+        ];
+        $result = $this->scenarioQuestionAdminService->importContent($scenario->id, $importPayload);
+
+        return ResponseService::response([
+            'success' => true,
+            'message' => $result['message'],
+            'data' => [
+                'created_questions' => $result['created_questions'],
+                'scenario' => new ScenarioResource($result['scenario']),
+            ],
+            'status' => 201,
+        ]);
+    }
+
+    /**
+     * استيراد محتوى السيناريو فقط (شاشات + خيارات) لسيناريو موجود.
      * انظر التوثيق في docs/SCENARIO_IMPORT.md
      */
     public function importContent(ImportScenarioContentRequest $request, int $id)

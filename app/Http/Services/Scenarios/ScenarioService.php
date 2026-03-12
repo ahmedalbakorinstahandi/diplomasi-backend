@@ -71,18 +71,19 @@ class ScenarioService
 
     public function create($data)
     {
-        // التحقق من start_question_id عند محاولة النشر
-        if (isset($data['is_published']) && $data['is_published'] === true) {
-            if (empty($data['start_question_id'])) {
-                MessageService::abort(422, 'messages.scenario.cannot_publish_without_start_question');
-            }
-        }
-        
-        $scenario = Scenario::create($data);
+        // عند الإنشاء: النشر يكون بعد إكمال المحتوى، و start_question_id يُعيَّن تلقائياً عند إضافة أول شاشة
+        $payload = [
+            'level_id' => $data['level_id'],
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+            'is_published' => false,
+            'is_free' => isset($data['is_free']) ? (bool) $data['is_free'] : false,
+        ];
+
+        $scenario = Scenario::create($payload);
 
         OrderHelper::assign($scenario, 'order_index');
 
-        // Create or update LevelTrack
         $this->syncLevelTrack($scenario);
 
         $scenario = $this->show($scenario->id);

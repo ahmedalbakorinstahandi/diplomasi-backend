@@ -54,13 +54,16 @@ Route::group(['prefix' => 'admin'], function () {
         Route::delete('lessons/{id}', [LessonController::class, 'delete']);
         Route::put('lessons/{id}/reorder', [LessonController::class, 'reorder']);
 
-        // Lesson Questions
+        // Lesson Questions (admin management)
         Route::get('lesson-questions', [LessonQuestionController::class, 'index']);
         Route::get('lesson-questions/{id}', [LessonQuestionController::class, 'show']);
         Route::post('lesson-questions', [LessonQuestionController::class, 'create']);
         Route::put('lesson-questions/{id}', [LessonQuestionController::class, 'update']);
         Route::delete('lesson-questions/{id}', [LessonQuestionController::class, 'delete']);
         Route::put('lesson-questions/{id}/reorder', [LessonQuestionController::class, 'reorder']);
+
+        // Import all questions for a specific lesson (JSON)
+        Route::post('lessons/{id}/import-questions', [LessonController::class, 'importQuestions']);
 
         // Levels
         Route::get('levels', [LevelController::class, 'index']);
@@ -82,6 +85,8 @@ Route::group(['prefix' => 'admin'], function () {
         // Scenarios
         Route::get('scenarios', [ScenarioController::class, 'index']);
         Route::get('scenarios/{id}', [ScenarioController::class, 'show']);
+        Route::post('scenarios/import', [ScenarioController::class, 'importFull']);
+        Route::post('scenarios/minimal', [ScenarioController::class, 'createMinimal']);
         Route::post('scenarios', [ScenarioController::class, 'create']);
         Route::put('scenarios/{id}', [ScenarioController::class, 'update']);
         Route::delete('scenarios/{id}', [ScenarioController::class, 'delete']);

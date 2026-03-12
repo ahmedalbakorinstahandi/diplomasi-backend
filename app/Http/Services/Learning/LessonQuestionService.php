@@ -5,6 +5,7 @@ namespace App\Http\Services\Learning;
 use App\Models\Learning\Lesson;
 use App\Models\Learning\LessonQuestion;
 use App\Models\Learning\LessonQuestionOption;
+use App\Services\OrderHelper;
 use App\Models\Learning\LevelTrack;
 use App\Models\Progress\UserLessonAttempt;
 use App\Models\Progress\UserLessonQuestionAnswer;
@@ -17,6 +18,82 @@ use Illuminate\Support\Facades\DB;
 
 class LessonQuestionService
 {
+    /**
+     * استيراد أسئلة الدرس (إنشاء أو استبدال كامل) من JSON.
+     *
+     * @param int $lessonId
+     * @param array $data ['replace' => bool, 'questions' => [...]]
+     * @return array ['created_questions' => int]
+     */
+    public function importQuestions(int $lessonId, array $data): array
+    {
+        $lesson = Lesson::find($lessonId);
+        if (!$lesson) {
+            MessageService::abort(404, 'messages.lesson.not_found');
+        }
+
+        $replace = $data['replace'] ?? false;
+        $questions = $data['questions'] ?? [];
+
+        if (empty($questions)) {
+            MessageService::abort(422, 'messages.lesson.import_questions_required');
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($replace) {
+                // حذف كل الأسئلة والخيارات القديمة
+                LessonQuestion::where('lesson_id', $lessonId)->delete();
+            }
+
+            foreach ($questions as $index => $q) {
+                $question = LessonQuestion::create([
+                    'lesson_id' => $lessonId,
+                    'type' => $q['type'],
+                    'question_text' => $q['text'],
+                    'explanation' => $q['explanation'] ?? null,
+                    'score' => $q['score'] ?? null,
+                ]);
+
+                OrderHelper::assign($question, 'order_index');
+
+                // إنشاء الخيارات/الأزواج حسب النوع
+                $options = $q['options'] ?? [];
+                if (in_array($q['type'], ['single_choice', 'multiple_choice', 'true_false'], true)) {
+                    foreach ($options as $opt) {
+                        $option = LessonQuestionOption::create([
+                            'question_id' => $question->id,
+                            'option_text' => $opt['text'],
+                            'is_correct' => $opt['is_correct'] ?? false,
+                        ]);
+                        OrderHelper::assign($option, 'order_index');
+                    }
+                } elseif ($q['type'] === 'match') {
+                    // نتوقع عناصر مسطّحة مع pair_key مثل p1, p2, p3 ...
+                    foreach ($options as $opt) {
+                        $option = LessonQuestionOption::create([
+                            'question_id' => $question->id,
+                            'option_text' => $opt['text'],
+                            'pair_key' => $opt['pair_key'] ?? null,
+                            // في المطابقة: نعتبر جميع العناصر جزءاً من الإجابة الصحيحة
+                            'is_correct' => true,
+                        ]);
+                        OrderHelper::assign($option, 'order_index');
+                    }
+                }
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        return [
+            'created_questions' => count($questions),
+        ];
+    }
+
     /**
      * بدء محاولة جديدة أو إرجاع المحاولة الحالية
      */
