@@ -8,14 +8,24 @@ class MessageService
 {
 
 
-    public static function abort($status, $message, $replace = [])
+    public static function abort($status, $message, $replace = [], $extra = [])
     {
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0] ?? [];
+
+        $details = [
+            'file' => $trace['file'] ?? null,
+            'line' => $trace['line'] ?? null,
+            'route' => request()->path(),
+            'method' => request()->method(),
+        ];
+
         abort(
             response()->json(
                 [
                     'success' => false,
                     'message' => trans($message, $replace),
                     'key' => $message,
+                    'details' => array_merge($details, $extra),
                 ],
                 $status
             )
