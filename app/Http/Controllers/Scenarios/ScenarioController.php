@@ -10,6 +10,8 @@ use App\Http\Requests\Scenarios\StartScenarioAttemptRequest;
 use App\Http\Requests\Scenarios\SubmitScenarioAnswerRequest;
 use App\Http\Requests\Scenarios\UpdateScenarioRequest;
 use App\Http\Resources\Scenarios\ScenarioResource;
+use App\Http\Requests\Scenarios\ImportScenarioContentRequest;
+use App\Http\Services\Scenarios\ScenarioQuestionAdminService;
 use App\Http\Services\Scenarios\ScenarioService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
@@ -18,9 +20,12 @@ class ScenarioController extends Controller
 {
     protected $scenarioService;
 
-    public function __construct(ScenarioService $scenarioService)
+    protected $scenarioQuestionAdminService;
+
+    public function __construct(ScenarioService $scenarioService, ScenarioQuestionAdminService $scenarioQuestionAdminService)
     {
         $this->scenarioService = $scenarioService;
+        $this->scenarioQuestionAdminService = $scenarioQuestionAdminService;
     }
 
     public function index(Request $request, $message = null)
@@ -202,6 +207,30 @@ class ScenarioController extends Controller
             'success' => true,
             'data' => $attempt,
             'message' => 'messages.scenario.attempt_finished',
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * استيراد محتوى السيناريو (شاشات + خيارات) من JSON دفعة واحدة.
+     * انظر التوثيق في docs/SCENARIO_IMPORT.md
+     */
+    public function importContent(ImportScenarioContentRequest $request, int $id)
+    {
+        ScenarioPermission::canUpdate();
+
+        $scenario = $this->scenarioService->show($id);
+        ScenarioPermission::canShow($scenario);
+
+        $result = $this->scenarioQuestionAdminService->importContent($id, $request->validated());
+
+        return ResponseService::response([
+            'success' => true,
+            'message' => $result['message'],
+            'data' => [
+                'created_questions' => $result['created_questions'],
+                'scenario' => new ScenarioResource($result['scenario']),
+            ],
             'status' => 200,
         ]);
     }

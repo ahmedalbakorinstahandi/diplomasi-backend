@@ -9,6 +9,7 @@ use App\Models\Scenarios\ScenarioQuestionOption;
 use App\Services\FilterService;
 use App\Services\MessageService;
 use App\Services\OrderHelper;
+use Illuminate\Support\Facades\DB;
 
 class ScenarioQuestionAdminService
 {
@@ -503,6 +504,137 @@ class ScenarioQuestionAdminService
     {
         $this->ensureScenarioStartQuestionIntegrity($scenarioId);
         return $this->validateScenarioFlow($scenarioId, $strict);
+    }
+
+    /**
+     * استيراد محتوى السيناريو (شاشات + خيارات) من JSON دفعة واحدة.
+     * يُستخدم لإدخال البيانات بسرعة دون المرور بالداش بورد شاشةً شاشة.
+     *
+     * @param int $scenarioId معرف السيناريو
+     * @param array $data ['replace' => bool, 'screens' => [...]]
+     * @return array ['success' => bool, 'message' => string, 'created_questions' => int, 'scenario' => Scenario]
+     */
+    public function importContent(int $scenarioId, array $data): array
+    {
+        $scenario = Scenario::find($scenarioId);
+        if (!$scenario) {
+            MessageService::abort(404, 'messages.scenario.not_found');
+        }
+
+        $replace = $data['replace'] ?? false;
+        $screens = $data['screens'] ?? [];
+
+        if (empty($screens)) {
+            MessageService::abort(422, 'messages.scenario.import_screens_required');
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($replace) {
+                $this->deleteAllScenarioQuestions($scenarioId);
+                $scenario->update(['start_question_id' => null]);
+            }
+
+            // المرور الأول: إنشاء جميع الأسئلة (بدون خيارات)، الـ code تلقائي "الشاشة 1"، "الشاشة 2" ...
+            $indexToId = []; // 1-based: 1 => أول سؤال، 2 => ثاني سؤال
+            foreach ($screens as $index => $screen) {
+                $sequentialNumber = $index + 1;
+                $question = ScenarioQuestion::create([
+                    'scenario_id' => $scenarioId,
+                    'code' => 'الشاشة ' . $sequentialNumber,
+                    'type' => 'single_choice',
+                    'question_text' => $screen['question_text'],
+                    'explanation' => $screen['explanation'] ?? null,
+                ]);
+                OrderHelper::assign($question, 'order_index');
+                $indexToId[$sequentialNumber] = $question->id;
+            }
+
+            // تعيين سؤال البداية إذا لم يكن محدداً
+            $firstQuestionId = $indexToId[1] ?? null;
+            if ($firstQuestionId && !$scenario->fresh()->start_question_id) {
+                $scenario->update(['start_question_id' => $firstQuestionId]);
+            }
+
+            // المرور الثاني: إضافة الخيارات مع ربط next_question_id (المستخدم يرسل رقم الشاشة 1، 2، 3 أو retry/end)
+            foreach ($screens as $index => $screen) {
+                $currentIndex = $index + 1; // 1-based
+                $questionId = $indexToId[$currentIndex] ?? null;
+                if (!$questionId) {
+                    continue;
+                }
+                $options = $screen['options'] ?? [];
+                foreach ($options as $opt) {
+                    $nextId = $this->resolveNextFromImport($opt['next'] ?? null, $currentIndex, $indexToId);
+                    $option = ScenarioQuestionOption::create([
+                        'question_id' => $questionId,
+                        'option_text' => $opt['option_text'],
+                        'feedback_text' => $opt['feedback_text'] ?? null,
+                        'next_question_id' => $nextId,
+                    ]);
+                    OrderHelper::assign($option, 'order_index');
+                }
+            }
+
+            $this->ensureScenarioStartQuestionIntegrity($scenarioId);
+            $validationResult = $this->validateScenarioFlow($scenarioId);
+            if (!$validationResult['success']) {
+                DB::rollBack();
+                MessageService::abort(422, $validationResult['message']);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        $createdCount = count($screens);
+        $scenario->load(['scenarioQuestions.scenarioQuestionOptions']);
+
+        return [
+            'success' => true,
+            'message' => trans('messages.scenario.content_imported', ['count' => $createdCount]),
+            'created_questions' => $createdCount,
+            'scenario' => $scenario,
+        ];
+    }
+
+    /**
+     * حذف جميع أسئلة السيناريو (للاستبدال عند الاستيراد).
+     */
+    private function deleteAllScenarioQuestions(int $scenarioId): void
+    {
+        /** @var ScenarioQuestion[] $questions */
+        $questions = ScenarioQuestion::where('scenario_id', $scenarioId)->get();
+        foreach ($questions as $q) {
+            $q->scenarioQuestionOptions()->delete();
+            $q->delete();
+        }
+    }
+
+    /**
+     * تحويل قيمة next من صيغة الاستيراد إلى next_question_id.
+     * - "1", "2", "3" ... → id الشاشة ذات الرقم التسلسلي (للعودة لشاشة معيّنة نضع رقمها)
+     * - "end" أو null أو "" → null (نهاية السيناريو)
+     *
+     * @param int $currentIndex رقم الشاشة الحالية (1-based)
+     * @param array<int,int> $indexToId خريطة رقم الشاشة => question id
+     */
+    private function resolveNextFromImport(?string $next, int $currentIndex, array $indexToId): ?int
+    {
+        if ($next === null || $next === '') {
+            return null;
+        }
+        $next = trim($next);
+        if (strtolower($next) === 'end') {
+            return null;
+        }
+        $num = (int) $next;
+        if ($num >= 1) {
+            return $indexToId[$num] ?? null;
+        }
+        return null;
     }
 
 }

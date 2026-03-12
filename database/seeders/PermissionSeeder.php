@@ -134,6 +134,9 @@ class PermissionSeeder extends Seeder
 
         // php artisan db:seed --class=PermissionSeeder
         // php artisan db:seed --class=RolePermissionSeeder
+
+        // ssh root@76.13.143.214 'cd /; cd /home/diplomasi-backend/htdocs/backend.diplomasi.app; git pull; php artisan db:seed --class=PermissionSeeder; php artisan db:seed --class=RolePermissionSeeder;'
+
         foreach ($permissions as $perm) {
             Permission::withTrashed()->updateOrCreate(
                 ['name' => $perm['name']],

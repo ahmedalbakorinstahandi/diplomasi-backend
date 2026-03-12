@@ -86,6 +86,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('scenarios/{id}', [ScenarioController::class, 'update']);
         Route::delete('scenarios/{id}', [ScenarioController::class, 'delete']);
         Route::put('scenarios/{id}/reorder', [ScenarioController::class, 'reorder']);
+        Route::post('scenarios/{id}/import-content', [ScenarioController::class, 'importContent']);
 
         // Scenario Questions
         Route::get('scenario-questions', [ScenarioQuestionController::class, 'index']);

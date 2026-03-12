@@ -196,6 +196,8 @@ return [
         'invalid_next_question_code' => 'رمز السؤال التالي (:code) غير موجود داخل نفس السيناريو',
         'no_terminal_path' => 'لا يوجد مسار نهائي قابل للوصول من سؤال البداية',
         'unreachable_questions' => 'توجد أسئلة غير قابلة للوصول من البداية: :question_ids',
+        'import_screens_required' => 'يجب إرسال حقل screens غير فارغ عند الاستيراد',
+        'content_imported' => 'تم استيراد :count شاشة بنجاح',
     ],
 
     'scenario_question' => [
