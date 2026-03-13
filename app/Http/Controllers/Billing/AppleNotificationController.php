@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Http\Services\Billing\AppleJwsVerifier;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
@@ -12,16 +13,25 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * استقبال App Store Server Notifications V2 من Apple.
- * يُنصح بالتحقق من توقيع signedPayload باستخدام شهادة Apple في الإنتاج.
+ * يتم التحقق من توقيع signedPayload (JWS) باستخدام شهادة x5c من Apple قبل المعالجة.
  */
 class AppleNotificationController extends Controller
 {
+    public function __construct(
+        protected AppleJwsVerifier $jwsVerifier
+    ) {}
+
     public function receive(Request $request): JsonResponse
     {
         $signedPayload = $request->input('signedPayload');
         if (!$signedPayload || !is_string($signedPayload)) {
             Log::channel('single')->warning('[apple.notifications] Missing signedPayload');
             return response()->json(['message' => 'Bad Request'], 400);
+        }
+
+        if (!$this->jwsVerifier->verify($signedPayload)) {
+            Log::channel('single')->warning('[apple.notifications] JWS signature verification failed');
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         try {
