@@ -22,6 +22,7 @@ class PaymentTransaction extends Model
         'given_id',
         'provider',
         'provider_payment_id',
+        'original_transaction_id',
         'amount_minor',
         'currency',
         'attempt_no',

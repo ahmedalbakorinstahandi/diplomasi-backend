@@ -148,7 +148,13 @@ class BillingEmailService
      */
     protected function formatPaymentMethodForEmail(?PaymentTransaction $transaction): string
     {
-        if (!$transaction || !is_array($transaction->raw_response)) {
+        if (!$transaction) {
+            return '—';
+        }
+        if ($transaction->provider === 'apple') {
+            return 'Apple In-App Purchase';
+        }
+        if (!is_array($transaction->raw_response)) {
             return '—';
         }
         $source = $transaction->raw_response['source'] ?? [];

@@ -52,6 +52,10 @@ return [
         'renewal_grace_period_minutes' => (int) env('BILLING_RENEWAL_GRACE_MINUTES', 15),
     ],
 
+    'apple' => [
+        'shared_secret' => env('APPLE_IAP_SHARED_SECRET'),
+    ],
+
     'translation' => [
         // Supported providers: mymemory, libretranslate
         'provider' => env('TRANSLATION_PROVIDER', 'mymemory'),

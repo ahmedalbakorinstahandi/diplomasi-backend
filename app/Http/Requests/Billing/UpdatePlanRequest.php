@@ -18,6 +18,9 @@ class UpdatePlanRequest extends BaseFormRequest
             'features' => 'sometimes|nullable|array',
             'features.*' => 'sometimes|nullable|string',
             'icon_url' => 'sometimes|nullable|string|max:100',
+            'ios_price' => 'sometimes|nullable|numeric|min:0',
+            'ios_currency' => 'sometimes|nullable|string|max:10',
+            'ios_product_id' => 'sometimes|nullable|string|max:191',
         ];
     }
 }

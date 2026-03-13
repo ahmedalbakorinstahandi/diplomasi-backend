@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\AppleIapController;
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\MoyasarPaymentController;
 use App\Http\Controllers\Billing\PaymentMethodController;
@@ -132,5 +133,7 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
         Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
         Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
+        // Apple IAP
+        Route::post('ios/purchase/verify', [AppleIapController::class, 'verify']);
     });
 });

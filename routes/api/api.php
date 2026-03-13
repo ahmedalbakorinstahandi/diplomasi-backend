@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\AppleNotificationController;
 use App\Http\Controllers\Billing\MoyasarWebhookController;
 use App\Http\Middleware\SetLocaleMiddleware;
 use App\Http\Middleware\RequestContextMiddleware;
@@ -26,6 +27,7 @@ Route::prefix('v1')->middleware([SetLocaleMiddleware::class, RequestContextMiddl
 
     // Payment Webhooks (Public)
     Route::post('billing/webhooks/moyasar', [MoyasarWebhookController::class, 'receive']);
+    Route::post('ios/notifications', [AppleNotificationController::class, 'receive']);
 });
 
 

@@ -27,6 +27,9 @@ class Plan extends Model
         'is_featured',
         'features',
         'icon_url',
+        'ios_price',
+        'ios_currency',
+        'ios_product_id',
     ];
 
     /**
@@ -39,6 +42,7 @@ class Plan extends Model
         return [
             'features' => 'json',
             'price' => 'decimal:2',
+            'ios_price' => 'decimal:2',
             'is_featured' => 'boolean',
         ];
     }

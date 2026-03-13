@@ -18,6 +18,9 @@ class CreatePlanRequest extends BaseFormRequest
             'features' => 'nullable|array',
             'features.*' => 'nullable|string',
             'icon_url' => 'nullable|string|max:100',
+            'ios_price' => 'nullable|numeric|min:0',
+            'ios_currency' => 'nullable|string|max:10',
+            'ios_product_id' => 'nullable|string|max:191',
         ];
     }
 }

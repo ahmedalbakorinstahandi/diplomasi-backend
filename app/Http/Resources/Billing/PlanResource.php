@@ -15,10 +15,16 @@ class PlanResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return [
+        $isIos = strtolower((string) ($request->query('platform') ?? $request->input('platform') ?? '')) === 'ios';
+        $price = $this->price;
+        if ($isIos && $this->ios_price !== null && $this->ios_price !== '') {
+            $price = $this->ios_price;
+        }
+
+        $out = [
             'id' => $this->id,
             'name' => $this->name,
-            'price' => $this->price,
+            'price' => $price,
             'interval' => $this->interval,
             'interval_label' => $this->interval_label,
             'description' => $this->description,
@@ -33,5 +39,11 @@ class PlanResource extends JsonResource
             'subscriptions' => SubscriptionResource::collection($this->whenLoaded('subscriptions')),
             'subscription_events' => SubscriptionEventResource::collection($this->whenLoaded('subscriptionEvents')),
         ];
+
+        if ($isIos && $this->ios_product_id !== null && $this->ios_product_id !== '') {
+            $out['ios_product_id'] = $this->ios_product_id;
+        }
+
+        return $out;
     }
 }
