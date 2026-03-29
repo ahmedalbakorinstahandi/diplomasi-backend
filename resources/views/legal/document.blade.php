@@ -12,11 +12,9 @@
         :root {
             --bg: #0f1419;
             --surface: #1a2332;
-            --surface-elevated: #243044;
             --text: #e8edf4;
             --text-muted: #94a3b8;
             --accent: #38bdf8;
-            --accent-dim: rgba(56, 189, 248, 0.15);
             --border: rgba(148, 163, 184, 0.12);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,30 +44,20 @@
             margin: 0 auto;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.875rem;
         }
-        .brand-mark {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.65rem;
-            background: linear-gradient(135deg, var(--accent) 0%, #818cf8 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1rem;
-            color: var(--bg);
+        .brand-logo {
+            width: 2.75rem;
+            height: 2.75rem;
             flex-shrink: 0;
+            border-radius: 0.5rem;
+            object-fit: contain;
         }
-        .top-titles h1 {
-            font-size: 1.125rem;
+        .app-name {
+            font-size: 1.25rem;
             font-weight: 700;
             letter-spacing: -0.02em;
-        }
-        .top-titles p {
-            font-size: 0.8125rem;
-            color: var(--text-muted);
-            margin-top: 0.15rem;
+            color: var(--text);
         }
         main {
             flex: 1;
@@ -88,14 +76,6 @@
         @media (min-width: 640px) {
             .card { padding: 2.5rem 2.25rem; }
         }
-        .doc-heading {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
-            letter-spacing: -0.02em;
-        }
         .legal-body {
             font-size: 1rem;
             color: var(--text);
@@ -111,6 +91,10 @@
             font-weight: 700;
             color: var(--text);
         }
+        .legal-body :where(h1):first-child,
+        .legal-body :where(h2):first-child {
+            margin-top: 0;
+        }
         .legal-body a {
             color: var(--accent);
             text-decoration: underline;
@@ -122,34 +106,62 @@
         footer {
             text-align: center;
             padding: 2rem 1rem;
-            color: var(--text-muted);
-            font-size: 0.8125rem;
             border-top: 1px solid var(--border);
             margin-top: auto;
+        }
+        .footer-brand {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+        .footer-brand img {
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 0.35rem;
+        }
+        .footer-name {
+            font-weight: 600;
+            font-size: 0.9375rem;
+            color: var(--text);
+        }
+        .footer-copy {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
         }
     </style>
 </head>
 <body>
+@php
+    $appName = config('app.name', 'Diplomasi');
+@endphp
 <div class="shell">
     <header class="top-bar">
         <div class="top-inner">
-            <div class="brand-mark" aria-hidden="true">D</div>
-            <div class="top-titles">
-                <h1>{{ config('app.name', 'Diplomasi') }}</h1>
-                <p>{{ $documentHeading }}</p>
-            </div>
+            <img
+                class="brand-logo"
+                src="{{ asset('images/logo.png') }}"
+                width="44"
+                height="44"
+                alt="{{ $appName }}"
+            >
+            <span class="app-name">{{ $appName }}</span>
         </div>
     </header>
     <main>
         <article class="card">
-            <h2 class="doc-heading">{{ $documentHeading }}</h2>
             <div class="legal-body">
                 {!! $contentHtml !!}
             </div>
         </article>
     </main>
     <footer>
-        &copy; {{ date('Y') }} {{ config('app.name', 'Diplomasi') }}
+        <div class="footer-brand">
+            <img src="{{ asset('images/logo.png') }}" width="24" height="24" alt="">
+            <span class="footer-name">{{ $appName }}</span>
+        </div>
+        <p class="footer-copy">&copy; {{ date('Y') }} {{ $appName }}</p>
     </footer>
 </div>
 </body>

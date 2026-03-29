@@ -32,7 +32,6 @@ class LegalWebController extends Controller
             if ($html !== null) {
                 return view('legal.document', [
                     'pageTitle' => __('legal_web.ios_privacy_page_title'),
-                    'documentHeading' => __('legal_web.ios_privacy_heading'),
                     'contentHtml' => $html,
                 ]);
             }
@@ -50,7 +49,6 @@ class LegalWebController extends Controller
 
         return view('legal.document', [
             'pageTitle' => $pageTitle,
-            'documentHeading' => $documentHeading,
             'contentHtml' => $html,
         ]);
     }
