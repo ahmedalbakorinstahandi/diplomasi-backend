@@ -29,8 +29,10 @@
             align-items: center;
             gap: 0.875rem;
         }
-        .brand-logo { width: 2.75rem; height: 2.75rem; border-radius: 0.65rem; }
-        .app-name { font-size: 1.25rem; font-weight: 700; }
+        .brand-logo { width: 2.75rem; height: 2.75rem; border-radius: 0.5rem; object-fit: contain; }
+        .brand-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+        .app-name { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+        .header-subtitle { font-size: 0.8125rem; font-weight: 500; color: #94a3b8; }
         .center {
             flex: 1;
             display: flex;
@@ -46,8 +48,7 @@
             border-radius: 1rem;
             text-align: center;
         }
-        h1 { font-size: 1.25rem; margin-bottom: 0.75rem; }
-        p { color: #94a3b8; font-size: 0.9375rem; line-height: 1.6; }
+        .box p { color: #94a3b8; font-size: 0.9375rem; line-height: 1.6; }
         footer {
             text-align: center;
             padding: 1.5rem;
@@ -67,18 +68,17 @@
     </style>
 </head>
 <body>
-@php
-    $appName = config('app.name', 'Diplomasi');
-@endphp
 <header class="top-bar">
     <div class="top-inner">
         <img class="brand-logo" src="{{ asset('images/logo.png') }}" width="44" height="44" alt="{{ $appName }}">
-        <span class="app-name">{{ $appName }}</span>
+        <div class="brand-text">
+            <span class="app-name">{{ $appName }}</span>
+            <span class="header-subtitle">{{ $heading }}</span>
+        </div>
     </div>
 </header>
 <div class="center">
     <div class="box">
-        <h1>{{ $heading }}</h1>
         <p>{{ __('legal_web.missing_message') }}</p>
     </div>
 </div>

@@ -53,11 +53,24 @@
             border-radius: 0.5rem;
             object-fit: contain;
         }
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            min-width: 0;
+        }
         .app-name {
             font-size: 1.25rem;
             font-weight: 700;
             letter-spacing: -0.02em;
             color: var(--text);
+            line-height: 1.2;
+        }
+        .header-subtitle {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            line-height: 1.3;
         }
         main {
             flex: 1;
@@ -133,9 +146,6 @@
     </style>
 </head>
 <body>
-@php
-    $appName = config('app.name', 'Diplomasi');
-@endphp
 <div class="shell">
     <header class="top-bar">
         <div class="top-inner">
@@ -146,7 +156,10 @@
                 height="44"
                 alt="{{ $appName }}"
             >
-            <span class="app-name">{{ $appName }}</span>
+            <div class="brand-text">
+                <span class="app-name">{{ $appName }}</span>
+                <span class="header-subtitle">{{ $headerSubtitle }}</span>
+            </div>
         </div>
     </header>
     <main>
