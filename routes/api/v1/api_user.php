@@ -111,29 +111,31 @@ Route::group(['prefix' => 'user'], function () {
         Route::get('notifications/{id}', [NotificationController::class, 'show']);
         Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 
-        // Certificates
-        Route::get('certificates', [CertificateController::class, 'index']);
-        Route::get('certificates/{id}', [CertificateController::class, 'show']);
-        Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
-        Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
+        Route::group(['middleware' => 'ensure.verified'], function () {
+            // Certificates
+            Route::get('certificates', [CertificateController::class, 'index']);
+            Route::get('certificates/{id}', [CertificateController::class, 'show']);
+            Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
+            Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
 
-        // Billing
-        Route::post('billing/payments/verify', [MoyasarPaymentController::class, 'verify']);
-        Route::get('billing/payment-methods', [PaymentMethodController::class, 'index']);
-        Route::post('billing/payment-methods', [PaymentMethodController::class, 'store']);
-        Route::post('billing/payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);
-        Route::delete('billing/payment-methods/{id}', [PaymentMethodController::class, 'destroy']);
-        Route::get('billing/invoices', [BillingHistoryController::class, 'invoices']);
-        Route::get('billing/invoices/{id}', [BillingHistoryController::class, 'showInvoice']);
-        Route::get('billing/invoices/{id}/download', [BillingHistoryController::class, 'downloadInvoice']);
-        Route::get('billing/payments', [BillingHistoryController::class, 'payments']);
-        Route::get('billing/subscription', [SubscriptionController::class, 'current']);
-        Route::post('billing/subscription/purchase', [SubscriptionController::class, 'purchasePlan']);
-        Route::post('billing/subscription/purchase-with-payment', [SubscriptionController::class, 'purchasePlanWithPayment']);
-        Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
-        Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
-        Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
-        // Apple IAP
-        Route::post('ios/purchase/verify', [AppleIapController::class, 'verify']);
+            // Billing
+            Route::post('billing/payments/verify', [MoyasarPaymentController::class, 'verify']);
+            Route::get('billing/payment-methods', [PaymentMethodController::class, 'index']);
+            Route::post('billing/payment-methods', [PaymentMethodController::class, 'store']);
+            Route::post('billing/payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);
+            Route::delete('billing/payment-methods/{id}', [PaymentMethodController::class, 'destroy']);
+            Route::get('billing/invoices', [BillingHistoryController::class, 'invoices']);
+            Route::get('billing/invoices/{id}', [BillingHistoryController::class, 'showInvoice']);
+            Route::get('billing/invoices/{id}/download', [BillingHistoryController::class, 'downloadInvoice']);
+            Route::get('billing/payments', [BillingHistoryController::class, 'payments']);
+            Route::get('billing/subscription', [SubscriptionController::class, 'current']);
+            Route::post('billing/subscription/purchase', [SubscriptionController::class, 'purchasePlan']);
+            Route::post('billing/subscription/purchase-with-payment', [SubscriptionController::class, 'purchasePlanWithPayment']);
+            Route::post('billing/subscription/cancel', [SubscriptionController::class, 'cancelAtPeriodEnd']);
+            Route::post('billing/subscription/resume', [SubscriptionController::class, 'resumeAutoRenew']);
+            Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
+            // Apple IAP
+            Route::post('ios/purchase/verify', [AppleIapController::class, 'verify']);
+        });
     });
 });

@@ -105,6 +105,7 @@ class SetLocaleMiddleware
             ->update([
                 'last_activity_at' => $now,
                 'last_opened_app_at' => $now,
+                'guest_last_active_at' => $user->is_guest ? $now : $user->guest_last_active_at,
                 'is_active' => true,
                 'inactive_since_at' => null,
                 'updated_at' => $now,
@@ -113,6 +114,9 @@ class SetLocaleMiddleware
         if (is_object($user)) {
             $user->last_activity_at = $now;
             $user->last_opened_app_at = $now;
+            if ($user->is_guest) {
+                $user->guest_last_active_at = $now;
+            }
             $user->is_active = true;
             $user->inactive_since_at = null;
         }

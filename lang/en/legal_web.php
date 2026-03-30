@@ -7,4 +7,10 @@ return [
     'ios_privacy_heading' => 'Privacy Policy',
     'missing_page_title' => 'Content unavailable — :app',
     'missing_message' => 'This document is not available at the moment. Please try again later.',
+
+    'footer_tagline' => 'Learning & diplomacy education platform.',
+    'footer_website' => 'diplomasi.app',
+    'footer_note' => 'Provided for App Store transparency.',
+    'footer_col_website' => 'Website',
+    'footer_col_note' => 'Note',
 ];

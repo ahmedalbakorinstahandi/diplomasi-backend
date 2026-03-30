@@ -9,7 +9,7 @@ class UpdateProgressRequest extends BaseFormRequest
     public function rules(): array
     {
         return [
-            'user_id' => 'sometimes|required|exists:users,id',
+            'user_id' => 'sometimes|exists:users,id',
             'course_id' => 'sometimes|nullable|exists:courses,id',
             'lesson_id' => 'sometimes|nullable|exists:lessons,id',
             'level_id' => 'sometimes|nullable|exists:levels,id',

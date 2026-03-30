@@ -39,6 +39,9 @@ return [
     'password_reset_success' => 'تم إعادة تعيين كلمة المرور بنجاح.',
     'password_incorrect' => 'كلمة المرور التي أدخلتها غير صحيحة.',
     'email_not_found' => 'البريد الإلكتروني غير موجود.',
+    'phone_already_exists' => 'رقم الهاتف مستخدم بالفعل.',
+    'not_guest_account' => 'هذا الحساب ليس حساب ضيف.',
+    'guest_conversion_already_started' => 'تم بدء تحويل حساب الضيف مسبقاً.',
 
     // Account deletion
     'account_deletion_code_sent' => 'تم إرسال رمز حذف الحساب إلى بريدك الإلكتروني.',

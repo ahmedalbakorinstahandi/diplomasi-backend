@@ -301,7 +301,16 @@ class ScenarioController extends Controller
      */
     public function markDescriptionRead(int $id, int $attemptId)
     {
-        $attempt = $this->scenarioService->markDescriptionRead($attemptId, \App\Models\Users\User::auth()->id);
+        $user = \App\Models\Users\User::auth();
+        if (!$user) {
+            return ResponseService::response([
+                'success' => false,
+                'message' => 'messages.unauthorized',
+                'status' => 401,
+            ]);
+        }
+
+        $attempt = $this->scenarioService->markDescriptionRead($attemptId, $user->id);
 
         return ResponseService::response([
             'success' => true,

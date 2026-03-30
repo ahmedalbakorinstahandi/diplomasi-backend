@@ -8,6 +8,7 @@ use App\Mail\VerificationCodeMail;
 use App\Models\Users\Role;
 use App\Models\Users\User;
 use App\Services\MessageService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -15,6 +16,38 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthService
 {
+    public function guestStart(): array
+    {
+        $userRole = Role::where('name', 'user')->first();
+        if (!$userRole) {
+            MessageService::abort(500, 'messages.role.not_found');
+        }
+
+        $user = User::create([
+            'first_name' => 'Learner',
+            'last_name' => 'Guest',
+            'email' => null,
+            'phone' => null,
+            'phone_verified' => false,
+            'email_verified' => false,
+            'password' => null,
+            'status' => 'active',
+            'is_guest' => true,
+            'guest_last_active_at' => now(),
+            'language' => 'en',
+        ]);
+
+        $user->userRoles()->create([
+            'role_id' => $userRole->id,
+            'created_at' => now(),
+        ]);
+
+        return [
+            'user' => $user,
+            'token' => $user->createToken('guest_auth_token')->plainTextToken,
+        ];
+    }
+
     public function login($data)
     {
         $user = User::where('email', $data['email'])->first();
@@ -81,11 +114,12 @@ class AuthService
             'wallet_balance' => 0.0,
             'avatar' => $data['avatar'] ?? null,
             'email' => $data['email'],
-            'phone' => $data['phone'] ?? '',
+            'phone' => $data['phone'] ?? null,
             'phone_verified' => false,
             'email_verified' => false,
             'password' => Hash::make($data['password']),
             'status' => 'active',
+            'is_guest' => false,
             'otp' => $otp,
             'otp_expire_at' => $otpExpireAt,
         ]);
@@ -111,11 +145,110 @@ class AuthService
         ];
     }
 
+    public function registerFromGuest(array $data): array
+    {
+        $authUser = User::auth();
+        if (!$authUser) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        return DB::transaction(function () use ($authUser, $data) {
+            $user = User::where('id', $authUser->id)->lockForUpdate()->first();
+            if (!$user) {
+                MessageService::abort(404, 'messages.user.not_found');
+            }
+
+            if (!$user->is_guest) {
+                MessageService::abort(400, 'auth.not_guest_account');
+            }
+
+            if (!empty($user->email) || !empty($user->phone)) {
+                MessageService::abort(400, 'auth.guest_conversion_already_started');
+            }
+
+            $emailExists = User::query()
+                ->where('id', '!=', $user->id)
+                ->where('email', $data['email'])
+                ->whereNull('deleted_at')
+                ->exists();
+            if ($emailExists) {
+                MessageService::abort(401, 'auth.email_already_exists');
+            }
+
+            if (!empty($data['phone'])) {
+                $phoneExists = User::query()
+                    ->where('id', '!=', $user->id)
+                    ->where('phone', $data['phone'])
+                    ->whereNull('deleted_at')
+                    ->exists();
+                if ($phoneExists) {
+                    MessageService::abort(401, 'auth.phone_already_exists');
+                }
+            }
+
+            $otp = random_int(10000, 99999);
+            $minutes = 5;
+            $otpExpireAt = now()->addMinutes($minutes);
+
+            $user->update([
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
+                'avatar' => $data['avatar'] ?? null,
+                'email' => $data['email'],
+                'phone' => $data['phone'] ?? null,
+                'password' => Hash::make($data['password']),
+                'phone_verified' => false,
+                'email_verified' => false,
+                'is_guest' => false,
+                'otp' => (string) $otp,
+                'otp_expire_at' => $otpExpireAt,
+            ]);
+
+            $this->sendVerificationEmail(
+                $user->email,
+                $user->first_name,
+                (string) $otp,
+                $minutes,
+                'register'
+            );
+
+            return [
+                'user' => $user->fresh(),
+                'minutes' => $minutes,
+                'otp_expire_at' => $otpExpireAt,
+            ];
+        });
+    }
+
     public function verifyOtp($data)
     {
+        $authenticatedUser = User::auth();
+        if (!$authenticatedUser) {
+            $bearerToken = request()->bearerToken();
+            if ($bearerToken) {
+                $personalToken = PersonalAccessToken::findToken($bearerToken);
+                if ($personalToken && $personalToken->tokenable instanceof User) {
+                    $authenticatedUser = $personalToken->tokenable;
+                }
+            }
+        }
+        $user = null;
+        $rotateAllTokens = false;
 
-        $user = User::where('email', $data['email'])
-            ->first();
+        if ($authenticatedUser) {
+            $user = User::where('id', $authenticatedUser->id)->lockForUpdate()->first();
+            if (!$user) {
+                MessageService::abort(401, 'messages.unauthorized');
+            }
+
+            if (!empty($data['email']) && !empty($user->email) && strcasecmp((string) $data['email'], (string) $user->email) !== 0) {
+                MessageService::abort(401, 'auth.email_not_found');
+            }
+
+            $rotateAllTokens = true;
+        } else {
+            $user = User::where('email', $data['email'])->first();
+        }
 
         if (!$user) {
             MessageService::abort(
@@ -124,11 +257,6 @@ class AuthService
             );
         }
 
-
-        // TODO: Remove this after testing
-        if ($data['otp'] == 55555) {
-        } else
-
         if ($user->otp !== $data['otp'] || $user->otp_expire_at < now()) {
             MessageService::abort(
                 401,
@@ -136,20 +264,24 @@ class AuthService
             );
         }
 
-        // if ($user->otp_expire_at < now()) {
-        //     MessageService::abort(
-        //         401,
-        //         'auth.otp_expired',
-        //     );
-        // }
-
         $user->update([
             'email_verified' => true,
             'otp' => null,
             'otp_expire_at' => null,
         ]);
 
+        if (!$user->is_guest && !$user->guest_converted_at && $rotateAllTokens) {
+            $user->update([
+                'guest_converted_at' => now(),
+                'registration_completed_at' => now(),
+            ]);
+        }
+
         AccountNotification::verified((int) $user->id);
+
+        if ($rotateAllTokens) {
+            $user->tokens()->delete();
+        }
 
         return [
             'user' => $user,

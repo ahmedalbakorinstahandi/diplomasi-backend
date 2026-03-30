@@ -156,7 +156,7 @@ class LessonQuestionService
     /**
      * جلب جميع أسئلة الدرس مع حالاتها
      */
-    public function getQuestionsWithStatus($lessonId, $attemptId = null)
+    public function getQuestionsWithStatus($lessonId, $attemptId = null, $userId = null)
     {
         $lesson = Lesson::find($lessonId);
         if (!$lesson) {
@@ -175,6 +175,10 @@ class LessonQuestionService
         if ($attemptId) {
             $attempt = UserLessonAttempt::find($attemptId);
             if ($attempt) {
+                if ($userId !== null && (int) $attempt->user_id !== (int) $userId) {
+                    MessageService::abort(403, 'messages.attempt.unauthorized');
+                }
+
                 $currentQuestionId = $attempt->current_question_id;
                 $answers = UserLessonQuestionAnswer::where('attempt_id', $attemptId)
                     ->with(['userLessonAnswerOptions', 'userLessonAnswerMatches'])
@@ -522,13 +526,17 @@ class LessonQuestionService
     /**
      * جلب السؤال الحالي بالتفاصيل الكاملة
      */
-    public function getCurrentQuestion($attemptId)
+    public function getCurrentQuestion($attemptId, $userId)
     {
         $attempt = UserLessonAttempt::with(['currentQuestion.lessonQuestionOptions', 'lesson'])
             ->find($attemptId);
 
         if (!$attempt) {
             MessageService::abort(404, 'messages.attempt.not_found');
+        }
+
+        if ((int) $attempt->user_id !== (int) $userId) {
+            MessageService::abort(403, 'messages.attempt.unauthorized');
         }
 
         // إذا انتهت المحاولة، إرجاع ملخص النتائج بدلاً من خطأ

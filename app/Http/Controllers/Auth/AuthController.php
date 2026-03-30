@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Notifications\AccountNotification;
 use App\Http\Requests\Auth\ConfirmAccountDeletionRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Auth\GuestStartRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\RegisterFromGuestRequest;
 use App\Http\Requests\Auth\RequestAccountDeletionRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\VerifyCodeRequest;
@@ -41,9 +43,37 @@ class AuthController extends Controller
         ]);
     }
 
+    public function guestStart(GuestStartRequest $request)
+    {
+        $data = $this->authService->guestStart();
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
+
+        return ResponseService::response([
+            'status' => 200,
+            'access_token' => $data['token'],
+            'message' => 'auth.login_success',
+            'data' => new UserResource($data['user']),
+        ]);
+    }
+
     public function register(RegisterRequest $request)
     {
         $data = $this->authService->register($request->validated());
+
+        return ResponseService::response([
+            'status' => 200,
+            'message' => 'auth.we_sent_verification_code_to_your_email',
+            'data' => new UserResource($data['user']),
+            'info' => [
+                'code_duration' => $data['minutes'],
+                'otp_expire_at' => $data['otp_expire_at'],
+            ],
+        ]);
+    }
+
+    public function registerFromGuest(RegisterFromGuestRequest $request)
+    {
+        $data = $this->authService->registerFromGuest($request->validated());
 
         return ResponseService::response([
             'status' => 200,
@@ -142,7 +172,7 @@ class AuthController extends Controller
         ]);
     }
 
-    private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, VerifyCodeRequest|LoginRequest $request, User $user): void
+    private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, VerifyCodeRequest|LoginRequest|GuestStartRequest $request, User $user): void
     {
         $deviceToken = trim((string) $deviceToken);
         if ($deviceToken === '') {

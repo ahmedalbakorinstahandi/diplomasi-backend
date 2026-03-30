@@ -203,7 +203,7 @@ class LessonController extends Controller
         }
 
         $attemptId = $request->query('attempt_id');
-        $result = $this->lessonQuestionService->getQuestionsWithStatus($lessonId, $attemptId);
+        $result = $this->lessonQuestionService->getQuestionsWithStatus($lessonId, $attemptId, $user->id);
 
         return ResponseService::response([
             'success' => true,
@@ -226,7 +226,7 @@ class LessonController extends Controller
             ]);
         }
 
-        $result = $this->lessonQuestionService->getCurrentQuestion($attemptId);
+        $result = $this->lessonQuestionService->getCurrentQuestion($attemptId, $user->id);
 
         return ResponseService::response([
             'success' => true,

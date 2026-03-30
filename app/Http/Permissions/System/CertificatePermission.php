@@ -35,8 +35,13 @@ class CertificatePermission
         }
 
         // App context: must be authenticated.
-        if (!User::auth()) {
+        $user = User::auth();
+        if (!$user) {
             MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        if (!$user->canIssueCertificate()) {
+            MessageService::abort(403, 'messages.permission.error');
         }
     }
 

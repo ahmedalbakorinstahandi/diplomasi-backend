@@ -1,6 +1,9 @@
 <?php
 
 use App\Services\MessageService;
+use App\Http\Middleware\EnsureNotGuest;
+use App\Http\Middleware\EnsureVerifiedUser;
+use App\Http\Middleware\UpdateGuestLastActiveMiddleware;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,7 +21,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->append([
+            UpdateGuestLastActiveMiddleware::class,
+        ]);
+
+        $middleware->alias([
+            'ensure.not_guest' => EnsureNotGuest::class,
+            'ensure.verified' => EnsureVerifiedUser::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // تعيين Accept: application/json فقط لطلبات API

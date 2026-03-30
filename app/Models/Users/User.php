@@ -33,6 +33,10 @@ class User extends Authenticatable
         'password',
         'language',
         'status',
+        'is_guest',
+        'guest_converted_at',
+        'registration_completed_at',
+        'guest_last_active_at',
         'otp',
         'otp_expire_at',
         'last_activity_at',
@@ -63,6 +67,12 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'otp_expire_at' => 'datetime',
+            'email_verified' => 'boolean',
+            'phone_verified' => 'boolean',
+            'is_guest' => 'boolean',
+            'guest_converted_at' => 'datetime',
+            'registration_completed_at' => 'datetime',
+            'guest_last_active_at' => 'datetime',
             'last_activity_at' => 'datetime',
             'last_opened_app_at' => 'datetime',
             'is_active' => 'boolean',
@@ -187,6 +197,34 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    public function isGuest(): bool
+    {
+        return (bool) $this->is_guest;
+    }
+
+    public function getAccountStateAttribute(): string
+    {
+        if ($this->isGuest()) {
+            return 'guest';
+        }
+
+        if (!(bool) $this->email_verified) {
+            return 'registered_unverified';
+        }
+
+        return 'registered_verified';
+    }
+
+    public function canIssueCertificate(): bool
+    {
+        return !$this->isGuest() && (bool) $this->email_verified;
+    }
+
+    public function canSubscribe(): bool
+    {
+        return !$this->isGuest() && (bool) $this->email_verified;
     }
 
     /**

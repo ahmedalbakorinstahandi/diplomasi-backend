@@ -8,8 +8,10 @@ use App\Http\Permissions\Progress\ProgressPermission;
 use App\Models\Progress\UserCourse;
 use App\Models\Progress\UserLessonProgress;
 use App\Models\Progress\UserLevelProgress;
+use App\Models\Users\User;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use App\Services\RequestContext;
 use Illuminate\Support\Facades\Event;
 
 class ProgressService
@@ -84,6 +86,14 @@ class ProgressService
 
     public function create($data, $type = 'course')
     {
+        if (RequestContext::isApp()) {
+            $user = User::auth();
+            if (!$user) {
+                MessageService::abort(401, 'messages.unauthorized');
+            }
+            $data['user_id'] = $user->id;
+        }
+
         $progress = match($type) {
             'course' => UserCourse::create($data),
             'lesson' => UserLessonProgress::create($data),
@@ -96,6 +106,10 @@ class ProgressService
 
     public function update($data, $progress, $type = 'course')
     {
+        if (RequestContext::isApp()) {
+            unset($data['user_id']);
+        }
+
         $oldStatus = $progress->status;
         $progress->update($data);
         $progress->refresh();

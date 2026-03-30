@@ -36,6 +36,9 @@ return [
     'password_reset_success' => 'Password has been reset successfully.',
     'password_incorrect' => 'The provided password is incorrect.',
     'email_not_found' => 'The email was not found.',
+    'phone_already_exists' => 'This phone number is already in use.',
+    'not_guest_account' => 'This account is not a guest account.',
+    'guest_conversion_already_started' => 'Guest account conversion is already in progress.',
 
     // Account deletion
     'account_deletion_code_sent' => 'Account deletion code has been sent to your email.',
