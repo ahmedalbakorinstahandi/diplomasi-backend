@@ -174,6 +174,10 @@ class AuthController extends Controller
 
     private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, VerifyCodeRequest|LoginRequest|GuestStartRequest $request, User $user): void
     {
+        if ($user->isGuest()) {
+            return;
+        }
+
         $deviceToken = trim((string) $deviceToken);
         if ($deviceToken === '') {
             return;
