@@ -10,6 +10,7 @@ use App\Models\Billing\Plan;
 use App\Services\MessageService;
 use App\Services\ResponseService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class AppleIapController extends Controller
 {
@@ -26,28 +27,60 @@ class AppleIapController extends Controller
         $validated = $request->validated();
 
         $planId = (int) $validated['plan_id'];
-        $productId = (string) $validated['product_id'];
+        $providedProductId = (string) $validated['product_id'];
         $transactionId = isset($validated['transaction_id'])
             ? (string) $validated['transaction_id']
             : null;
         $receipt = (string) $validated['receipt'];
 
         $plan = Plan::query()->find($planId);
-        $expectedProductId = $plan ? (string) ($plan->ios_product_id ?? '') : null;
-
-        // 1) Ensure plan_id is mapped to the same Apple product_id.
-        if (!$plan || $expectedProductId !== $productId) {
+        if (!$plan) {
             MessageService::response([
                 'success' => false,
-                'message' => "Plan/Product mismatch: plan_id {$planId} is not mapped to the provided Apple product_id {$productId}.",
-                'key' => 'billing.ios.plan_product_mismatch',
+                'message' => "Plan not found for plan_id {$planId}.",
+                'key' => 'billing.ios.plan_not_found',
                 'info' => [
                     'plan_id' => $planId,
-                    'provided_product_id' => $productId,
-                    'expected_product_id' => $expectedProductId,
-                    'hint' => 'Update plans.ios_product_id in the database or send the correct product from App Store Connect.',
+                    'provided_product_id' => $providedProductId,
                 ],
             ], 422);
+        }
+
+        $expectedProductId = (string) ($plan->ios_product_id ?? '');
+        if ($expectedProductId === '') {
+            MessageService::response([
+                'success' => false,
+                'message' => "Selected plan_id {$planId} is not mapped to an iOS product.",
+                'key' => 'billing.ios.plan_product_missing',
+                'info' => [
+                    'plan_id' => $planId,
+                    'provided_product_id' => $providedProductId,
+                    'hint' => 'Set plans.ios_product_id for this plan in the database.',
+                ],
+            ], 422);
+        }
+
+        // Never trust product_id from client as source of truth.
+        // Use plan mapping from DB, and keep provided id for diagnostics.
+        $productId = $expectedProductId;
+        $receiptInfo = $this->appleIapService->inspectReceipt($receipt);
+
+        Log::channel('single')->info('[apple.iap.verify] incoming', [
+            'user_id' => $userId,
+            'plan_id' => $planId,
+            'provided_product_id' => $providedProductId,
+            'expected_product_id' => $expectedProductId,
+            'transaction_id' => $transactionId,
+            'receipt' => $receiptInfo,
+        ]);
+
+        if ($providedProductId !== $expectedProductId) {
+            Log::channel('single')->warning('[apple.iap.verify] provided product mismatch (using expected from DB)', [
+                'user_id' => $userId,
+                'plan_id' => $planId,
+                'provided_product_id' => $providedProductId,
+                'expected_product_id' => $expectedProductId,
+            ]);
         }
 
         // 2) Verify receipt with Apple.
@@ -62,11 +95,13 @@ class AppleIapController extends Controller
             $hint = 'Check APPLE_IAP_SHARED_SECRET, product setup in App Store Connect, and test via Sandbox/TestFlight.';
             $info = [
                 'plan_id' => $planId,
-                'product_id' => $productId,
+                'provided_product_id' => $providedProductId,
+                'expected_product_id' => $expectedProductId,
                 'transaction_id' => $transactionId,
                 'apple_status' => (int) $e->getCode(),
                 'reason' => $e->getMessage(),
                 'hint' => $hint,
+                'receipt' => $receiptInfo,
             ];
 
             if ((int) $e->getCode() === 21002) {
@@ -97,6 +132,13 @@ class AppleIapController extends Controller
         try {
             $subscription = $this->appleIapService->handleVerifiedReceipt($userId, $verifyResponse, $latestTransaction);
             $subscription = $subscription->fresh(['plan']);
+            Log::channel('single')->info('[apple.iap.verify] activation ok', [
+                'user_id' => $userId,
+                'plan_id' => $planId,
+                'expected_product_id' => $expectedProductId,
+                'latest_transaction_product_id' => $latestTransaction['product_id'] ?? null,
+                'latest_transaction_id' => $latestTransaction['transaction_id'] ?? null,
+            ]);
         } catch (\Throwable $e) {
             report($e);
 
@@ -106,7 +148,8 @@ class AppleIapController extends Controller
                 'key' => 'billing.ios.activate_failed',
                 'info' => [
                     'plan_id' => $planId,
-                    'product_id' => $productId,
+                    'provided_product_id' => $providedProductId,
+                    'expected_product_id' => $expectedProductId,
                     'transaction_id' => $transactionId,
                     'reason' => $e->getMessage(),
                     'hint' => 'Check subscription writes and plan mapping integrity.',

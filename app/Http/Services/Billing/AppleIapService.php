@@ -66,6 +66,27 @@ class AppleIapService
     }
 
     /**
+     * Lightweight receipt inspection for diagnostics/logging.
+     * Does not verify signature and never returns full receipt body.
+     */
+    public function inspectReceipt(string $receiptData): array
+    {
+        $normalized = $this->normalizeReceiptData($receiptData);
+        $isJws = $this->looksLikeStoreKitJws($normalized);
+        $payload = $isJws ? ($this->decodeStoreKitJwsPayload($normalized) ?? []) : [];
+
+        return [
+            'receipt_length' => strlen($normalized),
+            'dot_segments' => substr_count($normalized, '.'),
+            'is_jws' => $isJws,
+            'jws_environment' => $isJws ? ($payload['environment'] ?? null) : null,
+            'jws_product_id' => $isJws ? ($payload['productId'] ?? null) : null,
+            'jws_transaction_id' => $isJws ? ($payload['transactionId'] ?? null) : null,
+            'jws_original_transaction_id' => $isJws ? ($payload['originalTransactionId'] ?? null) : null,
+        ];
+    }
+
+    /**
      * استخراج أحدث معاملة للـ product_id (أو transaction_id إن وُجد) من رد Apple.
      *
      * @return array{original_transaction_id: string, transaction_id: string, product_id: string, expires_date_ms: ?string, purchase_date_ms: string, ...}
