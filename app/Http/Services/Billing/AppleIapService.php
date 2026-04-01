@@ -33,20 +33,9 @@ class AppleIapService
         $normalizedReceipt = $this->normalizeReceiptData($receiptData);
 
         if ($this->looksLikeStoreKitJws($normalizedReceipt)) {
-            $payload = $this->decodeStoreKitJwsPayload($normalizedReceipt) ?? [];
-            $environment = strtolower((string) ($payload['environment'] ?? ''));
-
-            // Xcode local testing: optionally allow local parsing in dev only.
-            if ($environment === 'xcode') {
-                if (!(bool) config('services.apple.allow_xcode_storekit_local', false)) {
-                    throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
-                }
-                return $this->parseStoreKitJwsAsVerifyResponse($normalizedReceipt);
-            }
-
-            // Non-Xcode signed transaction JWS should be handled via App Store Server API (JWS flow),
-            // not verifyReceipt (base64 app receipt endpoint).
-            throw new \InvalidArgumentException('StoreKit signed transaction JWS is not supported by verifyReceipt endpoint. Use App Store Server API flow.');
+            // StoreKit 2/TestFlight may send signed transaction JWS instead of legacy app receipt.
+            // We normalize it into verifyReceipt-like shape so existing billing flow can proceed.
+            return $this->parseStoreKitJwsAsVerifyResponse($normalizedReceipt);
         }
 
         $secret = (string) config('services.apple.shared_secret');
