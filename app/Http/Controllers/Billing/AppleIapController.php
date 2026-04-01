@@ -60,24 +60,36 @@ class AppleIapController extends Controller
             $errorMessage = 'Apple receipt verification failed.';
             $errorKey = 'billing.ios.verify_failed';
             $hint = 'Check APPLE_IAP_SHARED_SECRET, product setup in App Store Connect, and test via Sandbox/TestFlight.';
+            $info = [
+                'plan_id' => $planId,
+                'product_id' => $productId,
+                'transaction_id' => $transactionId,
+                'apple_status' => (int) $e->getCode(),
+                'reason' => $e->getMessage(),
+                'hint' => $hint,
+            ];
+
+            if ((int) $e->getCode() === 21002) {
+                $diagnostics = $this->buildReceiptDiagnostics($receipt);
+                $errorMessage = 'Apple receipt is invalid or in unsupported format (status 21002).';
+                $errorKey = 'billing.ios.verify_failed.invalid_receipt';
+                $hint = 'Send a valid App Store receipt. If receipt_format is jws, use App Store Server API flow (or enable APPLE_IAP_ALLOW_XCODE_LOCAL for local Xcode testing only).';
+                $info['hint'] = $hint;
+                $info['receipt_diagnostics'] = $diagnostics;
+            }
 
             if (str_contains(strtolower((string) $e->getMessage()), 'storekit local jws receipt')) {
                 $errorMessage = 'Xcode StoreKit local JWS receipt is not supported by legacy verifyReceipt endpoint.';
                 $errorKey = 'billing.ios.verify_failed.storekit_local';
                 $hint = 'Use Sandbox/TestFlight for real verification, or enable APPLE_IAP_ALLOW_XCODE_LOCAL=true for local dev only.';
+                $info['hint'] = $hint;
             }
 
             MessageService::response([
                 'success' => false,
                 'message' => $errorMessage,
                 'key' => $errorKey,
-                'info' => [
-                    'plan_id' => $planId,
-                    'product_id' => $productId,
-                    'transaction_id' => $transactionId,
-                    'reason' => $e->getMessage(),
-                    'hint' => $hint,
-                ],
+                'info' => $info,
             ], 422);
         }
 
@@ -116,5 +128,32 @@ class AppleIapController extends Controller
             'resource' => SubscriptionResource::class,
             'status' => 200,
         ]);
+    }
+
+    /**
+     * Build safe diagnostics for malformed/unsupported receipts (21002).
+     *
+     * Avoid returning raw receipt data.
+     */
+    private function buildReceiptDiagnostics(string $receipt): array
+    {
+        $trimmed = trim($receipt);
+        $segmentCount = substr_count($trimmed, '.');
+        $isLikelyJws = $segmentCount === 2
+            && preg_match('/^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/', $trimmed) === 1;
+
+        $base64Decoded = base64_decode($trimmed, true);
+        $base64Valid = $base64Decoded !== false;
+
+        return [
+            'receipt_length' => strlen($trimmed),
+            'receipt_format' => $isLikelyJws ? 'jws' : ($base64Valid ? 'base64' : 'unknown'),
+            'jws_segments' => $segmentCount,
+            'base64_valid' => $base64Valid,
+            'contains_whitespace' => preg_match('/\s/', $receipt) === 1,
+            'contains_space_char' => str_contains($receipt, ' '),
+            'contains_plus_char' => str_contains($receipt, '+'),
+            'contains_percent2b' => str_contains($receipt, '%2B') || str_contains($receipt, '%2b'),
+        ];
     }
 }
