@@ -30,6 +30,10 @@ class AppleIapService
      */
     public function verifyReceipt(string $receiptData, string $productId, ?string $transactionId = null): array
     {
+        if ($this->looksLikeStoreKitJws($receiptData)) {
+            throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
+        }
+
         $secret = (string) config('services.apple.shared_secret');
         if ($secret === '') {
             throw new \InvalidArgumentException('Apple IAP shared secret is not configured');
@@ -292,6 +296,32 @@ class AppleIapService
         });
 
         return $transaction;
+    }
+
+    private function looksLikeStoreKitJws(string $receiptData): bool
+    {
+        if (substr_count($receiptData, '.') !== 2) {
+            return false;
+        }
+
+        $parts = explode('.', $receiptData);
+        if (count($parts) !== 3) {
+            return false;
+        }
+
+        $payload = strtr($parts[1], '-_', '+/');
+        $decoded = base64_decode($payload, true);
+        if ($decoded === false) {
+            return false;
+        }
+
+        $json = json_decode($decoded, true);
+        if (!is_array($json)) {
+            return false;
+        }
+
+        $env = strtolower((string) ($json['environment'] ?? ''));
+        return $env === 'xcode';
     }
 
     private function sendVerifyRequest(string $url, array $body): array

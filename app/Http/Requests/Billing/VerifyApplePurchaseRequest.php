@@ -11,7 +11,7 @@ class VerifyApplePurchaseRequest extends BaseFormRequest
         return [
             'plan_id' => 'required|integer|exists:plans,id',
             'product_id' => 'required|string|max:191',
-            'transaction_id' => 'required|string|max:191',
+            'transaction_id' => 'nullable|string|max:191',
             'receipt' => 'required|string',
         ];
     }

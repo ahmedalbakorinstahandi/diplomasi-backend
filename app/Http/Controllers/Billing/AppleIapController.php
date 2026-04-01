@@ -18,7 +18,7 @@ class AppleIapController extends Controller
     ) {}
 
     /**
-     * التحقق من شراء iOS وإصدار الاشتراك والفاتورة.
+     * ?????? ?? ???? iOS ?????? ???????? ?????????.
      */
     public function verify(VerifyApplePurchaseRequest $request): JsonResponse
     {
@@ -26,14 +26,16 @@ class AppleIapController extends Controller
         $validated = $request->validated();
         $planId = (int) $validated['plan_id'];
         $productId = (string) $validated['product_id'];
-        $transactionId = (string) $validated['transaction_id'];
+        $transactionId = isset($validated['transaction_id'])
+            ? (string) $validated['transaction_id']
+            : null;
         $receipt = (string) $validated['receipt'];
 
         $plan = Plan::query()->find($planId);
         if (!$plan || (string) $plan->ios_product_id !== $productId) {
             MessageService::response([
                 'success' => false,
-                'message' => 'الخطة لا تطابق منتج Apple المحدد.',
+                'message' => '????? ?? ????? ???? Apple ??????.',
                 'key' => 'billing.ios.plan_product_mismatch',
             ], 422);
         }
@@ -43,10 +45,16 @@ class AppleIapController extends Controller
             $latestTransaction = $this->appleIapService->extractLatestTransaction($verifyResponse, $productId, $transactionId);
         } catch (\Throwable $e) {
             report($e);
+            $errorMessage = '??? ?????? ?? ??????? ?? Apple.';
+            $errorKey = 'billing.ios.verify_failed';
+            if (str_contains(strtolower((string) $e->getMessage()), 'storekit local jws receipt')) {
+                $errorMessage = '?? ?????? ????? Xcode (StoreKit Test) ??? ????? ??? ?????? ??????. ?????? Sandbox/TestFlight.';
+                $errorKey = 'billing.ios.verify_failed.storekit_local';
+            }
             MessageService::response([
                 'success' => false,
-                'message' => 'فشل التحقق من الإيصال مع Apple.',
-                'key' => 'billing.ios.verify_failed',
+                'message' => $errorMessage,
+                'key' => $errorKey,
             ], 422);
         }
 
@@ -64,7 +72,7 @@ class AppleIapController extends Controller
             report($e);
             MessageService::response([
                 'success' => false,
-                'message' => 'فشل تفعيل الاشتراك.',
+                'message' => '??? ????? ????????.',
                 'key' => 'billing.ios.activate_failed',
             ], 422);
         }
