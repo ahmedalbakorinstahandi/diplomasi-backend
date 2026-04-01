@@ -54,6 +54,7 @@ return [
 
     'apple' => [
         'shared_secret' => env('APPLE_IAP_SHARED_SECRET'),
+        'allow_xcode_storekit_local' => (bool) env('APPLE_IAP_ALLOW_XCODE_LOCAL', false),
     ],
 
     'translation' => [

@@ -31,7 +31,10 @@ class AppleIapService
     public function verifyReceipt(string $receiptData, string $productId, ?string $transactionId = null): array
     {
         if ($this->looksLikeStoreKitJws($receiptData)) {
-            throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
+            if (!(bool) config('services.apple.allow_xcode_storekit_local', false)) {
+                throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
+            }
+            return $this->parseStoreKitJwsAsVerifyResponse($receiptData);
         }
 
         $secret = (string) config('services.apple.shared_secret');
@@ -298,6 +301,43 @@ class AppleIapService
         return $transaction;
     }
 
+
+    private function parseStoreKitJwsAsVerifyResponse(string $receiptData): array
+    {
+        $parts = explode('.', $receiptData);
+        if (count($parts) !== 3) {
+            throw new \RuntimeException('Invalid StoreKit JWS payload');
+        }
+
+        $payload = strtr($parts[1], '-_', '+/');
+        $decoded = base64_decode($payload, true);
+        if ($decoded === false) {
+            throw new \RuntimeException('Invalid StoreKit JWS payload');
+        }
+
+        $json = json_decode($decoded, true);
+        if (!is_array($json)) {
+            throw new \RuntimeException('Invalid StoreKit JWS payload');
+        }
+
+        $tx = [
+            'original_transaction_id' => (string) ($json['originalTransactionId'] ?? $json['transactionId'] ?? ''),
+            'transaction_id' => (string) ($json['transactionId'] ?? ''),
+            'product_id' => (string) ($json['productId'] ?? ''),
+            'expires_date_ms' => isset($json['expiresDate']) ? (string) $json['expiresDate'] : null,
+            'purchase_date_ms' => isset($json['purchaseDate']) ? (string) $json['purchaseDate'] : '0',
+        ];
+
+        return [
+            'status' => self::STATUS_OK,
+            'environment' => 'Xcode',
+            'latest_receipt_info' => [$tx],
+            'pending_renewal_info' => [[
+                'original_transaction_id' => $tx['original_transaction_id'],
+                'auto_renew_status' => '1',
+            ]],
+        ];
+    }
     private function looksLikeStoreKitJws(string $receiptData): bool
     {
         if (substr_count($receiptData, '.') !== 2) {
