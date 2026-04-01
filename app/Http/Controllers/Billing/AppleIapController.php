@@ -39,7 +39,7 @@ class AppleIapController extends Controller
         if (!$plan || $expectedProductId !== $productId) {
             MessageService::response([
                 'success' => false,
-                'message' => 'Plan/Product mismatch: plan_id {$planId} is not mapped to the provided Apple product_id {$productId}.',
+                'message' => "Plan/Product mismatch: plan_id {$planId} is not mapped to the provided Apple product_id {$productId}.",
                 'key' => 'billing.ios.plan_product_mismatch',
                 'info' => [
                     'plan_id' => $planId,
