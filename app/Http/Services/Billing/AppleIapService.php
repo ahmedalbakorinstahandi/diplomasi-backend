@@ -30,11 +30,23 @@ class AppleIapService
      */
     public function verifyReceipt(string $receiptData, string $productId, ?string $transactionId = null): array
     {
-        if ($this->looksLikeStoreKitJws($receiptData)) {
-            if (!(bool) config('services.apple.allow_xcode_storekit_local', false)) {
-                throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
+        $normalizedReceipt = $this->normalizeReceiptData($receiptData);
+
+        if ($this->looksLikeStoreKitJws($normalizedReceipt)) {
+            $payload = $this->decodeStoreKitJwsPayload($normalizedReceipt) ?? [];
+            $environment = strtolower((string) ($payload['environment'] ?? ''));
+
+            // Xcode local testing: optionally allow local parsing in dev only.
+            if ($environment === 'xcode') {
+                if (!(bool) config('services.apple.allow_xcode_storekit_local', false)) {
+                    throw new \InvalidArgumentException('StoreKit local JWS receipt is not supported by verifyReceipt endpoint. Use Sandbox/TestFlight receipt flow.');
+                }
+                return $this->parseStoreKitJwsAsVerifyResponse($normalizedReceipt);
             }
-            return $this->parseStoreKitJwsAsVerifyResponse($receiptData);
+
+            // Non-Xcode signed transaction JWS should be handled via App Store Server API (JWS flow),
+            // not verifyReceipt (base64 app receipt endpoint).
+            throw new \InvalidArgumentException('StoreKit signed transaction JWS is not supported by verifyReceipt endpoint. Use App Store Server API flow.');
         }
 
         $secret = (string) config('services.apple.shared_secret');
@@ -43,7 +55,7 @@ class AppleIapService
         }
 
         $body = [
-            'receipt-data' => $receiptData,
+            'receipt-data' => $normalizedReceipt,
             'password' => $secret,
             'exclude-old-transactions' => true,
         ];
@@ -304,18 +316,7 @@ class AppleIapService
 
     private function parseStoreKitJwsAsVerifyResponse(string $receiptData): array
     {
-        $parts = explode('.', $receiptData);
-        if (count($parts) !== 3) {
-            throw new \RuntimeException('Invalid StoreKit JWS payload');
-        }
-
-        $payload = strtr($parts[1], '-_', '+/');
-        $decoded = base64_decode($payload, true);
-        if ($decoded === false) {
-            throw new \RuntimeException('Invalid StoreKit JWS payload');
-        }
-
-        $json = json_decode($decoded, true);
+        $json = $this->decodeStoreKitJwsPayload($receiptData);
         if (!is_array($json)) {
             throw new \RuntimeException('Invalid StoreKit JWS payload');
         }
@@ -340,28 +341,71 @@ class AppleIapService
     }
     private function looksLikeStoreKitJws(string $receiptData): bool
     {
-        if (substr_count($receiptData, '.') !== 2) {
+        $normalized = $this->normalizeReceiptData($receiptData);
+        if (substr_count($normalized, '.') !== 2) {
             return false;
         }
 
-        $parts = explode('.', $receiptData);
+        $parts = explode('.', $normalized);
         if (count($parts) !== 3) {
             return false;
         }
 
-        $payload = strtr($parts[1], '-_', '+/');
-        $decoded = base64_decode($payload, true);
-        if ($decoded === false) {
-            return false;
-        }
-
-        $json = json_decode($decoded, true);
+        $json = $this->decodeStoreKitJwsPayload($normalized);
         if (!is_array($json)) {
             return false;
         }
 
-        $env = strtolower((string) ($json['environment'] ?? ''));
-        return $env === 'xcode';
+        // Signed transaction payloads include these keys in StoreKit 2 JWS.
+        return isset($json['productId']) || isset($json['transactionId']) || isset($json['originalTransactionId']);
+    }
+
+    private function normalizeReceiptData(string $receiptData): string
+    {
+        $value = trim($receiptData);
+
+        // If the client sends a JSON-encoded string, unwrap it.
+        if ($value !== '' && str_starts_with($value, '"') && str_ends_with($value, '"')) {
+            $decodedString = json_decode($value, true);
+            if (is_string($decodedString) && $decodedString !== '') {
+                $value = $decodedString;
+            }
+        }
+
+        // Remove accidental escapes/newlines/spaces that break JWS/base64 parsing.
+        $value = str_replace(["\r", "\n", "\t"], '', $value);
+        $value = str_replace('\/', '/', $value);
+        $value = trim($value);
+
+        return $value;
+    }
+
+    private function decodeStoreKitJwsPayload(string $jws): ?array
+    {
+        $parts = explode('.', $jws);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        $decoded = $this->base64UrlDecode($parts[1]);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $json = json_decode($decoded, true);
+        return is_array($json) ? $json : null;
+    }
+
+    private function base64UrlDecode(string $value): ?string
+    {
+        $base64 = strtr($value, '-_', '+/');
+        $padding = strlen($base64) % 4;
+        if ($padding > 0) {
+            $base64 .= str_repeat('=', 4 - $padding);
+        }
+
+        $decoded = base64_decode($base64, true);
+        return $decoded === false ? null : $decoded;
     }
 
     private function sendVerifyRequest(string $url, array $body): array
