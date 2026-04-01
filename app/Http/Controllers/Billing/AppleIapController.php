@@ -73,7 +73,7 @@ class AppleIapController extends Controller
                 $diagnostics = $this->buildReceiptDiagnostics($receipt);
                 $errorMessage = 'Apple receipt is invalid or in unsupported format (status 21002).';
                 $errorKey = 'billing.ios.verify_failed.invalid_receipt';
-                $hint = 'Send a valid App Store receipt. If receipt_format is jws, use App Store Server API flow (or enable APPLE_IAP_ALLOW_XCODE_LOCAL for local Xcode testing only).';
+                $hint = 'Send a valid App Store receipt/JWS. Check payload integrity and make sure receipt data is passed exactly as received from iOS.';
                 $info['hint'] = $hint;
                 $info['receipt_diagnostics'] = $diagnostics;
             }
@@ -93,17 +93,9 @@ class AppleIapController extends Controller
             ], 422);
         }
 
-        // 3) Activate subscription and issue billing artifacts.
+        // 3) Activate subscription.
         try {
             $subscription = $this->appleIapService->handleVerifiedReceipt($userId, $verifyResponse, $latestTransaction);
-            $this->appleIapService->createPaymentTransaction(
-                $userId,
-                $planId,
-                (int) $subscription->id,
-                $latestTransaction,
-                $verifyResponse
-            );
-
             $subscription = $subscription->fresh(['plan']);
         } catch (\Throwable $e) {
             report($e);
@@ -117,17 +109,41 @@ class AppleIapController extends Controller
                     'product_id' => $productId,
                     'transaction_id' => $transactionId,
                     'reason' => $e->getMessage(),
-                    'hint' => 'Check subscriptions/payment_transactions writes and plan mapping integrity.',
+                    'hint' => 'Check subscription writes and plan mapping integrity.',
                 ],
             ], 422);
         }
 
-        return ResponseService::response([
+        // 4) Issue billing artifacts (non-blocking for user activation).
+        $billingWarning = null;
+        try {
+            $this->appleIapService->createPaymentTransaction(
+                $userId,
+                $planId,
+                (int) $subscription->id,
+                $latestTransaction,
+                $verifyResponse
+            );
+        } catch (\Throwable $e) {
+            report($e);
+            $billingWarning = [
+                'key' => 'billing.ios.artifacts_failed',
+                'message' => 'Subscription is active, but invoice/payment artifacts could not be created right now.',
+                'reason' => $e->getMessage(),
+            ];
+        }
+
+        $response = [
             'success' => true,
             'data' => $subscription,
             'resource' => SubscriptionResource::class,
             'status' => 200,
-        ]);
+        ];
+        if ($billingWarning !== null) {
+            $response['info'] = ['billing_warning' => $billingWarning];
+        }
+
+        return ResponseService::response($response);
     }
 
     /**
