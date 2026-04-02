@@ -372,6 +372,11 @@ class AuthService
         ]);
 
         try {
+            $defaultMailer = (string) config('mail.default');
+            if (in_array($defaultMailer, ['log', 'array'], true)) {
+                throw new \RuntimeException("Mail is not configured for delivery. MAIL_MAILER={$defaultMailer}");
+            }
+
             $locale = app()->getLocale();
             app()->setLocale('ar');
             $subject = __('auth.account_deletion_code_subject');
@@ -381,7 +386,15 @@ class AuthService
                 new AccountDeletionCodeMail($subject, $code, $user->first_name, $minutes)
             );
         } catch (\Throwable $e) {
-            Log::error('Account deletion code email failed: ' . $e->getMessage());
+            Log::error('Account deletion code email failed', [
+                'error' => $e->getMessage(),
+                'mail_default' => config('mail.default'),
+                'to' => $user->email,
+            ]);
+            MessageService::abort(500, 'auth.email_send_failed', [], [
+                'reason' => $e->getMessage(),
+                'mail_default' => config('mail.default'),
+            ]);
         }
 
         return [
@@ -487,6 +500,11 @@ class AuthService
     protected function sendVerificationEmail(string $to, string $firstName, string $otp, int $minutes, string $type): void
     {
         try {
+            $defaultMailer = (string) config('mail.default');
+            if (in_array($defaultMailer, ['log', 'array'], true)) {
+                throw new \RuntimeException("Mail is not configured for delivery. MAIL_MAILER={$defaultMailer}");
+            }
+
             $locale = app()->getLocale();
             app()->setLocale('ar');
 
@@ -511,7 +529,16 @@ class AuthService
                 $minutes
             ));
         } catch (\Throwable $e) {
-            Log::error('Verification email failed: ' . $e->getMessage());
+            Log::error('Verification email failed', [
+                'error' => $e->getMessage(),
+                'mail_default' => config('mail.default'),
+                'to' => $to,
+                'type' => $type,
+            ]);
+            MessageService::abort(500, 'auth.email_send_failed', [], [
+                'reason' => $e->getMessage(),
+                'mail_default' => config('mail.default'),
+            ]);
         }
     }
 }

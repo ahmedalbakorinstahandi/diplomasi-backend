@@ -50,4 +50,7 @@ return [
     'account_deletion_code_invalid_or_expired' => 'رمز حذف الحساب غير صحيح أو منتهي الصلاحية.',
     'account_deleted_successfully' => 'تم حذف حسابك بنجاح.',
 
+    // Mail/OTP delivery
+    'email_send_failed' => 'فشل إرسال رسالة التحقق. يرجى التحقق من إعدادات البريد في السيرفر والمحاولة مرة أخرى.',
+
 ];

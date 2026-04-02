@@ -47,4 +47,7 @@ return [
     'account_deletion_code_invalid_or_expired' => 'Account deletion code is incorrect or has expired.',
     'account_deleted_successfully' => 'Your account has been deleted successfully.',
 
+    // Mail/OTP delivery
+    'email_send_failed' => 'Failed to send verification email. Please check server mail configuration and try again.',
+
 ];
