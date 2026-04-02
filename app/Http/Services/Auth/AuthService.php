@@ -257,7 +257,14 @@ class AuthService
             );
         }
 
-        if ($user->otp !== $data['otp'] || $user->otp_expire_at < now()) {
+        // Normalize OTP type: DB may store it as string, request may send it as int.
+        $otpFromDb = isset($user->otp) ? (string) $user->otp : null;
+        $otpFromRequest = isset($data['otp']) ? (string) $data['otp'] : null;
+
+        if ($otpFromDb === null ||
+            $otpFromRequest === null ||
+            $otpFromDb !== $otpFromRequest ||
+            $user->otp_expire_at < now()) {
             MessageService::abort(
                 401,
                 'auth.otp_invalid_or_expired',
@@ -424,7 +431,7 @@ class AuthService
 
         // Verify deletion code using existing otp and otp_expire_at fields
         if (
-            $user->otp !== $code ||
+            (string) $user->otp !== (string) $code ||
             !$user->otp_expire_at ||
             $user->otp_expire_at < now()
         ) {
