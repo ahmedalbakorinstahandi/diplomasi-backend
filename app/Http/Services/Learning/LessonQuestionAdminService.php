@@ -12,6 +12,34 @@ use App\Services\OrderHelper;
 
 class LessonQuestionAdminService
 {
+    /**
+     * Soft-delete options row-by-row to avoid unique index collisions.
+     *
+     * Some MySQL unique indexes include `deleted_at`, and bulk soft-deletes set
+     * the same `deleted_at` timestamp for multiple rows, which can violate
+     * the unique constraint.
+     */
+    private function softDeleteOptionsRowByRow($optionsQuery): void
+    {
+        $options = $optionsQuery->get(['id']);
+
+        // If we soft-delete multiple rows at once, Laravel uses one timestamp
+        // for all rows -> can collide with (question_id, pair_key, deleted_at).
+        // Stagger timestamps by seconds to guarantee uniqueness.
+        $base = now();
+        foreach ($options as $idx => $option) {
+            $deletedAt = $base->copy()->addSeconds($idx);
+
+            LessonQuestionOption::query()
+                ->where('id', $option->id)
+                ->whereNull('deleted_at')
+                ->update([
+                    'deleted_at' => $deletedAt,
+                    'updated_at' => $deletedAt,
+                ]);
+        }
+    }
+
     public function index($filters = [])
     {
         $query = LessonQuestion::query()->with([
@@ -140,7 +168,7 @@ class LessonQuestionAdminService
     public function delete($question)
     {
         // حذف الخيارات المرتبطة
-        $question->lessonQuestionOptions()->delete();
+        $this->softDeleteOptionsRowByRow($question->lessonQuestionOptions());
 
         $question->delete();
     }
@@ -179,9 +207,10 @@ class LessonQuestionAdminService
         $existingOptionIds = collect($options)->pluck('id')->filter()->toArray();
         
         // حذف الخيارات التي لم يتم إرسالها
-        $question->lessonQuestionOptions()
-            ->whereNotIn('id', $existingOptionIds)
-            ->delete();
+        $this->softDeleteOptionsRowByRow(
+            $question->lessonQuestionOptions()
+                ->whereNotIn('id', $existingOptionIds)
+        );
 
         foreach ($options as $optionData) {
             if (isset($optionData['id'])) {
