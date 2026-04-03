@@ -57,3 +57,5 @@ o3R8qNRm!e$
   // php artisan storage:link
   // change permissions of storage/app permissions to 777
   // chown root:root storage/app -R
+
+

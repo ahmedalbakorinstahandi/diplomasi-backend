@@ -33,7 +33,7 @@ class AuthController extends Controller
     {
         $data = $this->authService->login($request->validated());
 
-        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -46,7 +46,7 @@ class AuthController extends Controller
     public function guestStart(GuestStartRequest $request)
     {
         $data = $this->authService->guestStart();
-        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -56,6 +56,10 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * تسجيل جديد بدون جلسة: لا يوجد access token حتى نجاح verify-otp.
+     * ربط device_token يتم هناك فقط (العميل يرسله مع الطلب).
+     */
     public function register(RegisterRequest $request)
     {
         $data = $this->authService->register($request->validated());
@@ -71,9 +75,15 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * الضيف مصادَق مسبقاً ومعه Sanctum token: نربط device_token على نفس الجلسة فوراً.
+     */
     public function registerFromGuest(RegisterFromGuestRequest $request)
     {
-        $data = $this->authService->registerFromGuest($request->validated());
+        $validated = $request->validated();
+        unset($validated['device_token']);
+        $data = $this->authService->registerFromGuest($validated);
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -105,7 +115,7 @@ class AuthController extends Controller
     public function verifyOtp(VerifyCodeRequest $request)
     {
         $data = $this->authService->verifyOtp($request->all());
-        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $request, $data['user']);
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -120,6 +130,7 @@ class AuthController extends Controller
     public function resetPassword(ResetPasswordRequest $request)
     {
         $data = $this->authService->resetPassword($request->all());
+        $this->syncDeviceTokenAndNotifyIfNew($request->input('device_token'), $data['user']);
 
         return ResponseService::response([
             'status' => 200,
@@ -172,7 +183,7 @@ class AuthController extends Controller
         ]);
     }
 
-    private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, VerifyCodeRequest|LoginRequest|GuestStartRequest $request, User $user): void
+    private function syncDeviceTokenAndNotifyIfNew(?string $deviceToken, User $user): void
     {
         if ($user->isGuest()) {
             return;
@@ -188,7 +199,7 @@ class AuthController extends Controller
             ->where('device_token', $deviceToken)
             ->exists();
 
-        FirebaseService::subscribeToAllTopic($request, $user);
+        FirebaseService::subscribeToAllTopic($deviceToken, $user);
 
         if ($isKnownToken) {
             return;

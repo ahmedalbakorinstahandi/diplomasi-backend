@@ -308,6 +308,16 @@ class AuthService
             );
         }
 
+        $purpose = $data['purpose'] ?? 'password_reset';
+        if ($purpose === 'account_activation') {
+            if ($user->email_verified) {
+                MessageService::abort(400, 'auth.account_already_verified');
+            }
+            $mailType = 'account_activation';
+        } else {
+            $mailType = 'forgot_password';
+        }
+
         $code = random_int(10000, 99999);
         $minutes = 5;
         $otpExpireAt = now()->addMinutes($minutes);
@@ -321,7 +331,7 @@ class AuthService
             $user->first_name,
             (string) $code,
             $minutes,
-            'forgot_password'
+            $mailType
         );
 
         return [
@@ -502,7 +512,7 @@ class AuthService
     /**
      * Send verification/OTP email in Arabic only, using default mailer (no-reply@).
      *
-     * @param  'register'|'forgot_password'  $type
+     * @param  'register'|'forgot_password'|'account_activation'  $type
      */
     protected function sendVerificationEmail(string $to, string $firstName, string $otp, int $minutes, string $type): void
     {
@@ -515,15 +525,23 @@ class AuthService
             $locale = app()->getLocale();
             app()->setLocale('ar');
 
-            $subject = $type === 'forgot_password'
-                ? __('auth.forgot_password_code_email_subject')
-                : __('auth.verification_code_email_subject');
-            $title = $type === 'forgot_password'
-                ? __('auth.forgot_password_code_email_title')
-                : __('auth.verification_code_email_title');
-            $intro = $type === 'forgot_password'
-                ? __('auth.forgot_password_code_email_intro')
-                : __('auth.verification_code_email_intro');
+            [$subject, $title, $intro] = match ($type) {
+                'forgot_password' => [
+                    __('auth.forgot_password_code_email_subject'),
+                    __('auth.forgot_password_code_email_title'),
+                    __('auth.forgot_password_code_email_intro'),
+                ],
+                'account_activation' => [
+                    __('auth.account_activation_code_email_subject'),
+                    __('auth.account_activation_code_email_title'),
+                    __('auth.account_activation_code_email_intro'),
+                ],
+                default => [
+                    __('auth.verification_code_email_subject'),
+                    __('auth.verification_code_email_title'),
+                    __('auth.verification_code_email_intro'),
+                ],
+            };
 
             app()->setLocale($locale);
 

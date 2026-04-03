@@ -21,6 +21,7 @@ class RegisterFromGuestRequest extends BaseFormRequest
             ],
             'password' => 'required|string|min:6|max:255|confirmed',
             'avatar' => 'nullable|string|max:100',
+            'device_token' => 'nullable|string|max:500',
         ];
     }
 }

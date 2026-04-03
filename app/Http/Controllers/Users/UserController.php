@@ -10,6 +10,7 @@ use App\Http\Requests\Users\UpdateProfileRequest;
 use App\Http\Requests\Users\UpdateUserRequest;
 use App\Http\Resources\Users\UserResource;
 use App\Http\Services\Users\UserService;
+use App\Services\FirebaseService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
 
@@ -118,7 +119,15 @@ class UserController extends Controller
         $currentUser = $this->userService->getProfile();
         UserPermission::canUpdate($currentUser);
 
-        $user = $this->userService->updateProfile($request->validated());
+        $validated = $request->validated();
+        $deviceToken = trim((string) ($validated['device_token'] ?? ''));
+        unset($validated['device_token']);
+
+        $user = $this->userService->updateProfile($validated);
+
+        if ($deviceToken !== '' && ! $user->isGuest()) {
+            FirebaseService::subscribeToAllTopic($deviceToken, $user->fresh());
+        }
 
         return ResponseService::response([
             'success' => true,

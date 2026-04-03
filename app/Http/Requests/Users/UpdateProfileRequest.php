@@ -17,6 +17,7 @@ class UpdateProfileRequest extends BaseFormRequest
             'current_password' => 'required_with:password|string',
             'avatar' => 'sometimes|nullable|string|max:100',
             'new_password' => 'sometimes|nullable|string|min:6|max:255',
+            'device_token' => 'nullable|string|max:500',
         ];
     }
 }

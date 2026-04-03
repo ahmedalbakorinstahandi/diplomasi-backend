@@ -12,6 +12,7 @@ class ForgotPasswordRequest extends BaseFormRequest
     {
         return [
             'email' => 'required|email',
+            'purpose' => 'sometimes|string|in:password_reset,account_activation',
         ];
     }
 }

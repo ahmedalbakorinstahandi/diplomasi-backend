@@ -12,6 +12,7 @@ class ResetPasswordRequest extends BaseFormRequest
     {
         return [
             'password' => 'required|string|min:8|confirmed',
+            'device_token' => 'nullable|string|max:500',
         ];
     }
 }
