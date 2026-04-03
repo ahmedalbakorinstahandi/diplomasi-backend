@@ -14,7 +14,7 @@ class RegisterRequest extends BaseFormRequest
         return [
             'first_name' => 'required|string|max:50',
             'last_name' => 'required|string|max:50',
-            'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
+            'email' => ['required', 'email'],
             'password' => 'required|string|min:6|max:255|confirmed',
             'avatar' => 'nullable|string|max:100',
             'phone' => [

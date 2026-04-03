@@ -12,7 +12,7 @@ class RegisterFromGuestRequest extends BaseFormRequest
         return [
             'first_name' => 'required|string|max:50',
             'last_name' => 'required|string|max:50',
-            'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
+            'email' => ['required', 'email'],
             'phone' => [
                 'nullable',
                 'string',
