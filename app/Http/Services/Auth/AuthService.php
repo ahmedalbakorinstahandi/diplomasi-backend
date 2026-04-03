@@ -98,7 +98,7 @@ class AuthService
         $user = User::where('email', $data['email'])->first();
 
         if ($user) {
-            MessageService::abort(
+            MessageService::response(
                 401,
                 'auth.email_already_exists',
             );
