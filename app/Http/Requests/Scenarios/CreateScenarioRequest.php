@@ -11,7 +11,7 @@ class CreateScenarioRequest extends BaseFormRequest
         return [
             'level_id' => 'required|exists:levels,id',
             'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'description' => 'required|string',
             'is_free' => 'nullable|boolean',
         ];
     }
