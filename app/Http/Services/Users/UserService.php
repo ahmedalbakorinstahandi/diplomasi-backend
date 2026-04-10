@@ -129,12 +129,13 @@ class UserService
             MessageService::abort(401, 'messages.unauthorized');
         }
 
-        if (isset($data['password'])) {
+        if (isset($data['new_password'])) {
             if (isset($data['current_password']) && !Hash::check($data['current_password'], $user->password)) {
                 MessageService::abort(400, 'auth.password_incorrect');
             }
-            $data['password'] = Hash::make($data['password']);
+            $data['password'] = Hash::make($data['new_password']);
             unset($data['current_password']);
+            unset($data['new_password']);
         }
 
         $user->update($data);
