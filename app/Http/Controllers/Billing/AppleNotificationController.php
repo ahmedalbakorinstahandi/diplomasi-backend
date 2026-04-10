@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
 use App\Http\Services\Billing\AppleJwsVerifier;
+use App\Models\Billing\AppleIapSubscriptionOwnership;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
@@ -67,15 +68,30 @@ class AppleNotificationController extends Controller
                 ->orderByDesc('id')
                 ->first();
 
-            if (!$transaction || !$transaction->subscription_id) {
+            $subscription = null;
+            if ($transaction && $transaction->subscription_id) {
+                $subscription = Subscription::query()->find($transaction->subscription_id);
+            }
+
+            if (!$subscription) {
+                $ownership = AppleIapSubscriptionOwnership::query()
+                    ->where('original_transaction_id', (string) $originalTransactionId)
+                    ->first();
+                if ($ownership) {
+                    $q = Subscription::query()->where('user_id', $ownership->user_id);
+                    if ($ownership->plan_id) {
+                        $q->where('plan_id', $ownership->plan_id);
+                    } else {
+                        $q->where('provider', 'apple');
+                    }
+                    $subscription = $q->orderByDesc('id')->first();
+                }
+            }
+
+            if (!$subscription) {
                 Log::channel('single')->info('[apple.notifications] No subscription found for originalTransactionId', [
                     'originalTransactionId' => $originalTransactionId,
                 ]);
-                return response()->json(['message' => 'OK'], 200);
-            }
-
-            $subscription = Subscription::query()->find($transaction->subscription_id);
-            if (!$subscription) {
                 return response()->json(['message' => 'OK'], 200);
             }
 

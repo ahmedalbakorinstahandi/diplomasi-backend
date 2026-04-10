@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Billing;
 
+use App\Exceptions\Billing\OwnershipConflictException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Billing\VerifyApplePurchaseRequest;
 use App\Http\Resources\Billing\SubscriptionResource;
 use App\Http\Services\Billing\AppleIapService;
 use App\Models\Billing\Plan;
+use App\Models\Users\User;
 use App\Services\MessageService;
 use App\Services\ResponseService;
+use App\Support\Billing\AppleIapTransactionFingerprint;
+use App\Support\Billing\MaskEmailHint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
@@ -20,6 +24,7 @@ class AppleIapController extends Controller
 
     /**
      * Verify iOS purchase, activate subscription, and create invoice.
+     * Optional preflight=true: Apple verify + ownership check only (no writes except optional audit).
      */
     public function verify(VerifyApplePurchaseRequest $request): JsonResponse
     {
@@ -32,6 +37,7 @@ class AppleIapController extends Controller
             ? (string) $validated['transaction_id']
             : null;
         $receipt = (string) $validated['receipt'];
+        $preflight = filter_var($validated['preflight'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         $plan = Plan::query()->find($planId);
         if (!$plan) {
@@ -60,14 +66,13 @@ class AppleIapController extends Controller
             ], 422);
         }
 
-        // Never trust product_id from client as source of truth.
-        // Use plan mapping from DB, and keep provided id for diagnostics.
         $productId = $expectedProductId;
         $receiptInfo = $this->appleIapService->inspectReceipt($receipt);
 
         Log::channel('single')->info('[apple.iap.verify] incoming', [
             'user_id' => $userId,
             'plan_id' => $planId,
+            'preflight' => $preflight,
             'provided_product_id' => $providedProductId,
             'expected_product_id' => $expectedProductId,
             'transaction_id' => $transactionId,
@@ -83,7 +88,6 @@ class AppleIapController extends Controller
             ]);
         }
 
-        // 2) Verify receipt with Apple.
         try {
             $verifyResponse = $this->appleIapService->verifyReceipt($receipt, $productId, $transactionId);
             $latestTransaction = $this->appleIapService->extractLatestTransaction($verifyResponse, $productId, $transactionId);
@@ -128,17 +132,39 @@ class AppleIapController extends Controller
             ], 422);
         }
 
-        // 3) Activate subscription.
+        $otid = (string) ($latestTransaction['original_transaction_id'] ?? '');
+        if ($otid === '') {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Receipt did not contain original_transaction_id.',
+                'key' => 'billing.ios.verify_failed.missing_original_transaction_id',
+                'info' => ['plan_id' => $planId],
+            ], 422);
+        }
+
         try {
-            $subscription = $this->appleIapService->handleVerifiedReceipt($userId, $verifyResponse, $latestTransaction);
-            $subscription = $subscription->fresh(['plan']);
-            Log::channel('single')->info('[apple.iap.verify] activation ok', [
-                'user_id' => $userId,
-                'plan_id' => $planId,
-                'expected_product_id' => $expectedProductId,
-                'latest_transaction_product_id' => $latestTransaction['product_id'] ?? null,
-                'latest_transaction_id' => $latestTransaction['transaction_id'] ?? null,
-            ]);
+            $payload = $this->appleIapService->processVerifiedAppleReceipt(
+                $userId,
+                $planId,
+                $expectedProductId,
+                $verifyResponse,
+                $latestTransaction,
+                $preflight
+            );
+        } catch (OwnershipConflictException $e) {
+            $this->logOwnershipConflict($userId, $otid, $e->ownerUserId, $preflight);
+
+            $owner = User::query()->find($e->ownerUserId);
+            $masked = MaskEmailHint::format($owner?->email);
+
+            MessageService::response([
+                'success' => false,
+                'message' => trans('billing.ios.already_linked_to_another_account'),
+                'key' => 'billing.ios.already_linked_to_another_account',
+                'info' => [
+                    'masked_owner_email' => $masked,
+                ],
+            ], 422);
         } catch (\Throwable $e) {
             report($e);
 
@@ -157,7 +183,31 @@ class AppleIapController extends Controller
             ], 422);
         }
 
-        // 4) Issue billing artifacts (non-blocking for user activation).
+        if ($preflight) {
+            return ResponseService::response([
+                'success' => true,
+                'key' => 'billing.ios.preflight_ok',
+                'data' => [
+                    'eligible' => true,
+                    'outcome' => $payload['outcome'],
+                ],
+                'status' => 200,
+            ]);
+        }
+
+        /** @var \App\Models\Billing\Subscription $subscription */
+        $subscription = $payload['subscription'];
+        $subscription = $subscription->fresh(['plan']);
+
+        Log::channel('single')->info('[apple.iap.verify] activation ok', [
+            'user_id' => $userId,
+            'plan_id' => $planId,
+            'expected_product_id' => $expectedProductId,
+            'latest_transaction_product_id' => $latestTransaction['product_id'] ?? null,
+            'latest_transaction_id' => $latestTransaction['transaction_id'] ?? null,
+            'original_transaction_id' => AppleIapTransactionFingerprint::forLog($otid),
+        ]);
+
         $billingWarning = null;
         try {
             $this->appleIapService->createPaymentTransaction(
@@ -189,10 +239,18 @@ class AppleIapController extends Controller
         return ResponseService::response($response);
     }
 
+    private function logOwnershipConflict(int $requestingUserId, string $otid, int $ownerUserId, bool $preflight): void
+    {
+        Log::channel('single')->warning('[apple.iap.verify] ownership conflict', [
+            'requesting_user_id' => $requestingUserId,
+            'owner_user_id' => $ownerUserId,
+            'preflight' => $preflight,
+            'original_transaction_id' => AppleIapTransactionFingerprint::forLog($otid),
+        ]);
+    }
+
     /**
      * Build safe diagnostics for malformed/unsupported receipts (21002).
-     *
-     * Avoid returning raw receipt data.
      */
     private function buildReceiptDiagnostics(string $receipt): array
     {

@@ -2,10 +2,14 @@
 
 namespace App\Http\Services\Billing;
 
+use App\Exceptions\Billing\OwnershipConflictException;
+use App\Models\Billing\AppleIapSubscriptionOwnership;
 use App\Models\Billing\Plan;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
+use App\Support\Billing\AppleIapTransactionFingerprint;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -22,6 +26,117 @@ class AppleIapService
     public function __construct(
         protected InvoiceService $invoiceService
     ) {}
+
+    /**
+     * Apple verify succeeded: assert lineage ownership, then activate subscription (or preflight only).
+     *
+     * @return array{preflight: true, outcome: string}|array{preflight: false, subscription: Subscription}
+     */
+    public function processVerifiedAppleReceipt(
+        int $userId,
+        int $planId,
+        string $expectedProductId,
+        array $verifyResponse,
+        array $latestTransaction,
+        bool $preflight
+    ): array {
+        $otid = (string) ($latestTransaction['original_transaction_id'] ?? '');
+        if ($otid === '') {
+            throw new \RuntimeException('Missing original_transaction_id');
+        }
+
+        $env = isset($verifyResponse['environment']) ? (string) $verifyResponse['environment'] : null;
+
+        return DB::transaction(function () use ($userId, $planId, $expectedProductId, $verifyResponse, $latestTransaction, $preflight, $otid, $env) {
+            $outcome = $this->claimOrAssertAppleOwnership(
+                $userId,
+                $otid,
+                $planId,
+                $expectedProductId,
+                $env,
+                $preflight
+            );
+
+            if ($preflight) {
+                return [
+                    'preflight' => true,
+                    'outcome' => $outcome,
+                ];
+            }
+
+            $subscription = $this->handleVerifiedReceipt($userId, $verifyResponse, $latestTransaction);
+
+            return [
+                'preflight' => false,
+                'subscription' => $subscription,
+            ];
+        });
+    }
+
+    /**
+     * Enforces: one Apple `original_transaction_id` → one internal user (no transfer).
+     * Uses row lock + UNIQUE with deterministic duplicate-key retry.
+     *
+     * @return 'unclaimed'|'owned_by_current_user'
+     *
+     * @throws OwnershipConflictException
+     */
+    private function claimOrAssertAppleOwnership(
+        int $userId,
+        string $originalTransactionId,
+        int $planId,
+        string $productId,
+        ?string $environment,
+        bool $preflight
+    ): string {
+        $existing = AppleIapSubscriptionOwnership::query()
+            ->where('original_transaction_id', $originalTransactionId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing) {
+            if ((int) $existing->user_id !== $userId) {
+                throw new OwnershipConflictException((int) $existing->user_id);
+            }
+
+            return 'owned_by_current_user';
+        }
+
+        if ($preflight) {
+            return 'unclaimed';
+        }
+
+        try {
+            AppleIapSubscriptionOwnership::query()->create([
+                'user_id' => $userId,
+                'original_transaction_id' => $originalTransactionId,
+                'plan_id' => $planId,
+                'product_id' => $productId,
+                'environment' => $environment,
+                'linked_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            $existing = AppleIapSubscriptionOwnership::query()
+                ->where('original_transaction_id', $originalTransactionId)
+                ->first();
+            if (!$existing) {
+                throw $e;
+            }
+            if ((int) $existing->user_id !== $userId) {
+                throw new OwnershipConflictException((int) $existing->user_id);
+            }
+        }
+
+        return 'unclaimed';
+    }
+
+    /**
+     * Log helper: never log raw receipts; use fingerprint for original_transaction_id.
+     */
+    public static function fingerprintOriginalTransactionId(string $originalTransactionId): array
+    {
+        return AppleIapTransactionFingerprint::forLog($originalTransactionId);
+    }
 
     /**
      * التحقق من إيصال Apple. عند status 21007 إعادة الطلب إلى Sandbox.
@@ -174,7 +289,12 @@ class AppleIapService
 
         $price = $plan->ios_price ?? $plan->price;
         $currency = strtoupper((string) ($plan->ios_currency ?? config('services.moyasar.currency', 'SAR')));
-        $autoRenew = $this->getAutoRenewStatus($verifyResponse, $originalTransactionId);
+        $autoRenewBase = $this->getAutoRenewStatus($verifyResponse, $originalTransactionId);
+
+        $now = now();
+        $isExpired = $endDate->lt($now);
+        $status = $isExpired ? 'expired' : 'active';
+        $autoRenew = $isExpired ? false : $autoRenewBase;
 
         $subscription = Subscription::query()
             ->where('user_id', $userId)
@@ -186,7 +306,7 @@ class AppleIapService
         if ($subscription) {
             $subscription->update([
                 'provider' => 'apple',
-                'status' => 'active',
+                'status' => $status,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'price' => $price,
@@ -202,7 +322,7 @@ class AppleIapService
                 'user_id' => $userId,
                 'plan_id' => $plan->id,
                 'provider' => 'apple',
-                'status' => 'active',
+                'status' => $status,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'price' => $price,
@@ -220,7 +340,7 @@ class AppleIapService
             'subscription_id' => $subscription->id,
             'event_type' => $eventType,
             'plan_id' => (int) $plan->id,
-            'status' => 'active',
+            'status' => $status,
             'start_date' => $startDate,
             'end_date' => $endDate,
             'plan_price' => $price,

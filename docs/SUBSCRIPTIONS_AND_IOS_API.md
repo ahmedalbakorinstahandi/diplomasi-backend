@@ -138,8 +138,11 @@ GET /user/plans?platform=ios
 |-------|--------|--------|--------|
 | `plan_id` | integer | نعم | معرّف الخطة في النظام (يجب أن يطابق الخطة التي تم شراؤها). |
 | `product_id` | string | نعم | معرّف المنتج في App Store (مطابق لـ `ios_product_id` في الخطة). |
-| `transaction_id` | string | نعم | معرّف المعاملة من Apple (Transaction ID). |
+| `transaction_id` | string | لا | معرّف المعاملة من Apple (يُفضّل إرساله عند توفره). |
 | `receipt` | string | نعم | الإيصال من StoreKit (يُفضّل `serverVerificationData` كما هو دون تعديل). |
+| `preflight` | boolean | لا | إن كان `true`: يتحقق الخادم من Apple ومن **ملكية** خط الاشتراك (`original_transaction_id`) **دون** تعديل الاشتراك أو إنشاء فواتير (يُستخدم قبل شراء جديد عند وجود إيصال سابق). |
+
+**ملكية خط Apple:** كل `original_transaction_id` يُربط **بحساب تطبيق واحد فقط** (أول مطالبة ناجحة). إذا كان الخط مربوطًا بحساب آخر، يُرجع الخادم `422` بالمفتاح `billing.ios.already_linked_to_another_account` و`info.masked_owner_email` (تلميح آمن عن بريد المالك).
 
 **مثال:**
 
@@ -151,6 +154,19 @@ GET /user/plans?platform=ios
   "receipt": "<base64 أو نص serverVerificationData من StoreKit>"
 }
 ```
+
+**مثال preflight:**
+
+```json
+{
+  "plan_id": 1,
+  "product_id": "com.diplomasi.plan_monthly",
+  "receipt": "<نفس الإيصال>",
+  "preflight": true
+}
+```
+
+**استجابة preflight (200):** `success: true`, `key: billing.ios.preflight_ok`, `data: { "eligible": true, "outcome": "unclaimed" | "owned_by_current_user" }`.
 
 **استجابة ناجحة (200):**
 
@@ -183,6 +199,7 @@ GET /user/plans?platform=ios
 | 422 | `billing.ios.plan_product_mismatch` | الـ `product_id` لا يطابق الخطة المحددة في النظام. |
 | 422 | `billing.ios.verify_failed` | فشل التحقق من الإيصال مع Apple. |
 | 422 | `billing.ios.activate_failed` | فشل إنشاء/تحديث الاشتراك بعد التحقق. |
+| 422 | `billing.ios.already_linked_to_another_account` | خط الاشتراك في Apple مربوط بحساب آخر في التطبيق؛ راجع `info.masked_owner_email`. |
 
 ---
 

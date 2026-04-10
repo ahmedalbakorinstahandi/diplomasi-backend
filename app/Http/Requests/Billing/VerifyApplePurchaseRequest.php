@@ -13,6 +13,7 @@ class VerifyApplePurchaseRequest extends BaseFormRequest
             'product_id' => 'required|string|max:191',
             'transaction_id' => 'nullable|string|max:191',
             'receipt' => 'required|string',
+            'preflight' => 'sometimes|boolean',
         ];
     }
 }

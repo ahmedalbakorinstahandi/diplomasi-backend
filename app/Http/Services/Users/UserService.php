@@ -27,6 +27,10 @@ class UserService
         $exactMatchFields = ['id', 'status'];
         $inFields = ['status'];
 
+
+        $query->where('is_guest', false);
+
+
         $query = UserPermission::filterIndex($query);
 
         $data = FilterService::applyFilters(
