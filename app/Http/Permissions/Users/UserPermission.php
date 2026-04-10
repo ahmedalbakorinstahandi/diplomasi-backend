@@ -28,11 +28,6 @@ class UserPermission
 
     public static function canView(): void
     {
-        if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('user.view');
-            return;
-        }
-
         if (!User::auth()) {
             MessageService::abort(401, 'messages.unauthorized');
         }
@@ -62,10 +57,6 @@ class UserPermission
 
     public static function canUpdate($targetUser = null): void
     {
-        if (RequestContext::isDashboard()) {
-            AuthorizationService::authorize('user.update');
-            return;
-        }
 
         $user = User::auth();
         if (!$user) {
