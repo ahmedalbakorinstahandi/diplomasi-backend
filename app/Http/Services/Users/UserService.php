@@ -116,7 +116,7 @@ class UserService
             MessageService::abort(401, 'messages.unauthorized');
         }
 
-        $user->load(['roles', 'userRoles']);
+        $user->load(['roles.permissions', 'userRoles']);
 
         return $user;
     }
