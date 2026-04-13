@@ -101,10 +101,10 @@ class UserController extends Controller
 
     public function getProfile()
     {
-        UserPermission::canView();
+        // UserPermission::canView();
 
         $user = $this->userService->getProfile();
-        UserPermission::canShow($user);
+        // UserPermission::canShow($user);
 
         return ResponseService::response([
             'success' => true,

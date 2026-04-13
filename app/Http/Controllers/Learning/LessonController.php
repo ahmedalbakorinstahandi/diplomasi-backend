@@ -320,7 +320,7 @@ class LessonController extends Controller
     {
         LessonPermission::canView();
 
-        $lessons = $this->lessonService->index($request->all());
+        $lessons = $this->lessonService->index($request->all())->with(['level.course']);
 
         return ResponseService::response([
             'success' => true,
