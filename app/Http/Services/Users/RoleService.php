@@ -103,15 +103,13 @@ class RoleService
         $toRemove = array_values(array_diff($currentPermissionIds, $permissionIds));
 
         foreach ($toAdd as $permissionId) {
-            RolePermission::withTrashed()->updateOrCreate(
-                [
-                    'role_id' => $role->id,
-                    'permission_id' => $permissionId,
-                ],
-                [
-                    'deleted_at' => null,
-                ]
-            );
+            $pivot = RolePermission::withTrashed()->firstOrNew([
+                'role_id' => $role->id,
+                'permission_id' => $permissionId,
+            ]);
+            // Not in $fillable on RolePermission; assign directly so soft-deleted pivots restore.
+            $pivot->deleted_at = null;
+            $pivot->save();
         }
 
         if (!empty($toRemove)) {
