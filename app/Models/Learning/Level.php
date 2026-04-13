@@ -25,6 +25,8 @@ class Level extends Model
         'is_published',
         'is_free',
         'has_certificate',
+        'certificate_template_path',
+        'certificate_template_config',
         'order_index',
     ];
 
@@ -39,6 +41,7 @@ class Level extends Model
             'is_published' => 'boolean',
             'is_free' => 'boolean',
             'has_certificate' => 'boolean',
+            'certificate_template_config' => 'array',
         ];
     }
 

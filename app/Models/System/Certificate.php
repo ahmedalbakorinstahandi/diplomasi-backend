@@ -27,6 +27,10 @@ class Certificate extends Model
         'pdf_url',
         'image_url',
         'template_path',
+        'rendered_name',
+        'rendered_date',
+        'template_snapshot_path',
+        'template_snapshot_config',
     ];
 
     /**
@@ -38,7 +42,17 @@ class Certificate extends Model
     {
         return [
             'issued_at' => 'datetime',
+            'template_snapshot_config' => 'array',
         ];
+    }
+
+    /**
+     * Level image-template certificate (rendered PNG from design), not legacy HTML/PDF pipeline.
+     */
+    public function isLevelImageTemplate(): bool
+    {
+        return $this->template_snapshot_path !== null
+            && $this->template_snapshot_path !== '';
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LessonQuestionController;
+use App\Http\Controllers\Learning\LevelCertificateTemplateController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
 use App\Http\Controllers\Scenarios\ScenarioController;
@@ -72,6 +73,10 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('levels/{id}', [LevelController::class, 'update']);
         Route::delete('levels/{id}', [LevelController::class, 'delete']);
         Route::put('levels/{id}/reorder', [LevelController::class, 'reorder']);
+        Route::post('levels/{id}/certificate-template', [LevelCertificateTemplateController::class, 'upload']);
+        Route::delete('levels/{id}/certificate-template', [LevelCertificateTemplateController::class, 'destroy']);
+        Route::put('levels/{id}/certificate-template-config', [LevelCertificateTemplateController::class, 'updateConfig']);
+        Route::get('levels/{id}/certificate-template-preview', [LevelCertificateTemplateController::class, 'preview']);
 
         // Level Tracks
         Route::get('level-tracks', [LevelTrackController::class, 'index']);

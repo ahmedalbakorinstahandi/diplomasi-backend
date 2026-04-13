@@ -6,6 +6,8 @@ use App\Http\Resources\Progress\UserLevelProgressResource;
 use App\Http\Resources\Scenarios\ScenarioResource;
 use App\Http\Resources\System\CertificateResource;
 use App\Models\Users\User;
+use App\Services\MediaUrlService;
+use App\Services\RequestContext;
 use App\Services\TrackProgressService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -65,7 +67,7 @@ class LevelResource extends JsonResource
             }
         }
 
-        return [
+        $base = [
             'id' => $this->id,
             'course_id' => $this->course_id,
             'level_number' => $this->level_number,
@@ -91,6 +93,14 @@ class LevelResource extends JsonResource
             'user_level_progress' => UserLevelProgressResource::collection($this->whenLoaded('userLevelProgress')),
             'certificates' => CertificateResource::collection($this->whenLoaded('certificates')),
         ];
+
+        if (RequestContext::isDashboard()) {
+            $base['certificate_template_path'] = $this->certificate_template_path;
+            $base['certificate_template_url'] = MediaUrlService::toUrl($this->certificate_template_path);
+            $base['certificate_template_config'] = $this->certificate_template_config;
+        }
+
+        return $base;
     }
 }
 

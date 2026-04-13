@@ -4,13 +4,18 @@ namespace App\Http\Services\System;
 
 use App\Http\Notifications\CertificateNotification;
 use App\Http\Permissions\System\CertificatePermission;
-use App\Models\Learning\Course;
 use App\Models\Learning\Level;
 use App\Models\Progress\UserCourse;
 use App\Models\Progress\UserLevelProgress;
 use App\Models\System\Certificate;
+use App\Models\Users\User;
 use App\Services\ArabicTextRenderer;
 use App\Services\CertificateEnglishHelper;
+use App\Services\Certificates\CertificateDateFormatterService;
+use App\Services\Certificates\CertificateNameFormatterService;
+use App\Services\Certificates\CertificatePdfFromPngService;
+use App\Services\Certificates\CertificateRendererService;
+use App\Services\Certificates\CertificateTemplateConfigMerger;
 use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
@@ -106,54 +111,11 @@ class CertificateService
      */
     public function checkCertificateEligibility(int $userId, int $courseId, ?int $levelId = null): void
     {
-        // سيناريو 1: إكمال الكورس (level_id = null) - يحتاج UserCourse
         if ($levelId === null) {
-            $userCourse = UserCourse::where('user_id', $userId)
-                ->where('course_id', $courseId)
-                ->first();
-
-            if (!$userCourse) {
-                MessageService::abort(400, 'messages.certificate.eligibility.user_not_registered_in_course');
-            }
-            if ($userCourse->status !== 'completed') {
-                MessageService::abort(400, 'messages.certificate.eligibility.course_not_completed');
-            }
-
-            if (!$userCourse->completed_at) {
-                MessageService::abort(400, 'messages.certificate.eligibility.completion_date_not_found');
-            }
-
-            // التحقق من أن جميع المستويات مكتملة
-            $course = Course::find($courseId);
-            if (!$course) {
-                MessageService::abort(400, 'messages.certificate.eligibility.course_not_found');
-            }
-
-            $levels = $course->levels()->get();
-            foreach ($levels as $level) {
-                $userLevelProgress = UserLevelProgress::where('user_id', $userId)
-                    ->where('level_id', $level->id)
-                    ->first();
-
-                if (!$userLevelProgress || $userLevelProgress->status !== 'completed') {
-                    MessageService::abort(400, 'messages.certificate.eligibility.some_levels_not_completed');
-                }
-            }
-
-            // التحقق من عدم وجود شهادة سابقة للكورس
-            $existingCertificate = Certificate::where('user_id', $userId)
-                ->where('course_id', $courseId)
-                ->whereNull('level_id')
-                ->first();
-
-            if ($existingCertificate) {
-                MessageService::abort(400, 'messages.certificate.eligibility.certificate_already_issued_for_course');
-            }
-
-            return; // مؤهل
+            MessageService::abort(400, 'messages.certificate.course_certificate_disabled');
         }
 
-        // سيناريو 2: إكمال مستوى محدد (level_id محدد)
+        // إكمال مستوى محدد (level_id محدد)
         $level = Level::find($levelId);
         if (!$level) {
             MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
@@ -165,6 +127,10 @@ class CertificateService
 
         if (!$level->has_certificate) {
             MessageService::abort(400, 'messages.certificate.eligibility.level_has_no_certificate');
+        }
+
+        if (!$level->certificate_template_path || ! Storage::disk('public')->exists($level->certificate_template_path)) {
+            MessageService::abort(400, 'messages.certificate.eligibility.level_certificate_template_missing');
         }
 
         $userLevelProgress = UserLevelProgress::where('user_id', $userId)
@@ -214,47 +180,85 @@ class CertificateService
     }
 
     /**
-     * إصدار شهادة جديدة
+     * إصدار شهادة جديدة (شهادة مستوى من قالب صورة)
      */
     public function issueCertificate(int $userId, int $courseId, ?int $levelId = null)
     {
-        // التحقق من الأهلية (ستستدعي MessageService::abort تلقائياً عند الفشل)
         $this->checkCertificateEligibility($userId, $courseId, $levelId);
 
-        // توليد كود الشهادة
+        $level = Level::find($levelId);
+        if (!$level) {
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
+        }
+
         $certificateCode = $this->generateCertificateCode($userId, $courseId, $levelId);
 
-        // إنشاء سجل الشهادة في قاعدة البيانات (مؤقتاً قبل توليد الصورة)
+        $user = User::find($userId);
+        if (!$user) {
+            MessageService::abort(404, 'messages.user.not_found');
+        }
+
+        $nameFormatter = app(CertificateNameFormatterService::class);
+        $dateFormatter = app(CertificateDateFormatterService::class);
+        $issuedAt = now();
+        $renderedName = $nameFormatter->format($user->first_name, $user->last_name);
+        $renderedDate = $dateFormatter->formatDisplay($issuedAt);
+        $mergedConfig = CertificateTemplateConfigMerger::merge($level->certificate_template_config);
+
         $certificate = Certificate::create([
             'user_id' => $userId,
             'course_id' => $courseId,
             'level_id' => $levelId,
             'certificate_code' => $certificateCode,
-            'issued_at' => now(),
-            'template_path' => self::TEMPLATE_PATH,
+            'issued_at' => $issuedAt,
+            'rendered_name' => $renderedName,
+            'rendered_date' => $renderedDate,
+            'template_snapshot_config' => $mergedConfig,
         ]);
 
-        // توليد QR Code
-        $qrCodePath = $this->generateCertificateQrCode($certificate);
-        $certificate->qr_code = $qrCodePath;
+        $snapshotRel = 'certificate-snapshots/' . $certificate->id . '/' . basename((string) $level->certificate_template_path);
+        Storage::disk('public')->copy((string) $level->certificate_template_path, $snapshotRel);
+
+        $certificate->template_snapshot_path = $snapshotRel;
+        $certificate->template_path = $snapshotRel;
         $certificate->save();
 
-        // محاولة توليد PNG من PDF (اختياري - للعرض كصورة)
+        $snapshotAbs = Storage::disk('public')->path($snapshotRel);
+        $outPngRel = 'certificates/' . $certificate->certificate_code . '.png';
+        $outAbs = Storage::disk('public')->path($outPngRel);
+
         try {
-            $imagePath = $this->generateCertificateImageFromPdf($certificate);
-            if ($imagePath) {
-                $certificate->image_url = $imagePath;
-                $certificate->save();
-            }
-        } catch (\Exception $e) {
-            // إذا فشل تحويل PDF إلى PNG، لا مشكلة - PDF يعمل بشكل ممتاز
-            Log::warning("Failed to generate PNG from PDF (optional)", [
+            app(CertificateRendererService::class)->renderToFile(
+                $snapshotAbs,
+                $mergedConfig,
+                $renderedName,
+                $renderedDate,
+                $outAbs
+            );
+            $certificate->image_url = $outPngRel;
+        } catch (\Throwable $e) {
+            Log::error('Level certificate image render failed', [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+            MessageService::abort(500, 'messages.certificate.image_generation_failed');
+        }
+
+        try {
+            $pdfRel = 'certificates/' . $certificate->certificate_code . '.pdf';
+            $pdfAbs = Storage::disk('public')->path($pdfRel);
+            app(CertificatePdfFromPngService::class)->createFromPngFile($outAbs, $pdfAbs);
+            $certificate->pdf_url = $pdfRel;
+        } catch (\Throwable $e) {
+            Log::warning('Certificate PDF from PNG failed', [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
             ]);
         }
 
-        // إرسال إشعار للمستخدم
+        $certificate->qr_code = $this->generateCertificateQrCode($certificate);
+        $certificate->save();
+
         CertificateNotification::issued($certificate);
 
         return $this->show($certificate->id);
@@ -1578,16 +1582,11 @@ class CertificateService
 
     /**
      * التحقق من صورة الشهادة وتوليدها إذا كانت مفقودة
-     * 
-     * @param int $certificateId
-     * @return Certificate
      */
     public function ensureCertificateImage(Certificate $certificate): Certificate
     {
-        // 1. البحث عن الشهادة
         $certificate->load(['user', 'course', 'level']);
 
-        // 2. التحقق من وجود الصورة وتوليدها إذا لزم
         $shouldGenerateImage = false;
 
         if (!$certificate->image_url) {
@@ -1599,28 +1598,90 @@ class CertificateService
             }
         }
 
-        // 3. توليد الصورة إذا لزم
-        if ($shouldGenerateImage) {
-            try {
-                $imagePath = $this->generateCertificateImageFromPdf($certificate);
-                if ($imagePath) {
-                    $certificate->image_url = $imagePath;
-                    $certificate->save();
-                    $certificate->refresh();
+        if (!$shouldGenerateImage) {
+            return $certificate;
+        }
 
-                    Log::info("Certificate image generated successfully", [
-                        'certificate_id' => $certificate->id,
-                        'certificate_code' => $certificate->certificate_code,
-                    ]);
-                }
-            } catch (\Exception $e) {
-                Log::warning("Failed to generate certificate image", [
+        if ($certificate->isLevelImageTemplate()) {
+            try {
+                $this->regenerateLevelTemplateCertificateFiles($certificate);
+                Log::info('Certificate image regenerated from level template snapshot', [
+                    'certificate_id' => $certificate->id,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to regenerate level template certificate image', [
                     'certificate_id' => $certificate->id,
                     'error' => $e->getMessage(),
                 ]);
             }
+
+            return $certificate->refresh();
+        }
+
+        try {
+            $imagePath = $this->generateCertificateImageFromPdf($certificate);
+            if ($imagePath) {
+                $certificate->image_url = $imagePath;
+                $certificate->save();
+                $certificate->refresh();
+
+                Log::info('Certificate image generated successfully', [
+                    'certificate_id' => $certificate->id,
+                    'certificate_code' => $certificate->certificate_code,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to generate certificate image', [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return $certificate;
+    }
+
+    /**
+     * Re-render PNG/PDF from stored snapshot + fixed name/date (no user re-fetch).
+     */
+    private function regenerateLevelTemplateCertificateFiles(Certificate $certificate): void
+    {
+        $snapshot = $certificate->template_snapshot_path;
+        if (!$snapshot || ! Storage::disk('public')->exists($snapshot)) {
+            return;
+        }
+
+        $config = $certificate->template_snapshot_config ?? [];
+        if ($config === [] || $config === null) {
+            $config = CertificateTemplateConfigMerger::merge(null);
+        }
+
+        $name = (string) ($certificate->rendered_name ?? '');
+        $date = (string) ($certificate->rendered_date ?? '');
+        $outPngRel = 'certificates/' . $certificate->certificate_code . '.png';
+        $outAbs = Storage::disk('public')->path($outPngRel);
+
+        app(CertificateRendererService::class)->renderToFile(
+            Storage::disk('public')->path($snapshot),
+            is_array($config) ? $config : CertificateTemplateConfigMerger::merge(null),
+            $name,
+            $date,
+            $outAbs
+        );
+
+        $certificate->image_url = $outPngRel;
+
+        try {
+            $pdfRel = 'certificates/' . $certificate->certificate_code . '.pdf';
+            $pdfAbs = Storage::disk('public')->path($pdfRel);
+            app(CertificatePdfFromPngService::class)->createFromPngFile($outAbs, $pdfAbs);
+            $certificate->pdf_url = $pdfRel;
+        } catch (\Throwable $e) {
+            Log::warning('Certificate PDF regeneration failed', [
+                'certificate_id' => $certificate->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $certificate->save();
     }
 }

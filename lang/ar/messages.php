@@ -175,6 +175,13 @@ return [
         'deleted' => 'تم حذف المستوى بنجاح',
         'not_found' => 'المستوى غير موجود',
         'reordered' => 'تم إعادة ترتيب المستوى بنجاح',
+        'certificate_template_uploaded' => 'تم رفع قالب الشهادة بنجاح',
+        'certificate_template_deleted' => 'تم حذف قالب الشهادة بنجاح',
+        'certificate_template_config_updated' => 'تم حفظ إعدادات قالب الشهادة',
+        'certificate_template_missing' => 'لا يوجد قالب شهادة لهذا المستوى',
+        'certificate_template_file_missing' => 'ملف قالب الشهادة غير موجود على الخادم',
+        'certificate_template_invalid_type' => 'يجب أن يكون الملف صورة من نوع png أو jpg',
+        'certificate_template_file_too_large' => 'حجم ملف القالب أكبر من المسموح',
     ],
 
     'scenario' => [
@@ -272,6 +279,7 @@ return [
         'user_data_not_found' => 'بيانات المستخدم غير موجودة',
         'course_data_not_found' => 'بيانات الكورس غير موجودة',
         'image_generated' => 'تم توليد صورة الشهادة بنجاح',
+        'course_certificate_disabled' => 'إصدار شهادة الكورس الكامل غير متاح حالياً',
         'eligibility' => [
             'user_not_registered_in_course' => 'المستخدم غير مسجل في هذا الكورس',
             'course_not_completed' => 'الكورس لم يكتمل بعد',
@@ -288,6 +296,7 @@ return [
             'level_completion_date_not_found' => 'تاريخ إكمال المستوى غير موجود',
             'certificate_already_issued_for_level' => 'تم إصدار شهادة سابقة لهذا المستوى',
             'user_eligible_for_level_certificate' => 'المستخدم مؤهل للحصول على شهادة المستوى',
+            'level_certificate_template_missing' => 'المستوى مفعّل للشهادة لكن قالب الصورة غير مرفوع أو غير موجود',
         ],
     ],
 
