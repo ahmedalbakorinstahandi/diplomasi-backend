@@ -57,7 +57,7 @@ class MoyasarPaymentService
             MessageService::abort(404, 'messages.plan.not_found');
         }
 
-        $currency = strtoupper((string) config('services.moyasar.currency', 'SAR'));
+        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
         $amountMinor = $this->toMinorUnits((string) $plan->price, $currency);
 
         $merchantReferenceId = (string) Str::uuid();
@@ -242,7 +242,7 @@ class MoyasarPaymentService
 
         $payment = $this->fetchPayment($gatewayPaymentId);
         $gatewayStatus = (string) ($payment['status'] ?? '');
-        $currency = strtoupper((string) config('services.moyasar.currency', 'SAR'));
+        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
         $expectedAmountMinor = $this->toMinorUnits((string) $plan->price, $currency);
         $actualAmountMinor = (int) ($payment['amount'] ?? -1);
         $actualCurrency = strtoupper((string) ($payment['currency'] ?? ''));
@@ -426,7 +426,7 @@ class MoyasarPaymentService
             return null;
         }
 
-        $currency = strtoupper((string) config('services.moyasar.currency', 'SAR'));
+        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
         $amountMinor = $this->toMinorUnits((string) $plan->price, $currency);
 
         [$periodStart, $periodEnd] = $this->computeRenewalPeriod($subscription, $plan->interval);
@@ -616,7 +616,7 @@ class MoyasarPaymentService
                     'plan_price' => $subscription->plan?->price ?? $subscription->price,
                     'amount_charged' => $amountCharged,
                     'amount_refunded' => 0,
-                    'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                    'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'USD')),
                     'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'attempt_renewal'],
                 ]);
             });
@@ -805,7 +805,7 @@ class MoyasarPaymentService
                                 'plan_price' => $subscription->plan?->price ?? $subscription->price,
                                 'amount_charged' => $amountCharged,
                                 'amount_refunded' => 0,
-                                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'SAR')),
+                                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'USD')),
                                 'meta' => ['payment_transaction_id' => $transaction->id],
                             ]);
                         }
@@ -982,7 +982,7 @@ class MoyasarPaymentService
             'start_date' => $periodStart,
             'end_date' => $periodEnd,
             'price' => (string) $plan->price,
-            'currency' => strtoupper((string) config('services.moyasar.currency', 'SAR')),
+            'currency' => strtoupper((string) config('services.moyasar.currency', 'USD')),
             'auto_renew' => true,
             'cancel_at_period_end' => false,
             'canceled_at' => null,
@@ -1019,7 +1019,7 @@ class MoyasarPaymentService
                 'plan_price' => $plan->price,
                 'amount_charged' => $amountCharged,
                 'amount_refunded' => 0,
-                'currency' => strtoupper((string) config('services.moyasar.currency', 'SAR')),
+                'currency' => strtoupper((string) config('services.moyasar.currency', 'USD')),
                 'meta' => ['payment_transaction_id' => $transaction->id],
             ]);
         }
@@ -1300,7 +1300,7 @@ class MoyasarPaymentService
                 'merchant_reference_id' => $merchantReferenceId,
                 'given_id' => $givenId,
                 'amount_minor' => max(0, (int) ($payment['amount'] ?? 0)),
-                'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR'))),
+                'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'USD'))),
                 'billing_period_start' => $billingPeriodStart,
                 'billing_period_end' => $billingPeriodEnd,
                 'status' => $status,

@@ -21,11 +21,14 @@ class MoyasarPublicConfigController extends Controller
             ], 503);
         }
 
+        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
+
         return response()->json([
             'success' => true,
             'data' => [
                 'mode' => MoyasarConfig::activeMode(),
                 'publishable_key' => $key,
+                'currency' => $currency,
             ],
         ], 200);
     }

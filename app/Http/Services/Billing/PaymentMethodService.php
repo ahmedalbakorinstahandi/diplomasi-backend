@@ -319,7 +319,7 @@ class PaymentMethodService
             'provider' => 'moyasar',
             'provider_payment_id' => $paymentId,
             'amount_minor' => $amount,
-            'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR'))),
+            'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'USD'))),
             'status' => 'pending',
             'gateway_status' => 'pending',
             'requested_at' => now(),
@@ -419,7 +419,7 @@ class PaymentMethodService
         $planId = isset($metadata['plan_id']) && is_numeric($metadata['plan_id'])
             ? (int) $metadata['plan_id']
             : null;
-        $currency = strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'SAR')));
+        $currency = strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'USD')));
         $amountMinor = max(0, (int) ($payment['amount'] ?? 0));
 
         $attributes = [

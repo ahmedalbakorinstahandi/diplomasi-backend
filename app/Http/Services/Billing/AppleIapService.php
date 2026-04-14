@@ -288,7 +288,7 @@ class AppleIapService
         $endDate = $expiresMs !== null ? $this->msToCarbon($expiresMs) : $this->computeNextEndDate($startDate->copy(), (string) $plan->interval);
 
         $price = $plan->ios_price ?? $plan->price;
-        $currency = strtoupper((string) ($plan->ios_currency ?? config('services.moyasar.currency', 'SAR')));
+        $currency = strtoupper((string) ($plan->ios_currency ?? config('services.moyasar.currency', 'USD')));
         $autoRenewBase = $this->getAutoRenewStatus($verifyResponse, $originalTransactionId);
 
         $now = now();
@@ -372,7 +372,7 @@ class AppleIapService
         }
 
         $price = $plan->ios_price ?? $plan->price;
-        $currency = strtoupper((string) ($plan->ios_currency ?? config('services.moyasar.currency', 'SAR')));
+        $currency = strtoupper((string) ($plan->ios_currency ?? config('services.moyasar.currency', 'USD')));
         $amountMinor = $this->toMinorUnits((string) $price, $currency);
 
         $transactionId = $latestTransaction['transaction_id'];

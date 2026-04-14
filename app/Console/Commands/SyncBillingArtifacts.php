@@ -107,7 +107,7 @@ class SyncBillingArtifacts extends Command
                                     'plan_price' => $subscription->plan?->price ?? $subscription->price,
                                     'amount_charged' => $amountCharged,
                                     'amount_refunded' => 0,
-                                    'currency' => (string) ($subscription->currency ?? 'SAR'),
+                                    'currency' => (string) ($subscription->currency ?? 'USD'),
                                     'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'sync_artifacts'],
                                 ]);
                                 $alreadyEvent = true;
@@ -131,7 +131,7 @@ class SyncBillingArtifacts extends Command
                                 'plan_price' => $subscription->plan?->price ?? $subscription->price,
                                 'amount_charged' => $amountCharged,
                                 'amount_refunded' => 0,
-                                'currency' => (string) ($subscription->currency ?? 'SAR'),
+                                'currency' => (string) ($subscription->currency ?? 'USD'),
                                 'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'sync_artifacts_heal'],
                             ]);
                             $renewalBranch = 'heal';

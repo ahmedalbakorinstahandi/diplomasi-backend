@@ -49,7 +49,7 @@ class BillingEmailService
                 greeting: 'مرحباً ' . e($customerName) . '،',
                 bodyHtml: '<p>' . $bodyText . '</p>'
                     . '<p><strong>رقم الفاتورة:</strong> ' . e($invoice->invoice_number) . '<br/>'
-                    . '<strong>المبلغ:</strong> ' . $amount . ' ر.س (شامل ضريبة القيمة المضافة 15%)</p>',
+                    . '<strong>المبلغ:</strong> ' . $amount . ' USD</p>',
                 footer: 'للاستفسار يرجى التواصل مع فريق دبلوماسي.'
             );
         }
@@ -94,8 +94,8 @@ class BillingEmailService
         $fullName = $fullName !== '' ? $fullName : 'عميلنا';
         $email = $user->email ?? '—';
 
-        $totalSar = (float) ($invoice->amount_minor / 100);
-        $amount = number_format($totalSar, 2);
+        $totalMajor = (float) ($invoice->amount_minor / 100);
+        $amount = number_format($totalMajor, 2);
 
         $plan = $invoice->paymentTransaction?->plan;
         $planName = $plan ? e((string) $plan->name) : '—';
@@ -104,7 +104,7 @@ class BillingEmailService
             : '—';
         $reference = $invoice->paymentTransaction?->merchant_reference_id ?? '—';
         $issuedAt = $invoice->issued_at?->format('d/m/Y') ?? '—';
-        $currencyAr = 'ر.س';
+        $currencyAr = 'USD';
         $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
         $vatReg = config('app.invoice_vat_registration_number');
         $paymentMethodDisplay = $this->formatPaymentMethodForEmail($invoice->paymentTransaction);
@@ -133,7 +133,7 @@ class BillingEmailService
             . '<tr><td colspan="2" style="padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:700;border-radius:8px 8px 0 0;">دبلوماسي - تفاصيل الاشتراك</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
-            . '<tr><td style="padding:10px 14px;"><strong>المبلغ (شامل ضريبة القيمة المضافة 15%)</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>المبلغ</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
             . '</table>'
             . '<p style="margin:0 0 8px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
         if ($vatReg) {
