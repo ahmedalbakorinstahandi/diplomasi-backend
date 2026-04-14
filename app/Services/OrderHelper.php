@@ -2,18 +2,34 @@
 
 namespace App\Services;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class OrderHelper
 {
+    /**
+     * استعلام يشمل المحذوف ناعماً فقط إذا كان النموذج يستخدم SoftDeletes.
+     */
+    private static function queryIncludingTrashed(Model $model): Builder
+    {
+        $query = $model->newQuery();
+
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+            return $query->withTrashed();
+        }
+
+        return $query;
+    }
+
     /**
      * تعيين ترتيب جديد تلقائي عند الإنشاء (بأعلى رقم موجود + 1).
      * order_index فريد على مستوى الجدول كامل (global)، يعتمد على max(id).
      */
     public static function assign(Model $model, string $orderField = 'order_index'): void
     {
-        $max = $model->newQuery()->withTrashed()->max($orderField) ?? 0;
+        $max = static::queryIncludingTrashed($model)->max($orderField) ?? 0;
         $model->{$orderField} = $max + 1;
         $model->save();
     }
@@ -28,7 +44,7 @@ class OrderHelper
         if ($oldOrder === $newOrder) return;
 
         DB::transaction(function () use ($model, $oldOrder, $newOrder, $orderField) {
-            $query = $model->newQuery()->withTrashed();
+            $query = static::queryIncludingTrashed($model);
 
             if ($oldOrder < $newOrder) {
                 // نقل من أعلى إلى أدنى → نقص العناصر بين القديم والجديد
