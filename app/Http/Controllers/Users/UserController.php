@@ -11,10 +11,12 @@ use App\Http\Requests\Users\UpdateUserRequest;
 use App\Http\Resources\System\CertificateResource;
 use App\Http\Resources\Users\UserResource;
 use App\Http\Services\System\CertificateService;
+use App\Http\Services\Users\UserMeAppPayloadComposer;
 use App\Http\Services\Users\UserService;
 use App\Models\Users\User;
 use App\Services\FirebaseService;
 use App\Services\MessageService;
+use App\Services\RequestContext;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -164,19 +166,25 @@ class UserController extends Controller
         ]);
     }
 
-    public function getProfile()
+    public function getProfile(Request $request, UserMeAppPayloadComposer $userMeAppPayloadComposer)
     {
         // UserPermission::canView();
 
         $user = $this->userService->getProfile();
         // UserPermission::canShow($user);
 
-        return ResponseService::response([
+        $params = [
             'success' => true,
             'data' => $user,
             'resource' => UserResource::class,
             'status' => 200,
-        ]);
+        ];
+
+        if (RequestContext::isApp()) {
+            $params = array_merge($params, $userMeAppPayloadComposer->buildForAppRequest($request));
+        }
+
+        return ResponseService::response($params);
     }
 
     public function updateProfile(UpdateProfileRequest $request)
