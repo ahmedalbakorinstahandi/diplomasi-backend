@@ -96,46 +96,34 @@ class TrackProgressService
             return self::ACCESS_REASON_SUBSCRIPTION;
         }
 
-        // Load all tracks in the level to find the previous published track
+        // Load all previous tracks in order.
+        // Rule: any previous required available item that is not completed
+        // blocks the next items by progress.
         $allTracks = LevelTrack::where('level_id', $levelTrack->level_id)
             ->with('trackable')
-            ->orderBy('order_index', 'desc')
+            ->orderBy('order_index', 'asc')
             ->get();
 
-        // Find the first published track before the current one
-        $previousTrack = null;
         foreach ($allTracks as $track) {
             if ($track->order_index >= $levelTrack->order_index) {
-                continue; // Skip current track and tracks after it
+                break; // We only evaluate previous tracks
             }
 
-            // Skip unpublished tracks
             if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
                 continue;
             }
 
-            // For practical learning flow, skip subscription-locked scenarios when
-            // finding the previous blocking item for non-subscribed users.
+            // Subscription-locked scenarios are skipped for practical progress flow.
             if ($this->isLockedBySubscription($track, $userId)) {
                 continue;
             }
 
-            if ($track->trackable) {
-                $previousTrack = $track;
-                break;
+            if (!$this->isTrackCompleted($track->trackable, $userId)) {
+                return self::ACCESS_REASON_PROGRESS;
             }
         }
 
-        if (!$previousTrack) {
-            return null; // This is the first published track (or no previous published track)
-        }
-
-        // Check if previous track is completed using stored data
-        if ($this->isTrackCompleted($previousTrack->trackable, $userId)) {
-            return null;
-        }
-
-        return self::ACCESS_REASON_PROGRESS;
+        return null;
     }
 
     private function isLockedBySubscription(LevelTrack $levelTrack, int $userId): bool
