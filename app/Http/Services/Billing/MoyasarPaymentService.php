@@ -10,6 +10,7 @@ use App\Models\Billing\SavedPaymentMethod;
 use App\Models\Billing\Subscription;
 use App\Models\Billing\SubscriptionEvent;
 use App\Http\Services\Billing\PaymentMethodService;
+use App\Support\MoyasarConfig;
 use App\Services\MessageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Client\Response;
@@ -1027,7 +1028,7 @@ class MoyasarPaymentService
     protected function fetchPayment(string $paymentId): array
     {
         $baseUrl = rtrim((string) config('services.moyasar.base_url'), '/');
-        $secretKey = (string) config('services.moyasar.secret_key');
+        $secretKey = MoyasarConfig::secretKey();
 
         if ($baseUrl === '' || $secretKey === '') {
             MessageService::abort(500, 'Moyasar credentials are not configured');
@@ -1058,7 +1059,7 @@ class MoyasarPaymentService
     protected function createPayment(array $payload): Response
     {
         $baseUrl = rtrim((string) config('services.moyasar.base_url'), '/');
-        $secretKey = (string) config('services.moyasar.secret_key');
+        $secretKey = MoyasarConfig::secretKey();
 
         if ($baseUrl === '' || $secretKey === '') {
             MessageService::abort(500, 'Moyasar credentials are not configured');

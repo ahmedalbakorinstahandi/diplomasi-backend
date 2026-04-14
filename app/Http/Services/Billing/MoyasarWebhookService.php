@@ -3,6 +3,7 @@
 namespace App\Http\Services\Billing;
 
 use App\Models\Billing\WebhookEvent;
+use App\Support\MoyasarConfig;
 use App\Services\MessageService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -117,15 +118,19 @@ class MoyasarWebhookService
 
     protected function validateSecretToken(string $payloadSecret): void
     {
-        $configuredSecret = (string) config('services.moyasar.webhook_secret_token');
+        $secrets = MoyasarConfig::webhookSecretsForVerification();
 
-        if ($configuredSecret === '') {
+        if ($secrets === []) {
             MessageService::abort(500, 'Moyasar webhook secret token is not configured');
         }
 
-        if (!hash_equals($configuredSecret, $payloadSecret)) {
-            MessageService::abort(401, 'Invalid webhook secret token');
+        foreach ($secrets as $configuredSecret) {
+            if (hash_equals($configuredSecret, $payloadSecret)) {
+                return;
+            }
         }
+
+        MessageService::abort(401, 'Invalid webhook secret token');
     }
 
     protected function extractPaymentId(array $payload): ?string

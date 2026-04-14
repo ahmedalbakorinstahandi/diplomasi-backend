@@ -35,17 +35,17 @@ return [
         ],
     ],
 
+    /*
+     * Moyasar: active keys are resolved at runtime by App\Support\MoyasarConfig
+     * (setting billing.moyasar.mode + MOYASAR_TEST_* / MOYASAR_LIVE_* / legacy MOYASAR_*).
+     */
     'moyasar' => [
         'base_url' => env('MOYASAR_BASE_URL', 'https://api.moyasar.com/v1'),
-        'public_key' => env('MOYASAR_PUBLIC_KEY'),
-        'secret_key' => env('MOYASAR_SECRET_KEY'),
-        'webhook_secret_token' => env('MOYASAR_WEBHOOK_SECRET_TOKEN'),
         'currency' => env('MOYASAR_CURRENCY', 'SAR'),
         'webhook_events' => array_values(array_filter(array_map(
             static fn ($event) => trim($event),
             explode(',', (string) env('MOYASAR_WEBHOOK_EVENTS', 'payment_paid,payment_failed,payment_voided,payment_authorized,payment_captured,payment_refunded,payment_abandoned,payment_verified'))
         ))),
-        'mode' => env('MOYASAR_MODE', 'test'),
     ],
 
     'billing' => [

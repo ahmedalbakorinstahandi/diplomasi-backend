@@ -5,6 +5,7 @@ namespace App\Http\Services\Billing;
 use App\Models\Billing\PaymentTransaction;
 use App\Models\Billing\RefundTransaction;
 use App\Models\Billing\SavedPaymentMethod;
+use App\Support\MoyasarConfig;
 use App\Services\MessageService;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -226,7 +227,7 @@ class PaymentMethodService
     protected function fetchGatewayPayment(string $paymentId): array
     {
         $baseUrl = rtrim((string) config('services.moyasar.base_url'), '/');
-        $secretKey = (string) config('services.moyasar.secret_key');
+        $secretKey = MoyasarConfig::secretKey();
 
         if ($baseUrl === '' || $secretKey === '') {
             MessageService::abort(500, 'Moyasar credentials are not configured');
@@ -364,7 +365,7 @@ class PaymentMethodService
     protected function createRefund(string $paymentId, int $amountMinor): Response
     {
         $baseUrl = rtrim((string) config('services.moyasar.base_url'), '/');
-        $secretKey = (string) config('services.moyasar.secret_key');
+        $secretKey = MoyasarConfig::secretKey();
 
         /** @var Response $response */
         $response = Http::acceptJson()
