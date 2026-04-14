@@ -24,8 +24,8 @@ class SubscriptionDiscountResource extends JsonResource
             'created_at' => $this->created_at,
             
             // Relationships
-            'subscription' => new SubscriptionResource($this->whenLoaded('subscription')),
-            'discount_coupon' => new DiscountCouponResource($this->whenLoaded('discountCoupon')),
+            'subscription' => $this->whenLoaded('subscription', fn () => new SubscriptionResource($this->subscription)),
+            'discount_coupon' => $this->whenLoaded('discountCoupon', fn () => new DiscountCouponResource($this->discountCoupon)),
         ];
     }
 }

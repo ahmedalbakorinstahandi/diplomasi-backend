@@ -96,6 +96,8 @@ class UserMeAppPayloadComposer
             return null;
         }
 
+        $subscription->loadMissing(['plan']);
+
         return (new SubscriptionResource($subscription))->toArray($request);
     }
 

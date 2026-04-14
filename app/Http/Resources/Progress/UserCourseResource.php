@@ -29,9 +29,9 @@ class UserCourseResource extends JsonResource
             'updated_at' => $this->updated_at,
             
             // Relationships
-            'user' => new UserResource($this->whenLoaded('user')),
-            'course' => new CourseResource($this->whenLoaded('course')),
-            'subscription' => new SubscriptionResource($this->whenLoaded('subscription')),
+            'user' => $this->whenLoaded('user', fn () => new UserResource($this->user)),
+            'course' => $this->whenLoaded('course', fn () => new CourseResource($this->course)),
+            'subscription' => $this->whenLoaded('subscription', fn () => new SubscriptionResource($this->subscription)),
         ];
     }
 }

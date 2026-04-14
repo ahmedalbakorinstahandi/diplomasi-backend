@@ -30,13 +30,13 @@ class SubscriptionResource extends JsonResource
             'canceled_at' => $this->canceled_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            
-            // Relationships
-            'user' => new UserResource($this->whenLoaded('user')),
-            'plan' => new PlanResource($this->whenLoaded('plan')),
-            'subscription_events' => SubscriptionEventResource::collection($this->whenLoaded('subscriptionEvents')),
-            'subscription_discounts' => SubscriptionDiscountResource::collection($this->whenLoaded('subscriptionDiscounts')),
-            'user_courses' => UserCourseResource::collection($this->whenLoaded('userCourses')),
+
+            // Relationships (never wrap MissingValue in JsonResource — use whenLoaded + closure)
+            'user' => $this->whenLoaded('user', fn () => new UserResource($this->user)),
+            'plan' => $this->whenLoaded('plan', fn () => new PlanResource($this->plan)),
+            'subscription_events' => $this->whenLoaded('subscriptionEvents', fn () => SubscriptionEventResource::collection($this->subscriptionEvents)),
+            'subscription_discounts' => $this->whenLoaded('subscriptionDiscounts', fn () => SubscriptionDiscountResource::collection($this->subscriptionDiscounts)),
+            'user_courses' => $this->whenLoaded('userCourses', fn () => UserCourseResource::collection($this->userCourses)),
         ];
     }
 }

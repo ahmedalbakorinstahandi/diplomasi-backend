@@ -30,8 +30,8 @@ class SubscriptionEventResource extends JsonResource
             'created_at' => $this->created_at,
             
             // Relationships
-            'subscription' => new SubscriptionResource($this->whenLoaded('subscription')),
-            'plan' => new PlanResource($this->whenLoaded('plan')),
+            'subscription' => $this->whenLoaded('subscription', fn () => new SubscriptionResource($this->subscription)),
+            'plan' => $this->whenLoaded('plan', fn () => new PlanResource($this->plan)),
         ];
     }
 }
