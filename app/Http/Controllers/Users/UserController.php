@@ -8,7 +8,9 @@ use App\Http\Requests\Users\CreateUserRequest;
 use App\Http\Requests\Users\SyncUserRolesRequest;
 use App\Http\Requests\Users\UpdateProfileRequest;
 use App\Http\Requests\Users\UpdateUserRequest;
+use App\Http\Resources\System\CertificateResource;
 use App\Http\Resources\Users\UserResource;
+use App\Http\Services\System\CertificateService;
 use App\Http\Services\Users\UserService;
 use App\Services\FirebaseService;
 use App\Services\ResponseService;
@@ -49,6 +51,27 @@ class UserController extends Controller
             'success' => true,
             'data' => $user,
             'resource' => UserResource::class,
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * شهادات المستخدم (لوحة التحكم).
+     */
+    public function certificates(Request $request, int $id, CertificateService $certificateService)
+    {
+        UserPermission::canView();
+
+        $user = $this->userService->show($id);
+        UserPermission::canShow($user);
+
+        $certificates = $certificateService->getUserCertificates($id, $request->all());
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $certificates,
+            'meta' => true,
+            'resource' => CertificateResource::class,
             'status' => 200,
         ]);
     }

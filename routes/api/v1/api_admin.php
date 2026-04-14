@@ -30,6 +30,7 @@ Route::group(['prefix' => 'admin'], function () {
         // Users
         Route::get('users', [UserController::class, 'index']);
         Route::get('users/{id}', [UserController::class, 'show']);
+        Route::get('users/{id}/certificates', [UserController::class, 'certificates']);
         Route::post('users', [UserController::class, 'create']);
         Route::put('users/{id}', [UserController::class, 'update']);
         Route::delete('users/{id}', [UserController::class, 'delete']);
@@ -174,6 +175,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::get('certificates', [CertificateController::class, 'index']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::post('certificates/issue', [CertificateController::class, 'issue']);
+        Route::post('certificates/{id}/regenerate', [CertificateController::class, 'regenerate']);
         Route::post('certificates/{id}/revoke', [CertificateController::class, 'revoke']);
 
         // RBAC

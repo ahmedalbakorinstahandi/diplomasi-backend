@@ -1675,9 +1675,11 @@ class CertificateService
 
     /**
      * حذف الشهادة القديمة (soft delete) وإعادة توليد شهادة جديدة
-     * بالاسم الحالي للمستخدم وبتاريخ إكمال المستوى.
+     * بالاسم الحالي للمستخدم وبتاريخ إكمال المستوى (أو قيم مُمرَّرة من لوحة التحكم).
+     *
+     * @param  array{rendered_name?: string|null, issued_at?: string|null}  $overrides
      */
-    public function regenerateCertificate(Certificate $certificate): Certificate
+    public function regenerateCertificate(Certificate $certificate, ?array $overrides = null): Certificate
     {
         $certificate->load(['user', 'course', 'level']);
 
@@ -1709,6 +1711,16 @@ class CertificateService
         $nameFormatter = app(CertificateNameFormatterService::class);
         $dateFormatter = app(CertificateDateFormatterService::class);
         $renderedName = $nameFormatter->format($user->first_name, $user->last_name);
+
+        if ($overrides !== null) {
+            if (! empty($overrides['issued_at'])) {
+                $issuedAt = \Carbon\Carbon::parse($overrides['issued_at']);
+            }
+            if (isset($overrides['rendered_name']) && trim((string) $overrides['rendered_name']) !== '') {
+                $renderedName = trim((string) $overrides['rendered_name']);
+            }
+        }
+
         $renderedDate = $dateFormatter->formatDisplay($issuedAt);
         $mergedConfig = CertificateTemplateConfigMerger::merge($level->certificate_template_config);
 

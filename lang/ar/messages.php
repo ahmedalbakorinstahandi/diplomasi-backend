@@ -269,6 +269,7 @@ return [
         'template_not_found' => 'صورة القالب غير موجودة',
         'verification_failed' => 'فشل التحقق من الشهادة',
         'verified' => 'تم التحقق من الشهادة بنجاح',
+        'regenerated' => 'تم إعادة توليد الشهادة بنجاح',
         'image_not_found' => 'صورة الشهادة غير موجودة',
         'image_file_not_found' => 'ملف الصورة غير موجود',
         'pdf_generation_failed' => 'فشل في توليد PDF الشهادة',

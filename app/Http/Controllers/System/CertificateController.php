@@ -5,6 +5,7 @@ namespace App\Http\Controllers\System;
 use App\Http\Controllers\Controller;
 use App\Http\Permissions\System\CertificatePermission;
 use App\Http\Requests\System\IssueCertificateRequest;
+use App\Http\Requests\System\RegenerateCertificateRequest;
 use App\Http\Requests\System\RevokeCertificateRequest;
 use App\Http\Resources\System\CertificateResource;
 use App\Http\Services\System\CertificateService;
@@ -226,22 +227,23 @@ class CertificateController extends Controller
     }
 
     /**
-     * إعادة توليد شهادة المستوى ببيانات المستخدم الحالية
-     * (يحذف الشهادة القديمة soft delete ثم ينشئ شهادة جديدة).
+     * إعادة توليد الشهادة (لوحة التحكم فقط): نفس كود الشهادة، مع إمكانية تعديل الاسم والتاريخ.
      */
-    public function regenerate(int $id)
+    public function regenerate(RegenerateCertificateRequest $request, int $id)
     {
-        CertificatePermission::canView();
+        CertificatePermission::canIssue();
 
         $certificate = $this->certificateService->show($id);
-        CertificatePermission::canShow($certificate);
 
-        $regenerated = $this->certificateService->regenerateCertificate($certificate);
+        $regenerated = $this->certificateService->regenerateCertificate(
+            $certificate,
+            $request->validated()
+        );
 
         return ResponseService::response([
             'success' => true,
             'data' => $regenerated,
-            'message' => 'messages.certificate.verified',
+            'message' => 'messages.certificate.regenerated',
             'resource' => CertificateResource::class,
             'status' => 200,
         ]);

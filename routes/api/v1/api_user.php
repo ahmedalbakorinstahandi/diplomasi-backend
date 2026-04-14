@@ -117,7 +117,6 @@ Route::group(['prefix' => 'user'], function () {
             Route::get('certificates/{id}', [CertificateController::class, 'show']);
             Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
             Route::get('certificates/{id}/verify-image', [CertificateController::class, 'verifyImage']);
-            Route::post('certificates/{id}/regenerate', [CertificateController::class, 'regenerate']);
 
             // Billing
             Route::post('billing/payments/verify', [MoyasarPaymentController::class, 'verify']);
