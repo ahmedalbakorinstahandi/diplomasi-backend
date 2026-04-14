@@ -266,6 +266,13 @@ class LessonQuestionService
             MessageService::abort(404, 'messages.lesson.not_found');
         }
 
+        $totalQuestions = LessonQuestion::where('lesson_id', $lessonId)->count();
+
+        // درس بلا أسئلة: لا نعرض محاولات فارغة (فيديو فقط)
+        if ($totalQuestions === 0) {
+            return [];
+        }
+
         $attempts = UserLessonAttempt::where('lesson_id', $lessonId)
             ->where('user_id', $userId)
             ->orderBy('started_at', 'desc')
@@ -275,35 +282,63 @@ class LessonQuestionService
         $answeredByAttempt = [];
         if (!empty($attemptIds)) {
             $answeredByAttempt = UserLessonQuestionAnswer::whereIn('attempt_id', $attemptIds)
-                ->select('attempt_id', DB::raw('COUNT(*) as answered_count'))
+                ->whereHas('lessonQuestion', function ($q) use ($lessonId) {
+                    $q->where('lesson_id', $lessonId);
+                })
+                ->select('attempt_id', DB::raw('COUNT(DISTINCT question_id) as answered_count'))
                 ->groupBy('attempt_id')
                 ->pluck('answered_count', 'attempt_id')
                 ->toArray();
         }
 
-        $totalQuestions = LessonQuestion::where('lesson_id', $lessonId)->count();
-
-        return $attempts->map(function ($attempt) use ($answeredByAttempt, $totalQuestions) {
+        $visible = $attempts->filter(function ($attempt) use ($answeredByAttempt) {
             $answered = (int) ($answeredByAttempt[$attempt->id] ?? 0);
-            return [
-                'id' => $attempt->id,
-                'user_id' => $attempt->user_id,
-                'lesson_id' => $attempt->lesson_id,
-                'status' => $attempt->status,
-                'score' => $attempt->score,
-                'current_question_id' => $attempt->current_question_id,
-                'started_at' => $attempt->started_at,
-                'finished_at' => $attempt->finished_at,
-                'total_time' => $attempt->total_time,
-                'video_watched' => $attempt->video_watched,
-                'video_watched_at' => $attempt->video_watched_at,
-                'progress' => [
-                    'answered' => $answered,
-                    'total' => $totalQuestions,
-                    'percentage' => $totalQuestions > 0 ? round(($answered / $totalQuestions) * 100, 2) : 0,
-                ],
-            ];
-        })->values()->all();
+            if ($attempt->status === 'in_progress') {
+                return true;
+            }
+
+            return $answered > 0;
+        })->values();
+
+        $chronological = $visible->sortBy([
+            ['started_at', 'asc'],
+            ['id', 'asc'],
+        ])->values();
+
+        $attemptNumberById = [];
+        foreach ($chronological as $i => $att) {
+            $attemptNumberById[$att->id] = $i + 1;
+        }
+
+        return $visible
+            ->sortByDesc('started_at')
+            ->values()
+            ->map(function ($attempt) use ($answeredByAttempt, $totalQuestions, $lessonId, $attemptNumberById) {
+                $answered = (int) ($answeredByAttempt[$attempt->id] ?? 0);
+                $pct = $totalQuestions > 0
+                    ? min(100, round(($answered / $totalQuestions) * 100, 2))
+                    : 0;
+
+                return [
+                    'id' => $attempt->id,
+                    'attempt_number' => $attemptNumberById[$attempt->id] ?? null,
+                    'user_id' => $attempt->user_id,
+                    'lesson_id' => $attempt->lesson_id,
+                    'status' => $attempt->status,
+                    'score' => $this->attemptScorePercentage($attempt->id, $lessonId),
+                    'current_question_id' => $attempt->current_question_id,
+                    'started_at' => $attempt->started_at,
+                    'finished_at' => $attempt->finished_at,
+                    'total_time' => $attempt->total_time,
+                    'video_watched' => $attempt->video_watched,
+                    'video_watched_at' => $attempt->video_watched_at,
+                    'progress' => [
+                        'answered' => $answered,
+                        'total' => $totalQuestions,
+                        'percentage' => $pct,
+                    ],
+                ];
+            })->all();
     }
 
     /**
@@ -415,14 +450,18 @@ class LessonQuestionService
             ];
         })->values()->all();
 
-        $answeredCount = $answers->count();
+        $validQuestionIds = $questions->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $answeredCount = $answers->filter(fn ($a) => in_array((int) $a->question_id, $validQuestionIds, true))->count();
         $totalQuestions = $questions->count();
+        $progressPct = $totalQuestions > 0
+            ? min(100, round(($answeredCount / $totalQuestions) * 100, 2))
+            : 0;
 
         return [
             'attempt' => [
                 'id' => $attempt->id,
                 'status' => $attempt->status,
-                'score' => $attempt->score,
+                'score' => $this->attemptScorePercentage($attempt->id, (int) $lessonId),
                 'started_at' => $attempt->started_at,
                 'finished_at' => $attempt->finished_at,
                 'total_time' => $attempt->total_time,
@@ -431,7 +470,7 @@ class LessonQuestionService
                 'progress' => [
                     'answered' => $answeredCount,
                     'total' => $totalQuestions,
-                    'percentage' => $totalQuestions > 0 ? round(($answeredCount / $totalQuestions) * 100, 2) : 0,
+                    'percentage' => $progressPct,
                 ],
             ],
             'questions' => $questionsPayload,
@@ -582,10 +621,10 @@ class LessonQuestionService
             return [
                 'attempt_finished' => true,
                 'summary' => [
-                    'final_score' => $attempt->score,
+                    'final_score' => $this->attemptScorePercentage($attempt->id, (int) $attempt->lesson_id),
                     'total_questions' => $totalQuestions,
                     'correct_answers' => $correctAnswers,
-                    'wrong_answers' => $totalQuestions - $correctAnswers,
+                    'wrong_answers' => max(0, $totalQuestions - $correctAnswers),
                     'finished_at' => $attempt->finished_at,
                     'started_at' => $attempt->started_at,
                     'total_time' => $attempt->finished_at && $attempt->started_at 
@@ -1057,16 +1096,48 @@ class LessonQuestionService
             return;
         }
 
-        $answers = UserLessonQuestionAnswer::where('attempt_id', $attemptId)->get();
-        
-        $totalScore = $answers->sum('score');
-        $maxScore = LessonQuestion::where('lesson_id', $attempt->lesson_id)
-            ->sum('score') ?? 1;
-
-        $percentage = $maxScore > 0 ? ($totalScore / $maxScore) * 100 : 0;
-
-        $attempt->score = round($percentage, 2);
+        $attempt->score = $this->attemptScorePercentage($attemptId, (int) $attempt->lesson_id);
         $attempt->save();
+    }
+
+    /**
+     * مجموع أعلى درجة ممكنة للدرس (يتوافق مع processAnswer: score السؤال أو 1).
+     */
+    private function lessonMaxScoreSum(int $lessonId): float
+    {
+        return (float) LessonQuestion::where('lesson_id', $lessonId)
+            ->get()
+            ->sum(fn ($q) => (float) ($q->score ?? 1));
+    }
+
+    /**
+     * مجموع النقاط المكتسبة ضمن أسئلة الدرس الحالية فقط.
+     */
+    private function attemptEarnedScoreSum(int $attemptId, int $lessonId): float
+    {
+        $questionIds = LessonQuestion::where('lesson_id', $lessonId)->pluck('id');
+        if ($questionIds->isEmpty()) {
+            return 0.0;
+        }
+
+        return (float) UserLessonQuestionAnswer::where('attempt_id', $attemptId)
+            ->whereIn('question_id', $questionIds)
+            ->sum('score');
+    }
+
+    /**
+     * نسبة مئوية بين 0 و 100 (نفس منطق التصحيح لكل سؤال).
+     */
+    private function attemptScorePercentage(int $attemptId, int $lessonId): float
+    {
+        $max = $this->lessonMaxScoreSum($lessonId);
+        if ($max <= 0) {
+            return 100.0;
+        }
+
+        $earned = $this->attemptEarnedScoreSum($attemptId, $lessonId);
+
+        return min(100.0, round(($earned / $max) * 100, 2));
     }
 
     /**
