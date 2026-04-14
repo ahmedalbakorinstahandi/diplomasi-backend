@@ -6,6 +6,7 @@ use App\Http\Resources\Progress\UserLevelProgressResource;
 use App\Http\Resources\Scenarios\ScenarioResource;
 use App\Http\Resources\System\CertificateResource;
 use App\Models\Users\User;
+use App\Services\CertificateEligibilityService;
 use App\Services\MediaUrlService;
 use App\Services\RequestContext;
 use App\Services\TrackProgressService;
@@ -50,6 +51,7 @@ class LevelResource extends JsonResource
         $isCompleted = false;
         $accessStatus = 'locked';
         $certificate = null;
+        $certificateEligibility = null;
 
         if ($userId) {
             // Use cached progress data if available (loaded in batch)
@@ -65,6 +67,16 @@ class LevelResource extends JsonResource
                 $accessStatus = $trackProgressService->getLevelAccessStatus($this->resource, $userId);
                 $certificate = $trackProgressService->getUserCertificateForLevel($this->resource, $userId);
             }
+
+            $eligibility = app(CertificateEligibilityService::class)
+                ->evaluateLevelForUser($userId, $this->resource);
+            $certificateEligibility = [
+                'is_eligible' => (bool) $eligibility->is_eligible,
+                'final_state' => $eligibility->final_state,
+                'artifact_status' => $eligibility->artifact_status,
+                'regeneration_reason' => $eligibility->regeneration_reason,
+                'requires_subscription_for_certificate' => !$this->is_free,
+            ];
         }
 
         $base = [
@@ -84,6 +96,7 @@ class LevelResource extends JsonResource
             'is_completed' => $isCompleted,
             'access_status' => $accessStatus,
             'certificate' => $certificate ? new CertificateResource($certificate) : null,
+            'certificate_eligibility' => $certificateEligibility,
             
             // Relationships
             'course' => new CourseResource($this->whenLoaded('course')),

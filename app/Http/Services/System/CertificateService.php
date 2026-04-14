@@ -16,6 +16,7 @@ use App\Services\Certificates\CertificateNameFormatterService;
 use App\Services\Certificates\CertificatePdfFromPngService;
 use App\Services\Certificates\CertificateRendererService;
 use App\Services\Certificates\CertificateTemplateConfigMerger;
+use App\Services\CertificateEligibilityService;
 use App\Services\FilterService;
 use App\Services\ImageService;
 use App\Services\MessageService;
@@ -33,6 +34,10 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class CertificateService
 {
+    public function __construct(
+        protected CertificateEligibilityService $certificateEligibilityService
+    ) {}
+
     /** Single authoritative certificate template (English design) - relative to public/ */
     public const TEMPLATE_PATH = 'images/certificate-template.png';
 
@@ -141,12 +146,9 @@ class CertificateService
             MessageService::abort(400, 'messages.certificate.eligibility.user_not_registered_in_level');
         }
 
-        if ($userLevelProgress->status !== 'completed') {
+        $eligibility = $this->certificateEligibilityService->evaluateLevelForUser($userId, $level);
+        if (!$eligibility->is_eligible) {
             MessageService::abort(400, 'messages.certificate.eligibility.level_not_completed');
-        }
-
-        if (!$userLevelProgress->completed_at) {
-            MessageService::abort(400, 'messages.certificate.eligibility.level_completion_date_not_found');
         }
 
         // إنشاء UserCourse تلقائياً إذا لم يكن موجوداً (لإصدار شهادة المستوى)
@@ -166,16 +168,6 @@ class CertificateService
             $userCourse->save();
         }
 
-        // التحقق من عدم وجود شهادة سابقة لهذا المستوى
-        $existingCertificate = Certificate::where('user_id', $userId)
-            ->where('course_id', $courseId)
-            ->where('level_id', $levelId)
-            ->first();
-
-        if ($existingCertificate) {
-            MessageService::abort(400, 'messages.certificate.eligibility.certificate_already_issued_for_level');
-        }
-
         return; // مؤهل
     }
 
@@ -189,6 +181,14 @@ class CertificateService
         $level = Level::find($levelId);
         if (!$level) {
             MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
+        }
+
+        $existingCertificate = Certificate::where('user_id', $userId)
+            ->where('course_id', $courseId)
+            ->where('level_id', $levelId)
+            ->first();
+        if ($existingCertificate) {
+            return $this->show($existingCertificate->id);
         }
 
         $certificateCode = $this->generateCertificateCode($userId, $courseId, $levelId);
@@ -237,6 +237,7 @@ class CertificateService
             );
             $certificate->image_url = $outPngRel;
         } catch (\Throwable $e) {
+            $this->certificateEligibilityService->markGenerationFailed($userId, (int) $levelId);
             Log::error('Level certificate image render failed', [
                 'certificate_id' => $certificate->id,
                 'error' => $e->getMessage(),
@@ -258,6 +259,12 @@ class CertificateService
 
         $certificate->qr_code = $this->generateCertificateQrCode($certificate);
         $certificate->save();
+
+        $eligibility = $this->certificateEligibilityService->evaluateLevelForUser($userId, $level);
+        $eligibility->generated_certificate_id = $certificate->id;
+        $eligibility->artifact_status = 'generated';
+        $eligibility->regeneration_reason = null;
+        $eligibility->save();
 
         CertificateNotification::issued($certificate);
 
@@ -1566,6 +1573,7 @@ class CertificateService
     public function revokeCertificate(int $id, ?string $reason = null): Certificate
     {
         $certificate = $this->show($id);
+        $level = $certificate->level;
 
         // TODO: إضافة حقل status و revoked_at إذا لزم الأمر
         // حالياً يمكن فقط حذف الشهادة بشكل soft delete
@@ -1576,6 +1584,16 @@ class CertificateService
 
         // حذف الشهادة (soft delete)
         $certificate->delete();
+
+        if ($level) {
+            $eligibility = $this->certificateEligibilityService->evaluateLevelForUser((int) $certificate->user_id, $level);
+            if ($eligibility->is_eligible) {
+                $eligibility->artifact_status = 'regeneration_needed';
+                $eligibility->regeneration_reason = 'certificate_deleted';
+                $eligibility->generated_certificate_id = null;
+                $eligibility->save();
+            }
+        }
 
         return $certificate;
     }
@@ -1605,10 +1623,25 @@ class CertificateService
         if ($certificate->isLevelImageTemplate()) {
             try {
                 $this->regenerateLevelTemplateCertificateFiles($certificate);
+                if ($certificate->level) {
+                    $eligibility = $this->certificateEligibilityService->evaluateLevelForUser((int) $certificate->user_id, $certificate->level);
+                    $eligibility->artifact_status = 'generated';
+                    $eligibility->regeneration_reason = null;
+                    $eligibility->generated_certificate_id = $certificate->id;
+                    $eligibility->save();
+                }
                 Log::info('Certificate image regenerated from level template snapshot', [
                     'certificate_id' => $certificate->id,
                 ]);
             } catch (\Throwable $e) {
+                if ($certificate->level) {
+                    $eligibility = $this->certificateEligibilityService->evaluateLevelForUser((int) $certificate->user_id, $certificate->level);
+                    if ($eligibility->is_eligible) {
+                        $eligibility->artifact_status = 'regeneration_needed';
+                        $eligibility->regeneration_reason = 'artifact_missing';
+                        $eligibility->save();
+                    }
+                }
                 Log::warning('Failed to regenerate level template certificate image', [
                     'certificate_id' => $certificate->id,
                     'error' => $e->getMessage(),

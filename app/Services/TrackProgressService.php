@@ -16,10 +16,14 @@ use App\Models\Progress\UserCourse;
 use App\Models\Scenarios\Scenario;
 use App\Models\Scenarios\UserScenarioAttempt;
 use App\Models\System\Certificate;
+use App\Models\Users\User;
 use Illuminate\Support\Facades\Event;
 
 class TrackProgressService
 {
+    public const ACCESS_REASON_PROGRESS = 'progress';
+    public const ACCESS_REASON_SUBSCRIPTION = 'subscription';
+
     /**
      * Get track status: locked, open, or completed
      * Reads from stored data in database
@@ -31,8 +35,11 @@ class TrackProgressService
     public function getTrackStatus(LevelTrack $levelTrack, int $userId): string
     {
         // Check if previous track is completed (for locked status)
-        if (!$this->canAccessTrack($levelTrack, $userId)) {
-            return 'locked';
+        $blockingReason = $this->getTrackBlockingReason($levelTrack, $userId);
+        if ($blockingReason !== null) {
+            return $blockingReason === self::ACCESS_REASON_SUBSCRIPTION
+                ? 'locked_by_subscription'
+                : 'locked';
         }
 
         // Get status from stored data
@@ -60,6 +67,11 @@ class TrackProgressService
             return 'completed';
         }
 
+        $progress = $this->getProgressPercentage($levelTrack->trackable, $userId);
+        if ($progress > 0) {
+            return 'in_progress';
+        }
+
         return 'open';
     }
 
@@ -74,6 +86,16 @@ class TrackProgressService
      */
     public function canAccessTrack(LevelTrack $levelTrack, int $userId): bool
     {
+        $reason = $this->getTrackBlockingReason($levelTrack, $userId);
+        return $reason === null;
+    }
+
+    public function getTrackBlockingReason(LevelTrack $levelTrack, int $userId): ?string
+    {
+        if ($this->isLockedBySubscription($levelTrack, $userId)) {
+            return self::ACCESS_REASON_SUBSCRIPTION;
+        }
+
         // Load all tracks in the level to find the previous published track
         $allTracks = LevelTrack::where('level_id', $levelTrack->level_id)
             ->with('trackable')
@@ -100,11 +122,64 @@ class TrackProgressService
         }
 
         if (!$previousTrack) {
-            return true; // This is the first published track (or no previous published track)
+            return null; // This is the first published track (or no previous published track)
         }
 
         // Check if previous track is completed using stored data
-        return $this->isTrackCompleted($previousTrack->trackable, $userId);
+        if ($this->isTrackCompleted($previousTrack->trackable, $userId)) {
+            return null;
+        }
+
+        return self::ACCESS_REASON_PROGRESS;
+    }
+
+    private function isLockedBySubscription(LevelTrack $levelTrack, int $userId): bool
+    {
+        if ($levelTrack->trackable_type !== Scenario::class) {
+            return false;
+        }
+
+        if (!$levelTrack->relationLoaded('trackable')) {
+            $levelTrack->load('trackable');
+        }
+
+        if (!$levelTrack->trackable || !$this->isTrackablePublished($levelTrack->trackable)) {
+            return false;
+        }
+
+        if ((bool) ($levelTrack->trackable->is_free ?? false)) {
+            return false;
+        }
+
+        $user = User::find($userId);
+        if (!$user) {
+            return true;
+        }
+
+        return !$user->hasActiveSubscription();
+    }
+
+    public function getNextAccessibleTrackForLevel(int $levelId, int $userId, ?int $afterOrderIndex = null): ?LevelTrack
+    {
+        $tracks = LevelTrack::where('level_id', $levelId)
+            ->with('trackable')
+            ->orderBy('order_index')
+            ->get();
+
+        foreach ($tracks as $track) {
+            if ($afterOrderIndex !== null && $track->order_index <= $afterOrderIndex) {
+                continue;
+            }
+            if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
+                continue;
+            }
+
+            if ($this->canAccessTrack($track, $userId)) {
+                return $track;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -841,8 +916,10 @@ class TrackProgressService
                 $status = 'completed';
                 $isAccessible = true; // Override accessibility for completed tracks
             } elseif (!$isAccessible) {
-                // Not accessible and not completed = locked
-                $status = 'locked';
+                $blockingReason = $this->getTrackBlockingReason($track, $userId);
+                $status = $blockingReason === self::ACCESS_REASON_SUBSCRIPTION
+                    ? 'locked_by_subscription'
+                    : 'locked';
             } elseif (!$hasPreviousTrack) {
                 // First published track in level is always open (unless completed)
                 $status = 'open';
@@ -859,16 +936,27 @@ class TrackProgressService
             if ($progressData['progress_percentage'] > 0 && !$progressData['is_completed'] && !$isAccessible) {
                 // In-progress tracks remain accessible (user has started it, so they can continue)
                 $isAccessible = true;
-                if ($status === 'locked') {
+                if ($status === 'locked' || $status === 'locked_by_subscription') {
                     $status = 'open';
                 }
+            }
+
+            if ($isAccessible && $status === 'open' && $progressData['progress_percentage'] > 0 && !$progressData['is_completed']) {
+                $status = 'in_progress';
             }
 
             $result[$track->id] = [
                 'status' => $status,
                 'progress_percentage' => $progressData['progress_percentage'],
                 'is_accessible' => $isAccessible,
+                'access_reason' => $isAccessible ? null : $this->getTrackBlockingReason($track, $userId),
+                'next_accessible_track_id' => null,
             ];
+        }
+
+        foreach ($levelTracks as $track) {
+            $next = $this->getNextAccessibleTrackForLevel($track->level_id, $userId, (int) $track->order_index);
+            $result[$track->id]['next_accessible_track_id'] = $next?->id;
         }
 
         return $result;

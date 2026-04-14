@@ -57,6 +57,8 @@ class LevelTrackResource extends JsonResource
         $status = 'locked';
         $progressPercentage = 0;
         $isAccessible = false;
+        $accessReason = null;
+        $nextAccessibleTrackId = null;
 
         if ($userId) {
             // Use cached progress data if available (loaded in batch)
@@ -65,12 +67,17 @@ class LevelTrackResource extends JsonResource
                 $status = $progressData['status'];
                 $progressPercentage = $progressData['progress_percentage'];
                 $isAccessible = $progressData['is_accessible'];
+                $accessReason = $progressData['access_reason'] ?? null;
+                $nextAccessibleTrackId = $progressData['next_accessible_track_id'] ?? null;
             } else {
                 // Fallback: load individually (slower but works)
                 $trackProgressService = app(TrackProgressService::class);
                 $status = $trackProgressService->getTrackStatus($this->resource, $userId);
                 $progressPercentage = $trackProgressService->getProgressPercentage($this->trackable, $userId);
                 $isAccessible = $trackProgressService->canAccessTrack($this->resource, $userId);
+                $accessReason = $isAccessible ? null : $trackProgressService->getTrackBlockingReason($this->resource, $userId);
+                $nextTrack = $trackProgressService->getNextAccessibleTrackForLevel($this->level_id, $userId, (int) $this->order_index);
+                $nextAccessibleTrackId = $nextTrack?->id;
             }
         }
 
@@ -87,6 +94,8 @@ class LevelTrackResource extends JsonResource
             'status' => $status, // locked, open, completed
             'progress_percentage' => $progressPercentage, // 0-100
             'is_accessible' => $isAccessible,
+            'access_reason' => $accessReason,
+            'next_accessible_track_id' => $nextAccessibleTrackId,
             
             // Relationships
             'level' => new LevelResource($this->whenLoaded('level')),
