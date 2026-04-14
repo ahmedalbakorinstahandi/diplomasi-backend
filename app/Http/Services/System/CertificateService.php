@@ -1674,6 +1674,116 @@ class CertificateService
     }
 
     /**
+     * حذف الشهادة القديمة (soft delete) وإعادة توليد شهادة جديدة
+     * بالاسم الحالي للمستخدم وبتاريخ إكمال المستوى.
+     */
+    public function regenerateCertificate(Certificate $certificate): Certificate
+    {
+        $certificate->load(['user', 'course', 'level']);
+
+        if ((int) $certificate->level_id <= 0) {
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
+        }
+
+        $level = $certificate->level;
+        if (!$level) {
+            MessageService::abort(400, 'messages.certificate.eligibility.level_not_found');
+        }
+
+        $user = User::find((int) $certificate->user_id);
+        if (!$user) {
+            MessageService::abort(404, 'messages.user.not_found');
+        }
+
+        $this->deleteCertificateFiles($certificate);
+        $certificate->delete();
+
+        $completionAt = UserLevelProgress::where('user_id', $user->id)
+            ->where('level_id', (int) $certificate->level_id)
+            ->value('completed_at');
+        $issuedAt = $completionAt ? \Carbon\Carbon::parse($completionAt) : now();
+
+        $nameFormatter = app(CertificateNameFormatterService::class);
+        $dateFormatter = app(CertificateDateFormatterService::class);
+        $renderedName = $nameFormatter->format($user->first_name, $user->last_name);
+        $renderedDate = $dateFormatter->formatDisplay($issuedAt);
+        $mergedConfig = CertificateTemplateConfigMerger::merge($level->certificate_template_config);
+
+        $newCertificate = Certificate::create([
+            'user_id' => $user->id,
+            'course_id' => (int) $certificate->course_id,
+            'level_id' => (int) $certificate->level_id,
+            'certificate_code' => $this->generateCertificateCode($user->id, (int) $certificate->course_id, (int) $certificate->level_id),
+            'issued_at' => $issuedAt,
+            'rendered_name' => $renderedName,
+            'rendered_date' => $renderedDate,
+            'template_snapshot_config' => $mergedConfig,
+        ]);
+
+        $snapshotRel = 'certificate-snapshots/' . $newCertificate->id . '/' . basename((string) $level->certificate_template_path);
+        Storage::disk('public')->copy((string) $level->certificate_template_path, $snapshotRel);
+        $newCertificate->template_snapshot_path = $snapshotRel;
+        $newCertificate->template_path = $snapshotRel;
+        $newCertificate->save();
+
+        $snapshotAbs = Storage::disk('public')->path($snapshotRel);
+        $outPngRel = 'certificates/' . $newCertificate->certificate_code . '.png';
+        $outAbs = Storage::disk('public')->path($outPngRel);
+
+        app(CertificateRendererService::class)->renderToFile(
+            $snapshotAbs,
+            $mergedConfig,
+            $renderedName,
+            $renderedDate,
+            $outAbs
+        );
+        $newCertificate->image_url = $outPngRel;
+
+        try {
+            $pdfRel = 'certificates/' . $newCertificate->certificate_code . '.pdf';
+            $pdfAbs = Storage::disk('public')->path($pdfRel);
+            app(CertificatePdfFromPngService::class)->createFromPngFile($outAbs, $pdfAbs);
+            $newCertificate->pdf_url = $pdfRel;
+        } catch (\Throwable $e) {
+            Log::warning('Certificate PDF regeneration failed', [
+                'certificate_id' => $newCertificate->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $newCertificate->qr_code = $this->generateCertificateQrCode($newCertificate);
+        $newCertificate->save();
+
+        $eligibility = $this->certificateEligibilityService->evaluateLevelForUser($user->id, $level);
+        $eligibility->artifact_status = 'generated';
+        $eligibility->regeneration_reason = null;
+        $eligibility->generated_certificate_id = $newCertificate->id;
+        $eligibility->save();
+
+        return $newCertificate->load(['user', 'course', 'level']);
+    }
+
+    private function deleteCertificateFiles(Certificate $certificate): void
+    {
+        $paths = [
+            $certificate->image_url,
+            $certificate->pdf_url,
+            $certificate->qr_code,
+            $certificate->template_snapshot_path,
+            $certificate->template_path,
+        ];
+
+        foreach ($paths as $path) {
+            if (!is_string($path) || trim($path) === '') {
+                continue;
+            }
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+    }
+
+    /**
      * Re-render PNG/PDF from stored snapshot + fixed name/date (no user re-fetch).
      */
     private function regenerateLevelTemplateCertificateFiles(Certificate $certificate): void

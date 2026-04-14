@@ -224,4 +224,26 @@ class CertificateController extends Controller
             'status' => 200,
         ]);
     }
+
+    /**
+     * إعادة توليد شهادة المستوى ببيانات المستخدم الحالية
+     * (يحذف الشهادة القديمة soft delete ثم ينشئ شهادة جديدة).
+     */
+    public function regenerate(int $id)
+    {
+        CertificatePermission::canView();
+
+        $certificate = $this->certificateService->show($id);
+        CertificatePermission::canShow($certificate);
+
+        $regenerated = $this->certificateService->regenerateCertificate($certificate);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => $regenerated,
+            'message' => 'messages.certificate.verified',
+            'resource' => CertificateResource::class,
+            'status' => 200,
+        ]);
+    }
 }
