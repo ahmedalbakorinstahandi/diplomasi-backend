@@ -1695,6 +1695,9 @@ class CertificateService
             MessageService::abort(404, 'messages.user.not_found');
         }
 
+        // نفس كود الشهادة والرابط/الـ QR يبقيان ثابتين؛ يُحدَّث المحتوى البصري فقط
+        $preservedCertificateCode = $certificate->certificate_code;
+
         $this->deleteCertificateFiles($certificate);
         $certificate->delete();
 
@@ -1713,7 +1716,7 @@ class CertificateService
             'user_id' => $user->id,
             'course_id' => (int) $certificate->course_id,
             'level_id' => (int) $certificate->level_id,
-            'certificate_code' => $this->generateCertificateCode($user->id, (int) $certificate->course_id, (int) $certificate->level_id),
+            'certificate_code' => $preservedCertificateCode,
             'issued_at' => $issuedAt,
             'rendered_name' => $renderedName,
             'rendered_date' => $renderedDate,
