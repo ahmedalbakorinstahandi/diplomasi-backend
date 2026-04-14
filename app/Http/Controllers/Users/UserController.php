@@ -12,9 +12,12 @@ use App\Http\Resources\System\CertificateResource;
 use App\Http\Resources\Users\UserResource;
 use App\Http\Services\System\CertificateService;
 use App\Http\Services\Users\UserService;
+use App\Models\Users\User;
 use App\Services\FirebaseService;
+use App\Services\MessageService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -118,6 +121,45 @@ class UserController extends Controller
         return ResponseService::response([
             'success' => true,
             'message' => 'messages.user.deleted',
+            'status' => 200,
+        ]);
+    }
+
+    /**
+     * Lightweight ping when the app returns to foreground (mobile).
+     * Bypasses the 60s activity throttle so last_opened_app_at stays accurate for re-engagement rules.
+     */
+    public function heartbeat()
+    {
+        $user = User::auth();
+        if (! $user) {
+            MessageService::abort(401, 'messages.unauthorized');
+        }
+
+        $cacheKey = 'user_heartbeat_'.$user->id;
+        if (! cache()->add($cacheKey, true, 5)) {
+            return ResponseService::response([
+                'success' => true,
+                'data' => ['ok' => true],
+                'status' => 200,
+            ]);
+        }
+
+        $now = now();
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update([
+                'last_activity_at' => $now,
+                'last_opened_app_at' => $now,
+                'guest_last_active_at' => $user->is_guest ? $now : $user->guest_last_active_at,
+                'is_active' => true,
+                'inactive_since_at' => null,
+                'updated_at' => $now,
+            ]);
+
+        return ResponseService::response([
+            'success' => true,
+            'data' => ['ok' => true],
             'status' => 200,
         ]);
     }

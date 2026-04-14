@@ -54,4 +54,13 @@ class ReengagementReminderPermission
         }
         MessageService::abort(403, 'messages.permission.error');
     }
+
+    public static function canReorder(): void
+    {
+        if (RequestContext::isDashboard()) {
+            AuthorizationService::authorize('reengagement_reminder.reorder');
+            return;
+        }
+        MessageService::abort(403, 'messages.permission.error');
+    }
 }

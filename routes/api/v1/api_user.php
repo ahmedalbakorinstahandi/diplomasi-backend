@@ -20,6 +20,7 @@ use App\Http\Controllers\System\NotificationController;
 use App\Http\Controllers\System\SettingController;
 use App\Http\Controllers\Users\PermissionsController;
 use App\Http\Controllers\Users\UserController;
+use App\Http\Middleware\TouchUserActivityMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'user'], function () {
@@ -71,12 +72,13 @@ Route::group(['prefix' => 'user'], function () {
 
 
     // Sanctum routes
-    Route::group(['middleware' => 'auth:sanctum'], function () {
+    Route::group(['middleware' => ['auth:sanctum', TouchUserActivityMiddleware::class]], function () {
         // Dashboard permissions exposure (requires X-Context: dashboard + admin.access)
         Route::get('permissions', [PermissionsController::class, 'index']);
 
         // User profile
         Route::get('me', [UserController::class, 'getProfile']);
+        Route::post('me/heartbeat', [UserController::class, 'heartbeat']);
         Route::put('me', [UserController::class, 'updateProfile']);
 
         // Progress

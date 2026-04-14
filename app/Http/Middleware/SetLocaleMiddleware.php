@@ -3,11 +3,9 @@
 namespace App\Http\Middleware;
 
 use App\Models\System\Setting;
-use App\Models\Users\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class SetLocaleMiddleware
@@ -53,7 +51,7 @@ class SetLocaleMiddleware
                 cache()->put($cacheKey, $user, 300); // 5 minutes - refreshes TTL if exists
             }
 
-            $this->touchUserActivity((int) $user->id, $user);
+            // last_opened_app_at: see TouchUserActivityMiddleware (runs after auth:sanctum)
         }
 
         // Force update: app version below min_version — فقط عندما الطلب من التطبيق (X-Context: app)
@@ -85,40 +83,5 @@ class SetLocaleMiddleware
         }
 
         return $next($request);
-    }
-
-    private function touchUserActivity(int $userId, mixed $user): void
-    {
-        if ($userId <= 0) {
-            return;
-        }
-
-        $throttleKey = 'user_activity_touch_' . $userId;
-        if (!cache()->add($throttleKey, true, 60)) {
-            return;
-        }
-
-        $now = now();
-
-        DB::table('users')
-            ->where('id', $userId)
-            ->update([
-                'last_activity_at' => $now,
-                'last_opened_app_at' => $now,
-                'guest_last_active_at' => $user->is_guest ? $now : $user->guest_last_active_at,
-                'is_active' => true,
-                'inactive_since_at' => null,
-                'updated_at' => $now,
-            ]);
-
-        if (is_object($user)) {
-            $user->last_activity_at = $now;
-            $user->last_opened_app_at = $now;
-            if ($user->is_guest) {
-                $user->guest_last_active_at = $now;
-            }
-            $user->is_active = true;
-            $user->inactive_since_at = null;
-        }
     }
 }

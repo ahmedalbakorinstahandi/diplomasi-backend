@@ -5,6 +5,7 @@ namespace App\Http\Controllers\System;
 use App\Http\Controllers\Controller;
 use App\Http\Permissions\System\ReengagementReminderPermission;
 use App\Http\Requests\System\CreateReengagementReminderRequest;
+use App\Http\Requests\System\ReOrderReengagementReminderRequest;
 use App\Http\Requests\System\UpdateReengagementReminderRequest;
 use App\Http\Resources\System\ReengagementReminderResource;
 use App\Http\Services\System\ReengagementReminderService;
@@ -18,7 +19,7 @@ class ReengagementReminderController extends Controller
     ) {
     }
 
-    public function index(Request $request)
+    public function index(Request $request, ?string $message = null)
     {
         ReengagementReminderPermission::canView();
 
@@ -26,6 +27,7 @@ class ReengagementReminderController extends Controller
 
         return ResponseService::response([
             'success' => true,
+            'message' => $message,
             'data' => $reminders,
             'meta' => true,
             'resource' => ReengagementReminderResource::class,
@@ -91,5 +93,15 @@ class ReengagementReminderController extends Controller
             'message' => 'messages.reengagement_reminder.deleted',
             'status' => 200,
         ]);
+    }
+
+    public function reorder(int $id, ReOrderReengagementReminderRequest $request)
+    {
+        ReengagementReminderPermission::canReorder();
+
+        $reminder = $this->reengagementReminderService->show($id);
+        $this->reengagementReminderService->reorder($reminder, $request->validated());
+
+        return $this->index($request, 'messages.reengagement_reminder.reordered');
     }
 }

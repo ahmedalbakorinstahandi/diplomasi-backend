@@ -102,6 +102,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'reengagement_reminder.create', 'description' => 'Create re-engagement reminders'],
             ['name' => 'reengagement_reminder.update', 'description' => 'Update re-engagement reminders'],
             ['name' => 'reengagement_reminder.delete', 'description' => 'Delete re-engagement reminders'],
+            ['name' => 'reengagement_reminder.reorder', 'description' => 'Reorder re-engagement reminders'],
 
             // Settings
             ['name' => 'setting.view', 'description' => 'View settings'],

@@ -6,6 +6,7 @@ use App\Http\Permissions\System\ReengagementReminderPermission;
 use App\Models\System\ReengagementReminder;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use App\Services\OrderHelper;
 
 class ReengagementReminderService
 {
@@ -49,7 +50,10 @@ class ReengagementReminderService
 
     public function create(array $data): ReengagementReminder
     {
+        unset($data['sort_order']);
         $reminder = ReengagementReminder::query()->create($data);
+        OrderHelper::assign($reminder, 'sort_order');
+
         return $this->show($reminder->id);
     }
 
@@ -62,5 +66,12 @@ class ReengagementReminderService
     public function delete(ReengagementReminder $reminder): void
     {
         $reminder->delete();
+    }
+
+    public function reorder(ReengagementReminder $reminder, array $validatedData): ReengagementReminder
+    {
+        OrderHelper::reorder($reminder, (int) $validatedData['new_order_index'], 'sort_order');
+
+        return $this->show($reminder->id);
     }
 }

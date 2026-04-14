@@ -110,8 +110,18 @@ class User extends Authenticatable
 
         $cacheKey = 'request_user_' . $token;
 
-        // Get user from cache (stored by SetLocaleMiddleware)
-        return cache()->get($cacheKey);
+        $cached = cache()->get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $user = Auth::guard('sanctum')->user();
+        if ($user instanceof self) {
+            cache()->put($cacheKey, $user, 300);
+            return $user;
+        }
+
+        return null;
     }
 
     /**

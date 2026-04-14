@@ -20,12 +20,13 @@ use App\Http\Controllers\Users\PermissionListController;
 use App\Http\Controllers\Users\RoleController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\TouchUserActivityMiddleware;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes
 Route::group(['prefix' => 'admin'], function () {
 
-    Route::group(['middleware' => ['auth:sanctum', AdminMiddleware::class]], function () {
+    Route::group(['middleware' => ['auth:sanctum', AdminMiddleware::class, TouchUserActivityMiddleware::class]], function () {
 
         // Users
         Route::get('users', [UserController::class, 'index']);
@@ -161,6 +162,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::get('reengagement-reminders/{id}', [ReengagementReminderController::class, 'show']);
         Route::post('reengagement-reminders', [ReengagementReminderController::class, 'create']);
         Route::put('reengagement-reminders/{id}', [ReengagementReminderController::class, 'update']);
+        Route::put('reengagement-reminders/{id}/reorder', [ReengagementReminderController::class, 'reorder']);
         Route::delete('reengagement-reminders/{id}', [ReengagementReminderController::class, 'delete']);
 
         // Settings

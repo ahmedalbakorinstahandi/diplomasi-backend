@@ -73,53 +73,106 @@ class SendReengagementReminders extends Command
                     break 2;
                 }
 
-                $targetAt = $this->addDuration($user->last_opened_app_at->copy(), $rule['amount'], $rule['unit']);
-                if ($now->lt($targetAt) || !$now->lt($targetAt->copy()->addMinutes($windowMinutes))) {
-                    continue;
-                }
+                DB::transaction(function () use (
+                    $user,
+                    $rule,
+                    $now,
+                    $windowMinutes,
+                    $deepLink,
+                    &$sent,
+                    $limit
+                ): void {
+                    $fresh = User::query()
+                        ->whereKey($user->id)
+                        ->whereNull('deleted_at')
+                        ->where('status', 'active')
+                        ->whereNotNull('last_opened_app_at')
+                        ->whereDoesntHave('roles', function (Builder $query) {
+                            $query->where('name', 'super_admin');
+                        })
+                        ->whereExists(function ($query) {
+                            $query->select(DB::raw(1))
+                                ->from('personal_access_tokens')
+                                ->whereColumn('personal_access_tokens.tokenable_id', 'users.id')
+                                ->where('personal_access_tokens.tokenable_type', User::class)
+                                ->whereNotNull('personal_access_tokens.device_token');
+                        })
+                        ->lockForUpdate()
+                        ->first(['id', 'first_name', 'last_opened_app_at']);
 
-                $ruleSignature = $rule['amount'] . ':' . $rule['unit'] . ':' . $rule['id'];
-                $basisTimestamp = $user->last_opened_app_at->copy()->utc()->toIso8601String();
+                    if (! $fresh || ! $fresh->last_opened_app_at) {
+                        return;
+                    }
 
-                if ($this->alreadySent($user->id, $ruleSignature, $basisTimestamp)) {
-                    continue;
-                }
+                    if (! $this->isUserEligibleForRule($fresh, $rule, $now, $windowMinutes)) {
+                        return;
+                    }
 
-                $title = $this->renderTemplate(
-                    (string) $rule['title'],
-                    (string) $user->first_name,
-                    $rule['amount'],
-                    $rule['unit']
-                );
-                $body = $this->renderTemplate(
-                    (string) $rule['body'],
-                    (string) $user->first_name,
-                    $rule['amount'],
-                    $rule['unit']
-                );
+                    $ruleSignature = $rule['amount'].':'.$rule['unit'].':'.$rule['id'];
+                    $basisTimestamp = $fresh->last_opened_app_at->copy()->utc()->toIso8601String();
 
-                if ($title === '' || $body === '') {
-                    continue;
-                }
+                    if ($this->alreadySent((int) $fresh->id, $ruleSignature, $basisTimestamp)) {
+                        return;
+                    }
 
-                ReengagementNotification::reminder(
-                    userId: (int) $user->id,
-                    title: $title,
-                    body: $body,
-                    amount: $rule['amount'],
-                    unit: $rule['unit'],
-                    ruleSignature: $ruleSignature,
-                    basisTimestamp: $basisTimestamp,
-                    deepLink: $deepLink
-                );
+                    $title = $this->renderTemplate(
+                        (string) $rule['title'],
+                        (string) $fresh->first_name,
+                        $rule['amount'],
+                        $rule['unit']
+                    );
+                    $body = $this->renderTemplate(
+                        (string) $rule['body'],
+                        (string) $fresh->first_name,
+                        $rule['amount'],
+                        $rule['unit']
+                    );
 
-                $sent++;
+                    if ($title === '' || $body === '') {
+                        return;
+                    }
+
+                    if ($sent >= $limit) {
+                        return;
+                    }
+
+                    ReengagementNotification::reminder(
+                        userId: (int) $fresh->id,
+                        title: $title,
+                        body: $body,
+                        amount: $rule['amount'],
+                        unit: $rule['unit'],
+                        ruleSignature: $ruleSignature,
+                        basisTimestamp: $basisTimestamp,
+                        deepLink: $deepLink
+                    );
+
+                    $sent++;
+                });
             }
         }
 
         $this->info('Re-engagement reminders sent: ' . $sent);
 
         return self::SUCCESS;
+    }
+
+    private function isUserEligibleForRule(User $user, array $rule, Carbon $now, int $windowMinutes): bool
+    {
+        if (! $user->last_opened_app_at) {
+            return false;
+        }
+
+        $rangeEnd = $this->subtractDuration($now->copy(), $rule['amount'], $rule['unit']);
+        $rangeStart = $rangeEnd->copy()->subMinutes($windowMinutes);
+
+        if (! $user->last_opened_app_at->between($rangeStart, $rangeEnd)) {
+            return false;
+        }
+
+        $targetAt = $this->addDuration($user->last_opened_app_at->copy(), $rule['amount'], $rule['unit']);
+
+        return ! $now->lt($targetAt) && $now->lt($targetAt->copy()->addMinutes($windowMinutes));
     }
 
     private function alreadySent(int $userId, string $ruleSignature, string $basisTimestamp): bool
