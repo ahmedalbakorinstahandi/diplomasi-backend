@@ -9,6 +9,7 @@ use App\Models\Users\User;
 use App\Models\Users\UserRole;
 use App\Services\FilterService;
 use App\Services\MessageService;
+use App\Services\RequestContext;
 use Illuminate\Support\Facades\Hash;
 
 class UserService
@@ -116,7 +117,9 @@ class UserService
             MessageService::abort(401, 'messages.unauthorized');
         }
 
-        $user->load(['roles.permissions', 'userRoles']);
+        if (RequestContext::isDashboard()) {
+            $user->load(['roles.permissions', 'userRoles']);
+        }
 
         return $user;
     }
@@ -140,7 +143,11 @@ class UserService
 
         $user->update($data);
 
-        return $user->load(['roles', 'userRoles']);
+        if (RequestContext::isDashboard()) {
+            return $user->load(['roles.permissions', 'userRoles']);
+        }
+
+        return $user->fresh();
     }
 
     /**
