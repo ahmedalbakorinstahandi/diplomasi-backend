@@ -170,8 +170,12 @@ class ScenarioService
 
         if ($levelTrack) {
             $trackProgressService = app(TrackProgressService::class);
-            if (!$trackProgressService->canAccessTrack($levelTrack, $user->id)) {
-                MessageService::abort(403, 'messages.scenario.locked');
+            $blockingReason = $trackProgressService->getTrackBlockingReason($levelTrack, $user->id);
+            if ($blockingReason !== null) {
+                $messageKey = $blockingReason === TrackProgressService::ACCESS_REASON_SUBSCRIPTION
+                    ? 'messages.scenario.subscription_required'
+                    : 'messages.scenario.locked';
+                MessageService::abort(403, $messageKey);
             }
         }
 

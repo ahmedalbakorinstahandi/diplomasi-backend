@@ -195,6 +195,7 @@ return [
         'finished' => 'تم إنهاء السيناريو بنجاح',
         'attempt_finished' => 'تم إنهاء المحاولة بنجاح',
         'locked' => 'السيناريو مقفل',
+        'subscription_required' => 'هذا السيناريو يتطلب اشتراكًا نشطًا',
         'no_start_question' => 'لا يوجد سؤال بداية محدد',
         'cannot_publish_without_start_question' => 'لا يمكن نشر السيناريو بدون تحديد سؤال البداية',
         'invalid_start_question' => 'سؤال البداية غير صالح أو لا ينتمي لنفس السيناريو',

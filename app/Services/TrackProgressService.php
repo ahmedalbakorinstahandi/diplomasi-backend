@@ -109,13 +109,18 @@ class TrackProgressService
                 continue; // Skip current track and tracks after it
             }
 
-            // Ensure trackable is loaded
-            if (!$track->relationLoaded('trackable')) {
-                $track->load('trackable');
+            // Skip unpublished tracks
+            if (!$track->trackable || !$this->isTrackablePublished($track->trackable)) {
+                continue;
             }
 
-            // Skip unpublished tracks
-            if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
+            // For practical learning flow, skip subscription-locked scenarios when
+            // finding the previous blocking item for non-subscribed users.
+            if ($this->isLockedBySubscription($track, $userId)) {
+                continue;
+            }
+
+            if ($track->trackable) {
                 $previousTrack = $track;
                 break;
             }
@@ -159,7 +164,7 @@ class TrackProgressService
         return !$user->hasActiveSubscription();
     }
 
-    public function getNextAccessibleTrackForLevel(int $levelId, int $userId, ?int $afterOrderIndex = null): ?LevelTrack
+    public function getNextAccessibleTrackForLevel(int $levelId, int $userId, ?int $afterOrderIndex = null)
     {
         $tracks = LevelTrack::where('level_id', $levelId)
             ->with('trackable')
@@ -391,7 +396,7 @@ class TrackProgressService
      * @param LevelTrack $levelTrack
      * @return LevelTrack|null
      */
-    public function getPreviousTrack(LevelTrack $levelTrack): ?LevelTrack
+    public function getPreviousTrack(LevelTrack $levelTrack)
     {
         // Load all tracks in the level to find the previous published track
         $allTracks = LevelTrack::where('level_id', $levelTrack->level_id)
@@ -405,14 +410,9 @@ class TrackProgressService
                 continue; // Skip current track and tracks after it
             }
 
-            // Ensure trackable is loaded
-            if (!$track->relationLoaded('trackable')) {
-                $track->load('trackable');
-            }
-
             // Skip unpublished tracks
             if ($track->trackable && $this->isTrackablePublished($track->trackable)) {
-                return $track;
+                return LevelTrack::find($track->id);
             }
         }
 
@@ -735,11 +735,6 @@ class TrackProgressService
                         continue; // Skip current track and tracks after it
                     }
 
-                    // Ensure trackable is loaded
-                    if (!$potentialPrevious->relationLoaded('trackable')) {
-                        $potentialPrevious->load('trackable');
-                    }
-
                     // Skip unpublished tracks
                     if ($potentialPrevious->trackable && $this->isTrackablePublished($potentialPrevious->trackable)) {
                         $previousTrack = $potentialPrevious;
@@ -789,11 +784,6 @@ class TrackProgressService
                     // Load the lesson and check if it's completed
                     $previousTrack = $previousTrackCompletionMap[$currentTrackId] ?? null;
                     if ($previousTrack) {
-                        // Ensure trackable is loaded
-                        if (!$previousTrack->relationLoaded('trackable')) {
-                            $previousTrack->load('trackable');
-                        }
-
                         if ($previousTrack->trackable) {
                             $previousCompletionMap[$currentTrackId] = $this->isTrackCompleted($previousTrack->trackable, $userId);
                         } else {
@@ -860,11 +850,6 @@ class TrackProgressService
                             continue; // Skip current track and tracks after it
                         }
 
-                        // Ensure trackable is loaded
-                        if (!$potentialPrevious->relationLoaded('trackable')) {
-                            $potentialPrevious->load('trackable');
-                        }
-
                         // If we find a published track before this one, it means we should have found it earlier
                         // This shouldn't happen, but if it does, treat it as having a previous track
                         if ($potentialPrevious->trackable && $this->isTrackablePublished($potentialPrevious->trackable)) {
@@ -888,11 +873,6 @@ class TrackProgressService
                     // Completion status not in cache, check directly
                     $previousTrack = $previousTrackCompletionMap[$track->id];
 
-                    // Ensure trackable is loaded
-                    if (!$previousTrack->relationLoaded('trackable')) {
-                        $previousTrack->load('trackable');
-                    }
-
                     if ($previousTrack->trackable) {
                         $isAccessible = $this->isTrackCompleted($previousTrack->trackable, $userId);
                     } else {
@@ -908,6 +888,11 @@ class TrackProgressService
                 $isAccessible = true;
             }
 
+            $blockingReason = $this->getTrackBlockingReason($track, $userId);
+            if ($blockingReason === self::ACCESS_REASON_SUBSCRIPTION && !$progressData['is_completed']) {
+                $isAccessible = false;
+            }
+
             // Determine final status
             // Completed tracks remain accessible even if previous track is not completed
             // (This handles the case where an unpublished track becomes published after user completed later tracks)
@@ -916,7 +901,6 @@ class TrackProgressService
                 $status = 'completed';
                 $isAccessible = true; // Override accessibility for completed tracks
             } elseif (!$isAccessible) {
-                $blockingReason = $this->getTrackBlockingReason($track, $userId);
                 $status = $blockingReason === self::ACCESS_REASON_SUBSCRIPTION
                     ? 'locked_by_subscription'
                     : 'locked';
