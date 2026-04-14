@@ -3,6 +3,7 @@
 
 ssh root@45.132.241.51
 
+https://backend-diplomasi.ahmed-albakor.com/
 
 cd /
 cd /home/ahmed-albakor-diplomasi-backend/htdocs/diplomasi-backend.ahmed-albakor.com

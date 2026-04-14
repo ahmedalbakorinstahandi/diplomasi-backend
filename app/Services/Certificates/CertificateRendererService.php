@@ -5,6 +5,7 @@ namespace App\Services\Certificates;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Typography\FontFactory;
+
 class CertificateRendererService
 {
     public function resolveFontPath(): string
@@ -24,11 +25,11 @@ class CertificateRendererService
     }
 
     /**
-     * Render name + date onto template image; save as high-quality PNG.
+     * Render name + date and return PNG binary.
      *
-     * @param  array<string, mixed>  $mergedConfig  From CertificateTemplateConfigMerger::merge
+     * @param  array<string, mixed>  $mergedConfig
      */
-    public function renderToFile(string $templateAbsolutePath, array $mergedConfig, string $displayName, string $displayDate, string $outputAbsolutePath): void
+    public function renderToBinary(string $templateAbsolutePath, array $mergedConfig, string $displayName, string $displayDate): string
     {
         if (!is_file($templateAbsolutePath)) {
             throw new \InvalidArgumentException('Template image not found: ' . $templateAbsolutePath);
@@ -36,7 +37,7 @@ class CertificateRendererService
 
         $fontPath = $this->resolveFontPath();
         $manager = $this->makeImageManager();
-        $image = $manager->read($templateAbsolutePath);
+        $image = $manager->read($templateAbsolutePath)->orient();
 
         $imgW = $image->width();
         $imgH = $image->height();
@@ -104,12 +105,23 @@ class CertificateRendererService
             $font->valign('bottom');
         });
 
+        return (string) $image->toPng();
+    }
+
+    /**
+     * Render name + date and save as PNG file.
+     *
+     * @param  array<string, mixed>  $mergedConfig
+     */
+    public function renderToFile(string $templateAbsolutePath, array $mergedConfig, string $displayName, string $displayDate, string $outputAbsolutePath): void
+    {
         $dir = dirname($outputAbsolutePath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        $image->toPng()->save($outputAbsolutePath);
+        $binary = $this->renderToBinary($templateAbsolutePath, $mergedConfig, $displayName, $displayDate);
+        file_put_contents($outputAbsolutePath, $binary);
     }
 
     private function makeImageManager(): ImageManager

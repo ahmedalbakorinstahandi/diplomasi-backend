@@ -90,24 +90,12 @@ class LevelCertificateTemplateService
 
         $merged = CertificateTemplateConfigMerger::merge($level->certificate_template_config);
 
-        $tmp = storage_path('app/temp/level_preview_' . $level->id . '_' . uniqid() . '.png');
-        $tmpDir = dirname($tmp);
-        if (!is_dir($tmpDir)) {
-            mkdir($tmpDir, 0755, true);
-        }
-
-        $this->renderer->renderToFile(
+        return $this->renderer->renderToBinary(
             $full,
             $merged,
             self::PREVIEW_NAME,
-            self::PREVIEW_DATE,
-            $tmp
+            self::PREVIEW_DATE
         );
-
-        $bin = file_get_contents($tmp);
-        @unlink($tmp);
-
-        return $bin !== false ? $bin : '';
     }
 
     protected function deleteTemplateFiles(Level $level): void
