@@ -132,7 +132,38 @@ class LessonQuestionService
             ->first();
 
         if (!$firstQuestion) {
-            MessageService::abort(404, 'messages.lesson.no_questions');
+            // درس بلا أسئلة (مثلاً فيديو فقط): نُكمل المحاولة فوراً بنسبة 100٪ ونحدّث التقدّم لفتح العنصر التالي
+            $trackProgressService = app(TrackProgressService::class);
+
+            $existingFinished = UserLessonAttempt::where('user_id', $userId)
+                ->where('lesson_id', $lessonId)
+                ->where('status', 'finished')
+                ->orderByDesc('finished_at')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($existingFinished) {
+                $trackProgressService->calculateAndUpdateLessonProgress($lesson, $userId, $existingFinished);
+
+                return $existingFinished;
+            }
+
+            $attempt = UserLessonAttempt::create([
+                'user_id' => $userId,
+                'lesson_id' => $lessonId,
+                'status' => 'finished',
+                'score' => 100,
+                'progress_percentage' => 100,
+                'current_question_id' => null,
+                'started_at' => now(),
+                'finished_at' => now(),
+                'video_watched' => true,
+                'video_watched_at' => now(),
+            ]);
+
+            $trackProgressService->calculateAndUpdateLessonProgress($lesson, $userId, $attempt);
+
+            return $attempt;
         }
 
         // إنشاء محاولة جديدة
