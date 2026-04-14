@@ -1,9 +1,39 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" prefix="og: https://ogp.me/ns#">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    @php
+        use App\Services\MediaUrlService;
+        $imageUrl = $certificate->image_url ? MediaUrlService::toUrl($certificate->image_url) : null;
+        $qrCodeUrl = $certificate->qr_code ? MediaUrlService::toUrl($certificate->qr_code) : null;
+        $canonicalUrl = url()->current();
+        $shareTitle = 'شهادة معتمدة — ' . $course_title . ($level_title ? ' — ' . $level_title : '');
+        $shareDescription = 'التحقق من شهادة ' . $user_name . ' على منصة دبلوماسي · كود: ' . $certificate_code;
+    @endphp
     <title>التحقق من الشهادة - {{ $certificate_code }}</title>
+    <link rel="canonical" href="{{ $canonicalUrl }}">
+
+    {{-- معاينة الرابط: فيسبوك / واتساب / تلغرام / لينكد إن --}}
+    <meta property="og:site_name" content="Diplomasi">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ $canonicalUrl }}">
+    <meta property="og:title" content="{{ e($shareTitle) }}">
+    <meta property="og:description" content="{{ e($shareDescription) }}">
+    <meta property="og:locale" content="ar_AR">
+    @if($imageUrl)
+    <meta property="og:image" content="{{ $imageUrl }}">
+    <meta property="og:image:secure_url" content="{{ $imageUrl }}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:alt" content="{{ e('شهادة ' . $certificate_code) }}">
+    @endif
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ e($shareTitle) }}">
+    <meta name="twitter:description" content="{{ e($shareDescription) }}">
+    @if($imageUrl)
+    <meta name="twitter:image" content="{{ $imageUrl }}">
+    @endif
     <style>
         * {
             margin: 0;
@@ -187,12 +217,6 @@
                     <span class="info-value" style="font-family: monospace; direction: ltr; text-align: left;">{{ $certificate_code }}</span>
                 </div>
             </div>
-
-            @php
-                use App\Services\MediaUrlService;
-                $imageUrl = $certificate->image_url ? MediaUrlService::toUrl($certificate->image_url) : null;
-                $qrCodeUrl = $certificate->qr_code ? MediaUrlService::toUrl($certificate->qr_code) : null;
-            @endphp
 
             @if($imageUrl)
             <div class="certificate-image">
