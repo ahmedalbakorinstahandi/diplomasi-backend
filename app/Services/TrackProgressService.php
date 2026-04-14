@@ -888,6 +888,11 @@ class TrackProgressService
                 $isAccessible = true;
             }
 
+            // Final source of truth for accessibility:
+            // use unified access decision so skip logic (subscription-locked scenarios)
+            // is applied consistently in batch responses.
+            $isAccessible = $this->canAccessTrack($track, $userId);
+
             $blockingReason = $this->getTrackBlockingReason($track, $userId);
             if ($blockingReason === self::ACCESS_REASON_SUBSCRIPTION && !$progressData['is_completed']) {
                 $isAccessible = false;
