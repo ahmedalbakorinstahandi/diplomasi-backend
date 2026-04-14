@@ -130,6 +130,11 @@ class PermissionSeeder extends Seeder
             ['name' => 'plan.update', 'description' => 'Update plans'],
             ['name' => 'plan.delete', 'description' => 'Delete plans'],
             ['name' => 'plan.reorder', 'description' => 'Reorder plans'],
+
+            // Certificates (dashboard)
+            ['name' => 'certificate.view', 'description' => 'View certificates'],
+            ['name' => 'certificate.issue', 'description' => 'Issue and regenerate certificates'],
+            ['name' => 'certificate.revoke', 'description' => 'Revoke certificates'],
         ];
 
         // php artisan db:seed --class=PermissionSeeder
