@@ -8,6 +8,7 @@ use App\Models\Billing\SavedPaymentMethod;
 use App\Support\MoyasarConfig;
 use App\Services\MessageService;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -416,6 +417,10 @@ class PaymentMethodService
             ? $this->extractFailureDetails($payment)
             : ['code' => null, 'message' => null];
 
+        $merchantReferenceId = isset($metadata['merchant_reference_id'])
+            ? (string) $metadata['merchant_reference_id']
+            : null;
+
         $planId = isset($metadata['plan_id']) && is_numeric($metadata['plan_id'])
             ? (int) $metadata['plan_id']
             : null;
@@ -434,16 +439,30 @@ class PaymentMethodService
             'finalized_at' => in_array($gatewayStatus, self::FINALIZED_PAYMENT_STATUSES, true) ? now() : null,
         ];
 
-        $transaction = PaymentTransaction::query()
-            ->where('provider', 'moyasar')
-            ->where('provider_payment_id', $paymentId)
-            ->first();
+        $transaction = null;
+        if ($merchantReferenceId) {
+            $transaction = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('merchant_reference_id', $merchantReferenceId)
+                ->where('user_id', $userId)
+                ->first();
+        }
+
+        if (!$transaction) {
+            $transaction = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('provider_payment_id', $paymentId)
+                ->where('user_id', $userId)
+                ->first();
+        }
 
         if ($transaction) {
-            if ((int) $transaction->user_id !== $userId) {
-                MessageService::abort(404, 'Payment transaction not found');
-            }
-            $transaction->update($attributes);
+            $transaction->update($attributes + [
+                'provider_payment_id' => $paymentId,
+                // If it was prepared earlier, finalize it according to gateway status.
+                'status' => $status,
+                'gateway_status' => $gatewayStatus,
+            ]);
 
             return $transaction->fresh();
         }
@@ -457,6 +476,15 @@ class PaymentMethodService
             'provider' => 'moyasar',
             'provider_payment_id' => $paymentId,
             ...$attributes,
+            // If this metadata exists, store it for audit; otherwise remains null.
+            'display_currency' => isset($metadata['display_currency']) ? (string) $metadata['display_currency'] : null,
+            'display_amount_minor' => isset($metadata['display_amount_usd_minor']) ? (int) $metadata['display_amount_usd_minor'] : null,
+            'exchange_rate_usd_to_sar' => isset($metadata['exchange_rate_usd_to_sar']) ? (string) $metadata['exchange_rate_usd_to_sar'] : null,
+            'exchange_rate_at' => (isset($metadata['exchange_rate_at']) && trim((string) $metadata['exchange_rate_at']) !== '')
+                ? Carbon::parse((string) $metadata['exchange_rate_at'])
+                : null,
+            'exchange_rate_source' => isset($metadata['exchange_rate_source']) ? (string) $metadata['exchange_rate_source'] : null,
+            'disclaimer_version' => isset($metadata['disclaimer_version']) ? (string) $metadata['disclaimer_version'] : null,
         ]);
     }
 

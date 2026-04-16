@@ -6,6 +6,7 @@ use App\Http\Controllers\Billing\MoyasarPaymentController;
 use App\Http\Controllers\Billing\PaymentMethodController;
 use App\Http\Controllers\Billing\BillingHistoryController;
 use App\Http\Controllers\Billing\SubscriptionController;
+use App\Http\Controllers\Billing\MoyasarPreparePaymentController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
 use App\Http\Controllers\Learning\CourseController;
@@ -122,6 +123,7 @@ Route::group(['prefix' => 'user'], function () {
 
             // Billing
             Route::post('billing/payments/verify', [MoyasarPaymentController::class, 'verify']);
+            Route::post('billing/moyasar/prepare-payment', [MoyasarPreparePaymentController::class, 'prepare']);
             Route::get('billing/payment-methods', [PaymentMethodController::class, 'index']);
             Route::post('billing/payment-methods', [PaymentMethodController::class, 'store']);
             Route::post('billing/payment-methods/{id}/set-default', [PaymentMethodController::class, 'setDefault']);

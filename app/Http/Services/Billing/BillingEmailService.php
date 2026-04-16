@@ -40,7 +40,9 @@ class BillingEmailService
         } catch (\Throwable $e) {
             Log::warning('Invoice email HTML build failed, using fallback: ' . $e->getMessage());
             $customerName = trim((string) ($user->first_name . ' ' . $user->last_name)) ?: 'عميلنا';
-            $amount = number_format(((int) $invoice->amount_minor) / 100, 2);
+            $invoice->loadMissing(['paymentTransaction']);
+            $usdAmount = number_format(((int) $invoice->amount_minor) / 100, 2);
+            $sarAmount = number_format(((int) ($invoice->paymentTransaction?->amount_minor ?? 0)) / 100, 2);
             $bodyText = $isRenewal
                 ? 'تم تجديد اشتراكك بنجاح. الفاتورة مرفقة بهذا البريد كملف PDF.'
                 : 'تم استلام دفعتك. الفاتورة مرفقة بهذا البريد كملف PDF.';
@@ -49,7 +51,8 @@ class BillingEmailService
                 greeting: 'مرحباً ' . e($customerName) . '،',
                 bodyHtml: '<p>' . $bodyText . '</p>'
                     . '<p><strong>رقم الفاتورة:</strong> ' . e($invoice->invoice_number) . '<br/>'
-                    . '<strong>المبلغ:</strong> ' . $amount . ' USD</p>',
+                    . '<strong>السعر المرجعي:</strong> ' . $usdAmount . ' USD<br/>'
+                    . '<strong>المبلغ المدفوع:</strong> ' . $sarAmount . ' SAR</p>',
                 footer: 'للاستفسار يرجى التواصل مع فريق دبلوماسي.'
             );
         }
@@ -94,8 +97,12 @@ class BillingEmailService
         $fullName = $fullName !== '' ? $fullName : 'عميلنا';
         $email = $user->email ?? '—';
 
-        $totalMajor = (float) ($invoice->amount_minor / 100);
-        $amount = number_format($totalMajor, 2);
+        $usdTotalMajor = (float) ($invoice->amount_minor / 100);
+        $usdAmount = number_format($usdTotalMajor, 2);
+        $chargedSarMinor = (int) ($invoice->paymentTransaction?->amount_minor ?? 0);
+        $chargedSarMajor = (float) ($chargedSarMinor / 100);
+        $sarAmount = number_format($chargedSarMajor, 2);
+        $chargedSarCurrency = (string) strtoupper((string) ($invoice->paymentTransaction?->currency ?? 'SAR'));
 
         $plan = $invoice->paymentTransaction?->plan;
         $planName = $plan ? e((string) $plan->name) : '—';
@@ -104,10 +111,10 @@ class BillingEmailService
             : '—';
         $reference = $invoice->paymentTransaction?->merchant_reference_id ?? '—';
         $issuedAt = $invoice->issued_at?->format('d/m/Y') ?? '—';
-        $currencyAr = 'USD';
         $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
         $vatReg = config('app.invoice_vat_registration_number');
         $paymentMethodDisplay = $this->formatPaymentMethodForEmail($invoice->paymentTransaction);
+        $bankDisclaimer = 'يتم تنفيذ الدفع بالريال السعودي (SAR). قد يختلف المبلغ النهائي الظاهر في كشف البنك/البطاقة قليلًا حسب سعر الصرف المعتمد من البنك وأي رسوم تحويل أو معاملات عملة أجنبية.';
 
         $logoHtml = $logoUrl
             ? '<img src="' . e($logoUrl) . '" style="height:48px;display:block;" alt="دبلوماسي" />'
@@ -133,8 +140,10 @@ class BillingEmailService
             . '<tr><td colspan="2" style="padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:700;border-radius:8px 8px 0 0;">دبلوماسي - تفاصيل الاشتراك</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
-            . '<tr><td style="padding:10px 14px;"><strong>المبلغ</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>السعر المرجعي</strong></td><td style="padding:10px 14px;">' . $usdAmount . ' USD</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>المبلغ المدفوع عبر البوابة</strong></td><td style="padding:10px 14px;">' . $sarAmount . ' ' . $chargedSarCurrency . '</td></tr>'
             . '</table>'
+            . '<p style="margin:0 0 8px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1d4ed8;">' . e($bankDisclaimer) . '</p>'
             . '<p style="margin:0 0 8px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
         if ($vatReg) {
             $html .= '<p style="margin:0 0 16px;font-size:11px;color:#64748b;">رقم تسجيل ضريبة القيمة المضافة في المملكة العربية السعودية: ' . e($vatReg) . '</p>';

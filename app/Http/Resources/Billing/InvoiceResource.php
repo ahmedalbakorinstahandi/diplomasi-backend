@@ -24,6 +24,21 @@ class InvoiceResource extends JsonResource
             'status' => $this->status,
             'amount_minor' => $this->amount_minor,
             'currency' => $this->currency,
+            'charged_amount_minor' => $this->whenLoaded('paymentTransaction', function () {
+                return $this->paymentTransaction?->amount_minor;
+            }),
+            'charged_currency' => $this->whenLoaded('paymentTransaction', function () {
+                return $this->paymentTransaction?->currency;
+            }),
+            'exchange_rate_usd_to_sar' => $this->whenLoaded('paymentTransaction', function () {
+                return $this->paymentTransaction?->exchange_rate_usd_to_sar;
+            }),
+            'exchange_rate_at' => $this->whenLoaded('paymentTransaction', function () {
+                return $this->paymentTransaction?->exchange_rate_at;
+            }),
+            'disclaimer_version' => $this->whenLoaded('paymentTransaction', function () {
+                return $this->paymentTransaction?->disclaimer_version;
+            }),
             'issued_at' => $this->issued_at,
             'due_at' => $this->due_at,
             'paid_at' => $this->paid_at,

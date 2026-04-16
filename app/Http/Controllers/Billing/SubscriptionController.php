@@ -70,7 +70,8 @@ class SubscriptionController extends Controller
         $result = $this->moyasarPaymentService->purchasePlanForUser(
             (int) $request->user()->id,
             (int) $validated['plan_id'],
-            isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null
+            isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
+            isset($validated['prepared_transaction_id']) ? (int) $validated['prepared_transaction_id'] : null
         );
 
         return ResponseService::response([

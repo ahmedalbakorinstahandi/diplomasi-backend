@@ -53,7 +53,7 @@ class InvoiceService
             $query,
             $filters,
             ['merchant_reference_id', 'given_id', 'provider_payment_id', 'gateway_status', 'status', 'currency', 'provider'],
-            ['amount_minor', 'attempt_no', 'plan_id', 'subscription_id'],
+            ['amount_minor', 'display_amount_minor', 'attempt_no', 'plan_id', 'subscription_id'],
             ['billing_period_start', 'billing_period_end', 'finalized_at', 'verified_at', 'next_retry_at', 'created_at'],
             ['provider', 'status', 'gateway_status', 'currency', 'plan_id', 'subscription_id'],
             ['status', 'gateway_status', 'currency', 'provider'],
@@ -84,14 +84,18 @@ class InvoiceService
             return $existing;
         }
 
+        $displayCurrency = (string) ($transaction->display_currency ?? 'USD');
+        $displayAmountMinor = $transaction->display_amount_minor ?? $transaction->amount_minor;
+
         $invoice = Invoice::query()->create([
             'user_id' => $transaction->user_id,
             'subscription_id' => $transaction->subscription_id,
             'payment_transaction_id' => $transaction->id,
             'invoice_number' => $this->generateInvoiceNumber(),
             'status' => 'issued',
-            'amount_minor' => $transaction->amount_minor,
-            'currency' => $transaction->currency,
+            // USD reference snapshot (what user sees in-app).
+            'amount_minor' => (int) $displayAmountMinor,
+            'currency' => $displayCurrency,
             'issued_at' => now(),
             'paid_at' => $transaction->status === 'paid' ? now() : null,
             'meta' => [
@@ -143,8 +147,8 @@ class InvoiceService
         $fullName = $fullName !== '' ? $fullName : (string) ($user?->email ?? 'العميل');
         $email = $user?->email ?? '—';
 
-        $totalMajor = (float) ($invoice->amount_minor / 100);
-        $amount = number_format($totalMajor, 2);
+        $usdTotalMajor = (float) ($invoice->amount_minor / 100);
+        $usdAmount = number_format($usdTotalMajor, 2);
 
         $plan = $invoice->paymentTransaction?->plan;
         $planName = $plan ? e((string) $plan->name) : '—';
@@ -158,6 +162,13 @@ class InvoiceService
             'USD' => 'USD',
             default => e((string) $invoice->currency),
         };
+
+        $chargedSarMinor = (int) ($invoice->paymentTransaction?->amount_minor ?? 0);
+        $chargedSarMajor = (float) ($chargedSarMinor / 100);
+        $chargedSarAmount = number_format($chargedSarMajor, 2);
+        $chargedSarCurrency = (string) strtoupper((string) ($invoice->paymentTransaction?->currency ?? 'SAR'));
+
+        $bankDisclaimer = 'تمت معالجة الدفع بالريال السعودي (SAR). قد يختلف المبلغ النهائي الظاهر في كشف البنك/البطاقة قليلاً حسب سعر الصرف المعتمد من البنك وأي رسوم تحويل أو معاملات عملة أجنبية.';
         $logoUrl = config('app.invoice_logo_url') ?: rtrim((string) config('app.url'), '/') . '/images/logo.png';
         $vatReg = config('app.invoice_vat_registration_number');
         $paymentMethodDisplay = $this->formatPaymentMethodForInvoice($invoice->paymentTransaction);
@@ -179,8 +190,10 @@ class InvoiceService
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planName . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>مدة الباقة</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">' . $planInterval . '</td></tr>'
             . '<tr><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;"><strong>نوع العملية</strong></td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">اشتراك</td></tr>'
-            . '<tr><td style="padding:10px 14px;"><strong>المبلغ</strong></td><td style="padding:10px 14px;">' . $amount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>السعر المرجعي</strong></td><td style="padding:10px 14px;">' . $usdAmount . ' ' . $currencyAr . '</td></tr>'
+            . '<tr><td style="padding:10px 14px;"><strong>المبلغ المدفوع عبر البوابة</strong></td><td style="padding:10px 14px;">' . $chargedSarAmount . ' ' . $chargedSarCurrency . '</td></tr>'
             . '</table>'
+            . '<p style="margin:12px auto 0;max-width:600px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:10px;color:#1d4ed8;">' . e($bankDisclaimer) . '</p>'
             . '<p style="margin:20px auto 0;max-width:600px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:10px;color:#92400e;">هذه الفاتورة غير قابلة للاسترداد.</p>';
         if ($vatReg) {
             $html .= '<p style="margin:12px auto 0;max-width:600px;font-size:10px;color:#64748b;">رقم تسجيل ضريبة القيمة المضافة في المملكة العربية السعودية: ' . e($vatReg) . '</p>';

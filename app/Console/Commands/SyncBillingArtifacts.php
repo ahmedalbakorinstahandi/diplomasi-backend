@@ -96,7 +96,9 @@ class SyncBillingArtifacts extends Command
                                     'transaction_id' => $transaction->id,
                                 ]);
                                 $subscription->loadMissing('plan');
-                                $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $subscription->price);
+                                $amountCharged = $transaction->display_amount_minor !== null
+                                    ? (float) ($transaction->display_amount_minor / 100)
+                                    : (float) ($subscription->plan?->price ?? $subscription->price);
                                 SubscriptionEvent::query()->create([
                                     'subscription_id' => $subscription->id,
                                     'event_type' => 'renewed',
@@ -120,7 +122,9 @@ class SyncBillingArtifacts extends Command
                                 'transaction_id' => $transaction->id,
                             ]);
                             $subscription->loadMissing('plan');
-                            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $subscription->price);
+                            $amountCharged = $transaction->display_amount_minor !== null
+                                ? (float) ($transaction->display_amount_minor / 100)
+                                : (float) ($subscription->plan?->price ?? $subscription->price);
                             SubscriptionEvent::query()->create([
                                 'subscription_id' => $subscription->id,
                                 'event_type' => 'renewed',

@@ -22,7 +22,8 @@ use Illuminate\Support\Str;
 class MoyasarPaymentService
 {
     public function __construct(
-        protected PaymentMethodService $paymentMethodService
+        protected PaymentMethodService $paymentMethodService,
+        protected UsdSarConversionService $conversionService
     ) {}
 
     protected const MAX_RENEWAL_ATTEMPTS = 3;
@@ -57,22 +58,60 @@ class MoyasarPaymentService
             MessageService::abort(404, 'messages.plan.not_found');
         }
 
-        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
-        $amountMinor = $this->toMinorUnits((string) $plan->price, $currency);
+        $preparedTransactionId = isset($input['prepared_transaction_id'])
+            ? (int) $input['prepared_transaction_id']
+            : 0;
 
-        $merchantReferenceId = (string) Str::uuid();
-        $givenId = (string) Str::uuid();
+        if ($preparedTransactionId > 0) {
+            $transaction = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('id', $preparedTransactionId)
+                ->where('user_id', (int) $input['user_id'])
+                ->first();
 
-        $transaction = PaymentTransaction::query()->create([
-            'user_id' => (int) $input['user_id'],
-            'plan_id' => (int) $plan->id,
-            'merchant_reference_id' => $merchantReferenceId,
-            'given_id' => $givenId,
-            'provider' => 'moyasar',
-            'amount_minor' => $amountMinor,
-            'currency' => $currency,
-            'status' => 'pending',
-        ]);
+            if (!$transaction) {
+                MessageService::abort(422, 'billing.purchase.prepared_transaction_not_found');
+            }
+
+            if ($transaction->status !== 'prepared') {
+                MessageService::abort(422, 'billing.purchase.prepared_transaction_invalid_state');
+            }
+
+            if ($transaction->expires_at && $transaction->expires_at->isPast()) {
+                MessageService::abort(422, 'billing.purchase.prepared_transaction_expired');
+            }
+        } else {
+            $displayUsdAmountMinor = $this->toMinorUnits((string) $plan->price, 'USD');
+            $conversion = $this->conversionService->convertUsdMinorToSarMinor($displayUsdAmountMinor);
+
+            $transaction = PaymentTransaction::query()->create([
+                'user_id' => (int) $input['user_id'],
+                'plan_id' => (int) $plan->id,
+                'merchant_reference_id' => (string) Str::uuid(),
+                'given_id' => (string) Str::uuid(),
+                'provider' => 'moyasar',
+                'amount_minor' => (int) ($conversion['payment_sar_amount_minor'] ?? 0), // SAR minor
+                'currency' => 'SAR',
+                'display_currency' => 'USD',
+                'display_amount_minor' => (int) $conversion['display_usd_amount_minor'],
+                'exchange_rate_usd_to_sar' => (string) $conversion['rate'],
+                'exchange_rate_at' => Carbon::parse((string) ($conversion['rate_at'] ?? now()->toIso8601String())),
+                'exchange_rate_source' => (string) ($conversion['source'] ?? 'frankfurter'),
+                'disclaimer_version' => 'sar_only_v1',
+                'expires_at' => now()->addMinutes(10),
+                'status' => 'pending',
+            ]);
+        }
+
+        $currency = 'SAR';
+        $amountMinor = (int) $transaction->amount_minor;
+        $merchantReferenceId = (string) $transaction->merchant_reference_id;
+        $givenId = (string) $transaction->given_id;
+
+        // Once we are creating the Moyasar payment, move from prepared->pending for this attempt.
+        if ($transaction->status === 'prepared') {
+            $transaction->update(['status' => 'pending']);
+        }
 
         $payload = [
             'given_id' => $givenId,
@@ -88,6 +127,12 @@ class MoyasarPaymentService
                 'merchant_reference_id' => $merchantReferenceId,
                 'plan_id' => (string) $plan->id,
                 'user_id' => (string) $input['user_id'],
+                // Snapshot fields for audit/reconciliation
+                'display_currency' => 'USD',
+                'display_amount_usd_minor' => (string) ($transaction->display_amount_minor ?? 0),
+                'exchange_rate_usd_to_sar' => (string) ($transaction->exchange_rate_usd_to_sar ?? ''),
+                'exchange_rate_at' => optional($transaction->exchange_rate_at)->toIso8601String(),
+                'disclaimer_version' => (string) ($transaction->disclaimer_version ?? 'sar_only_v1'),
             ],
         ];
 
@@ -170,7 +215,12 @@ class MoyasarPaymentService
         ];
     }
 
-    public function purchasePlanForUser(int $userId, int $planId, ?int $paymentMethodId = null): array
+    public function purchasePlanForUser(
+        int $userId,
+        int $planId,
+        ?int $paymentMethodId = null,
+        ?int $preparedTransactionId = null
+    ): array
     {
         if ($this->hasPurchaseBlockingSubscription($userId)) {
             MessageService::response([
@@ -215,6 +265,7 @@ class MoyasarPaymentService
         return $this->createCheckoutSession([
             'user_id' => $userId,
             'plan_id' => $planId,
+            'prepared_transaction_id' => $preparedTransactionId,
             'source_type' => 'token',
             'source_token' => (string) $paymentMethod->token,
             'callback_url' => rtrim((string) config('app.url'), '/') . '/billing/callback',
@@ -242,11 +293,43 @@ class MoyasarPaymentService
 
         $payment = $this->fetchPayment($gatewayPaymentId);
         $gatewayStatus = (string) ($payment['status'] ?? '');
-        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
-        $expectedAmountMinor = $this->toMinorUnits((string) $plan->price, $currency);
+
+        $metadata = is_array($payment['metadata'] ?? null) ? $payment['metadata'] : [];
+        $merchantReferenceId = isset($metadata['merchant_reference_id'])
+            ? (string) $metadata['merchant_reference_id']
+            : '';
+
+        $transaction = null;
+        if ($merchantReferenceId !== '') {
+            $transaction = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('merchant_reference_id', $merchantReferenceId)
+                ->where('user_id', $userId)
+                ->first();
+        }
+
+        if (!$transaction) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Prepared payment snapshot not found',
+                'key' => 'billing.purchase.prepared_transaction_not_found',
+            ], 422);
+        }
+
+        if ($transaction->expires_at && $transaction->expires_at->isPast()) {
+            MessageService::response([
+                'success' => false,
+                'message' => 'Prepared payment snapshot expired',
+                'key' => 'billing.purchase.prepared_transaction_expired',
+            ], 422);
+        }
+
+        $expectedAmountMinor = (int) $transaction->amount_minor; // SAR minor (payment)
+        $expectedCurrency = strtoupper((string) $transaction->currency);
         $actualAmountMinor = (int) ($payment['amount'] ?? -1);
         $actualCurrency = strtoupper((string) ($payment['currency'] ?? ''));
-        if ($actualAmountMinor !== $expectedAmountMinor || $actualCurrency !== $currency) {
+
+        if ($actualAmountMinor !== $expectedAmountMinor || $actualCurrency !== $expectedCurrency) {
             MessageService::response([
                 'success' => false,
                 'message' => 'Gateway payment amount/currency mismatch',
@@ -254,34 +337,12 @@ class MoyasarPaymentService
             ], 422);
         }
 
-        $transaction = PaymentTransaction::query()
-            ->where('provider', 'moyasar')
-            ->where('provider_payment_id', $gatewayPaymentId)
-            ->first();
-
-        if (!$transaction) {
-            $transaction = PaymentTransaction::query()->create([
-                'user_id' => $userId,
-                'plan_id' => (int) $plan->id,
-                'subscription_id' => null,
-                'merchant_reference_id' => (string) ($payment['metadata']['merchant_reference_id'] ?? Str::uuid()),
-                'given_id' => (string) ($payment['given_id'] ?? Str::uuid()),
-                'provider' => 'moyasar',
-                'provider_payment_id' => $gatewayPaymentId,
-                'amount_minor' => $expectedAmountMinor,
-                'currency' => $currency,
-                'status' => 'pending',
-            ]);
-        } else {
-            if ((int) $transaction->user_id !== $userId) {
-                MessageService::abort(404, 'Payment transaction not found');
-            }
-            $transaction->update([
-                'plan_id' => (int) $plan->id,
-                'amount_minor' => $expectedAmountMinor,
-                'currency' => $currency,
-            ]);
+        // Ensure plan id matches the prepared snapshot.
+        if ((int) $transaction->plan_id !== (int) $plan->id) {
+            $transaction->update(['plan_id' => (int) $plan->id]);
         }
+
+        $transaction->update(['provider_payment_id' => $gatewayPaymentId, 'status' => 'pending']);
 
         $mappedStatus = $this->mapGatewayStatusToTransactionStatus($gatewayStatus);
         $failure = $mappedStatus === 'failed'
@@ -426,8 +487,10 @@ class MoyasarPaymentService
             return null;
         }
 
-        $currency = strtoupper((string) config('services.moyasar.currency', 'USD'));
-        $amountMinor = $this->toMinorUnits((string) $plan->price, $currency);
+        $displayUsdAmountMinor = $this->toMinorUnits((string) $plan->price, 'USD');
+        $conversion = $this->conversionService->convertUsdMinorToSarMinor($displayUsdAmountMinor);
+        $amountMinor = (int) ($conversion['payment_sar_amount_minor'] ?? 0); // SAR minor
+        $currency = 'SAR';
 
         [$periodStart, $periodEnd] = $this->computeRenewalPeriod($subscription, $plan->interval);
 
@@ -493,6 +556,12 @@ class MoyasarPaymentService
             'provider' => 'moyasar',
             'amount_minor' => $amountMinor,
             'currency' => $currency,
+            'display_currency' => 'USD',
+            'display_amount_minor' => (int) $conversion['display_usd_amount_minor'],
+            'exchange_rate_usd_to_sar' => (string) $conversion['rate'],
+            'exchange_rate_at' => Carbon::parse((string) ($conversion['rate_at'] ?? now()->toIso8601String())),
+            'exchange_rate_source' => (string) ($conversion['source'] ?? 'frankfurter'),
+            'disclaimer_version' => 'sar_only_v1',
             'attempt_no' => $attemptNo,
             'billing_period_start' => $periodStart,
             'billing_period_end' => $periodEnd,
@@ -514,6 +583,11 @@ class MoyasarPaymentService
                 'plan_id' => (string) $plan->id,
                 'user_id' => (string) $subscription->user_id,
                 'trigger' => $trigger,
+                'display_currency' => 'USD',
+                'display_amount_usd_minor' => (string) $transaction->display_amount_minor,
+                'exchange_rate_usd_to_sar' => (string) $transaction->exchange_rate_usd_to_sar,
+                'exchange_rate_at' => optional($transaction->exchange_rate_at)->toIso8601String(),
+                'disclaimer_version' => (string) $transaction->disclaimer_version,
             ],
         ];
 
@@ -605,7 +679,9 @@ class MoyasarPaymentService
                     'start_date' => $periodStart,
                     'end_date' => $periodEnd,
                 ]);
-                $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? $plan->price ?? 0);
+                $amountCharged = $transaction->display_amount_minor !== null
+                    ? (float) ($transaction->display_amount_minor / 100)
+                    : (float) ($subscription->plan?->price ?? $plan->price ?? 0);
                 SubscriptionEvent::query()->create([
                     'subscription_id' => $subscription->id,
                     'event_type' => 'renewed',
@@ -616,7 +692,7 @@ class MoyasarPaymentService
                     'plan_price' => $subscription->plan?->price ?? $subscription->price,
                     'amount_charged' => $amountCharged,
                     'amount_refunded' => 0,
-                    'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'USD')),
+                    'currency' => (string) ($transaction->display_currency ?? 'USD'),
                     'meta' => ['payment_transaction_id' => $transaction->id, 'source' => 'attempt_renewal'],
                 ]);
             });
@@ -794,7 +870,9 @@ class MoyasarPaymentService
                             ->where('meta->payment_transaction_id', $transaction->id)
                             ->exists();
                         if (!$alreadyEvent) {
-                            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) ($subscription->plan?->price ?? 0);
+                            $amountCharged = $transaction->display_amount_minor !== null
+                                ? (float) ($transaction->display_amount_minor / 100)
+                                : (float) ($subscription->plan?->price ?? 0);
                             SubscriptionEvent::query()->create([
                                 'subscription_id' => $subscription->id,
                                 'event_type' => 'renewed',
@@ -805,7 +883,7 @@ class MoyasarPaymentService
                                 'plan_price' => $subscription->plan?->price ?? $subscription->price,
                                 'amount_charged' => $amountCharged,
                                 'amount_refunded' => 0,
-                                'currency' => (string) ($subscription->currency ?? config('services.moyasar.currency', 'USD')),
+                                'currency' => (string) ($transaction->display_currency ?? 'USD'),
                                 'meta' => ['payment_transaction_id' => $transaction->id],
                             ]);
                         }
@@ -982,7 +1060,7 @@ class MoyasarPaymentService
             'start_date' => $periodStart,
             'end_date' => $periodEnd,
             'price' => (string) $plan->price,
-            'currency' => strtoupper((string) config('services.moyasar.currency', 'USD')),
+            'currency' => strtoupper((string) ($transaction->display_currency ?? 'USD')),
             'auto_renew' => true,
             'cancel_at_period_end' => false,
             'canceled_at' => null,
@@ -1008,7 +1086,9 @@ class MoyasarPaymentService
 
         // تسجيل حدث الاشتراك (أول مرة فقط)
         if ($subscription && $isFirstSubscription) {
-            $amountCharged = $transaction->amount_minor ? (float) ($transaction->amount_minor / 100) : (float) $plan->price;
+            $amountCharged = $transaction->display_amount_minor !== null
+                ? (float) ($transaction->display_amount_minor / 100)
+                : (float) $plan->price;
             SubscriptionEvent::query()->create([
                 'subscription_id' => $subscription->id,
                 'event_type' => 'created',
@@ -1019,7 +1099,7 @@ class MoyasarPaymentService
                 'plan_price' => $plan->price,
                 'amount_charged' => $amountCharged,
                 'amount_refunded' => 0,
-                'currency' => strtoupper((string) config('services.moyasar.currency', 'USD')),
+                'currency' => strtoupper((string) ($transaction->display_currency ?? 'USD')),
                 'meta' => ['payment_transaction_id' => $transaction->id],
             ]);
         }
@@ -1267,13 +1347,21 @@ class MoyasarPaymentService
             : ['code' => null, 'message' => null];
 
         $merchantReferenceId = $this->toNullableString($metadata['merchant_reference_id'] ?? null);
-        if (!$merchantReferenceId || PaymentTransaction::query()->where('merchant_reference_id', $merchantReferenceId)->exists()) {
-            $merchantReferenceId = (string) Str::uuid();
+        $givenId = $this->toNullableString($payment['given_id'] ?? null);
+
+        $existing = null;
+        if ($merchantReferenceId) {
+            $existing = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('merchant_reference_id', $merchantReferenceId)
+                ->first();
         }
 
-        $givenId = $this->toNullableString($payment['given_id'] ?? null);
-        if (!$givenId || PaymentTransaction::query()->where('given_id', $givenId)->exists()) {
-            $givenId = (string) Str::uuid();
+        if (!$existing && $givenId) {
+            $existing = PaymentTransaction::query()
+                ->where('provider', 'moyasar')
+                ->where('given_id', $givenId)
+                ->first();
         }
 
         $billingPeriodStart = null;
@@ -1288,6 +1376,71 @@ class MoyasarPaymentService
             }
         }
 
+        $paymentAmountMinor = max(0, (int) ($payment['amount'] ?? 0));
+        $paymentCurrency = strtoupper((string) ($payment['currency'] ?? 'SAR'));
+
+        // Enrich display snapshot from metadata (only for missing/legacy transactions).
+        $displayCurrency = $this->toNullableString($metadata['display_currency'] ?? null) ?? 'USD';
+        $displayAmountMinor = isset($metadata['display_amount_usd_minor']) && is_numeric($metadata['display_amount_usd_minor'])
+            ? (int) $metadata['display_amount_usd_minor']
+            : null;
+        $exchangeRate = $this->toNullableString($metadata['exchange_rate_usd_to_sar'] ?? null);
+        $exchangeAt = $this->toNullableString($metadata['exchange_rate_at'] ?? null);
+        $exchangeSource = $this->toNullableString($metadata['exchange_rate_source'] ?? null);
+        $disclaimerVersion = $this->toNullableString($metadata['disclaimer_version'] ?? null);
+
+        if ($existing) {
+            $existing->update([
+                'provider_payment_id' => $paymentId,
+                'plan_id' => $planId,
+                'subscription_id' => $subscriptionId,
+                'amount_minor' => $paymentAmountMinor,
+                'currency' => $paymentCurrency,
+                'billing_period_start' => $billingPeriodStart,
+                'billing_period_end' => $billingPeriodEnd,
+                'status' => $status,
+                'gateway_status' => $gatewayStatus,
+                'raw_response' => $this->sanitizeGatewayResponse($payment),
+                'last_error_code' => $failure['code'],
+                'last_error_message' => $failure['message'],
+                'finalized_at' => in_array($gatewayStatus, self::FINALIZED_STATUSES, true) ? now() : null,
+            ]);
+
+            // Preserve existing prepared display snapshot; only fill missing fields.
+            $missing = [];
+            if (empty($existing->display_currency)) {
+                $missing['display_currency'] = $displayCurrency;
+            }
+            if ($existing->display_amount_minor === null && $displayAmountMinor !== null) {
+                $missing['display_amount_minor'] = $displayAmountMinor;
+            }
+            if ($existing->exchange_rate_usd_to_sar === null && $exchangeRate !== null) {
+                $missing['exchange_rate_usd_to_sar'] = $exchangeRate;
+            }
+            if ($existing->exchange_rate_at === null && $exchangeAt !== null) {
+                $missing['exchange_rate_at'] = Carbon::parse($exchangeAt);
+            }
+            if ($existing->exchange_rate_source === null && $exchangeSource !== null) {
+                $missing['exchange_rate_source'] = $exchangeSource;
+            }
+            if ($existing->disclaimer_version === null && $disclaimerVersion !== null) {
+                $missing['disclaimer_version'] = $disclaimerVersion;
+            }
+
+            if ($missing !== []) {
+                $existing->update($missing);
+            }
+
+            return $existing;
+        }
+
+        if (!$merchantReferenceId) {
+            $merchantReferenceId = (string) Str::uuid();
+        }
+        if (!$givenId) {
+            $givenId = (string) Str::uuid();
+        }
+
         return PaymentTransaction::query()->updateOrCreate(
             [
                 'provider' => 'moyasar',
@@ -1299,8 +1452,14 @@ class MoyasarPaymentService
                 'subscription_id' => $subscriptionId,
                 'merchant_reference_id' => $merchantReferenceId,
                 'given_id' => $givenId,
-                'amount_minor' => max(0, (int) ($payment['amount'] ?? 0)),
-                'currency' => strtoupper((string) ($payment['currency'] ?? config('services.moyasar.currency', 'USD'))),
+                'amount_minor' => $paymentAmountMinor,
+                'currency' => $paymentCurrency,
+                'display_currency' => $displayCurrency,
+                'display_amount_minor' => $displayAmountMinor,
+                'exchange_rate_usd_to_sar' => $exchangeRate,
+                'exchange_rate_at' => $exchangeAt ? Carbon::parse($exchangeAt) : null,
+                'exchange_rate_source' => $exchangeSource,
+                'disclaimer_version' => $disclaimerVersion,
                 'billing_period_start' => $billingPeriodStart,
                 'billing_period_end' => $billingPeriodEnd,
                 'status' => $status,
