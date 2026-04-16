@@ -32,6 +32,10 @@ class MoyasarPreparePaymentController extends Controller
 
         $displayUsdAmountMinor = 0;
         $planId = null;
+        $paymentSarAmountMinor = 0;
+        $exchangeRate = null;
+        $exchangeRateAt = null;
+        $exchangeRateSource = null;
 
         if ($type === 'plan_purchase') {
             $planId = (int) $request->validated()['plan_id'];
@@ -44,18 +48,20 @@ class MoyasarPreparePaymentController extends Controller
             }
 
             $displayUsdAmountMinor = (int) round(((float) $plan->price) * 100, 0, PHP_ROUND_HALF_UP);
+            $conversion = $this->conversionService->convertUsdMinorToSarMinor($displayUsdAmountMinor);
+            $paymentSarAmountMinor = (int) $conversion['payment_sar_amount_minor'];
+            $exchangeRate = (string) $conversion['rate'];
+            $exchangeRateAt = Carbon::parse((string) $conversion['rate_at']);
+            $exchangeRateSource = (string) $conversion['source'];
         } elseif ($type === 'card_verification') {
-            // Keep existing verification amount reference: 1.00 USD (display).
-            $displayUsdAmountMinor = 100;
+            // Verification is fixed in SAR; no USD-origin pricing for this flow.
+            $paymentSarAmountMinor = 100; // 1.00 SAR
         } else {
             return ResponseService::response([
                 'data' => null,
                 'message' => 'Invalid prepare type',
             ], 422);
         }
-
-        $conversion = $this->conversionService->convertUsdMinorToSarMinor($displayUsdAmountMinor);
-        $paymentSarAmountMinor = (int) $conversion['payment_sar_amount_minor'];
 
         $transaction = PaymentTransaction::query()->create([
             'user_id' => $userId,
@@ -68,9 +74,9 @@ class MoyasarPreparePaymentController extends Controller
             'currency' => 'SAR',
             'display_currency' => 'USD',
             'display_amount_minor' => $displayUsdAmountMinor,
-            'exchange_rate_usd_to_sar' => (string) $conversion['rate'],
-            'exchange_rate_at' => Carbon::parse((string) $conversion['rate_at']),
-            'exchange_rate_source' => (string) $conversion['source'],
+            'exchange_rate_usd_to_sar' => $exchangeRate,
+            'exchange_rate_at' => $exchangeRateAt,
+            'exchange_rate_source' => $exchangeRateSource,
             'disclaimer_version' => $disclaimerVersion,
             'expires_at' => $expiresAt,
             'status' => 'prepared',
@@ -86,7 +92,9 @@ class MoyasarPreparePaymentController extends Controller
                 'payment_amount_sar_minor' => (int) $transaction->amount_minor,
                 'display_currency' => 'USD',
                 'display_amount_usd_minor' => (int) $transaction->display_amount_minor,
-                'exchange_rate_usd_to_sar' => (string) $transaction->exchange_rate_usd_to_sar,
+                'exchange_rate_usd_to_sar' => $transaction->exchange_rate_usd_to_sar !== null
+                    ? (string) $transaction->exchange_rate_usd_to_sar
+                    : null,
                 'exchange_rate_at' => $transaction->exchange_rate_at,
                 'expires_at' => $transaction->expires_at,
                 'disclaimer_version' => (string) $transaction->disclaimer_version,

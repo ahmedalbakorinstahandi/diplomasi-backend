@@ -9,10 +9,13 @@ use Illuminate\Support\Facades\Http;
 
 class FrankfurterUsdToSarRateService
 {
-    private const EXCHANGE_RATE_API_KEY = 'b9ad4e78dc72c0a726e2029d';
+    private const CURRENCY_API_KEY = 'cur_live_qiCKG6SMPE0t20riQsk64fdty2GcilD8d6CFcBqt';
+    private const BASE_CURRENCY = 'USD';
+    private const TARGET_CURRENCY = 'SAR';
 
-    private const CACHE_FRESH_TTL_SECONDS = 3600; // 1 hour
-    private const CACHE_LAST_SUCCESS_TTL_SECONDS = 86400; // 24 hours
+    // Free plan updates daily, so one cached value per day is enough.
+    private const CACHE_FRESH_TTL_SECONDS = 86400; // 24 hours
+    private const CACHE_LAST_SUCCESS_TTL_SECONDS = 2592000; // 30 days safety fallback
 
     private const CACHE_KEY_FRESH = 'fx:usd_to_sar:fresh';
     private const CACHE_KEY_LAST_SUCCESS = 'fx:usd_to_sar:last_success';
@@ -37,23 +40,22 @@ class FrankfurterUsdToSarRateService
             $response = Http::acceptJson()
                 ->timeout(8)
                 ->connectTimeout(4)
-                ->get('https://v6.exchangerate-api.com/v6/' . self::EXCHANGE_RATE_API_KEY . '/latest/USD');
+                ->get('https://api.currencyapi.com/v3/latest', [
+                    'apikey' => self::CURRENCY_API_KEY,
+                    'currencies' => self::TARGET_CURRENCY,
+                    'base_currency' => self::BASE_CURRENCY,
+                ]);
 
             if ($response->failed()) {
-                throw new \RuntimeException('ExchangeRate API request failed');
+                throw new \RuntimeException('currencyapi request failed');
             }
 
             $json = $response->json();
             if (!is_array($json)) {
-                throw new \RuntimeException('ExchangeRate API invalid json');
+                throw new \RuntimeException('currencyapi invalid json');
             }
 
-            $resultStatus = strtolower(trim((string) ($json['result'] ?? '')));
-            if ($resultStatus !== 'success') {
-                throw new \RuntimeException('ExchangeRate API non-success result');
-            }
-
-            $rate = $json['conversion_rates']['SAR'] ?? null;
+            $rate = $json['data'][self::TARGET_CURRENCY]['value'] ?? null;
             if ($rate === null) {
                 $rate = $json['SAR'] ?? null;
             }
@@ -61,21 +63,19 @@ class FrankfurterUsdToSarRateService
             $rateStr = is_numeric($rate) ? (string) $rate : '';
             $rateStr = trim($rateStr);
             if ($rateStr === '') {
-                throw new \RuntimeException('ExchangeRate API missing SAR rate');
+                throw new \RuntimeException('currencyapi missing SAR rate');
             }
 
             $fetchedAt = now()->toIso8601String();
-            if (!empty($json['time_last_update_utc'])) {
-                $fetchedAt = Carbon::parse((string) $json['time_last_update_utc'])->toIso8601String();
-            } elseif (!empty($json['time_last_update_unix'])) {
-                $fetchedAt = Carbon::createFromTimestamp((int) $json['time_last_update_unix'])->toIso8601String();
+            if (!empty($json['meta']['last_updated_at'])) {
+                $fetchedAt = Carbon::parse((string) $json['meta']['last_updated_at'])->toIso8601String();
             }
 
             $result = [
-                'base' => 'USD',
-                'target' => 'SAR',
+                'base' => self::BASE_CURRENCY,
+                'target' => self::TARGET_CURRENCY,
                 'rate' => $rateStr,
-                'source' => 'exchangerate-api',
+                'source' => 'currencyapi',
                 'fetched_at' => $fetchedAt,
             ];
 
