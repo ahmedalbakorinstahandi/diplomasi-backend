@@ -60,11 +60,12 @@ class FrankfurterUsdToSarRateService
                 $rate = $json['SAR'] ?? null;
             }
 
-            $rateStr = is_numeric($rate) ? (string) $rate : '';
-            $rateStr = trim($rateStr);
-            if ($rateStr === '') {
+            if (!is_numeric($rate)) {
                 throw new \RuntimeException('currencyapi missing SAR rate');
             }
+
+            // Store / expose exactly 4 fractional digits (audit + API), e.g. 3.7514605685 -> 3.7515
+            $rateStr = number_format((float) $rate, 4, '.', '');
 
             $fetchedAt = now()->toIso8601String();
             if (!empty($json['meta']['last_updated_at'])) {
