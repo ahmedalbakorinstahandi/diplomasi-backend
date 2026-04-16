@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Http;
 
 class FrankfurterUsdToSarRateService
 {
+    private const EXCHANGE_RATE_API_KEY = 'b9ad4e78dc72c0a726e2029d';
+
     private const CACHE_FRESH_TTL_SECONDS = 3600; // 1 hour
     private const CACHE_LAST_SUCCESS_TTL_SECONDS = 86400; // 24 hours
 
@@ -35,37 +37,45 @@ class FrankfurterUsdToSarRateService
             $response = Http::acceptJson()
                 ->timeout(8)
                 ->connectTimeout(4)
-                ->get('https://api.frankfurter.app/latest?from=USD&to=SAR');
+                ->get('https://v6.exchangerate-api.com/v6/' . self::EXCHANGE_RATE_API_KEY . '/latest/USD');
 
             if ($response->failed()) {
-                throw new \RuntimeException('Frankfurter request failed');
+                throw new \RuntimeException('ExchangeRate API request failed');
             }
 
             $json = $response->json();
             if (!is_array($json)) {
-                throw new \RuntimeException('Frankfurter invalid json');
+                throw new \RuntimeException('ExchangeRate API invalid json');
             }
 
-            $rate = $json['rates']['SAR'] ?? null;
+            $resultStatus = strtolower(trim((string) ($json['result'] ?? '')));
+            if ($resultStatus !== 'success') {
+                throw new \RuntimeException('ExchangeRate API non-success result');
+            }
+
+            $rate = $json['conversion_rates']['SAR'] ?? null;
             if ($rate === null) {
-                // tolerate alternative shapes
                 $rate = $json['SAR'] ?? null;
             }
 
             $rateStr = is_numeric($rate) ? (string) $rate : '';
             $rateStr = trim($rateStr);
             if ($rateStr === '') {
-                throw new \RuntimeException('Frankfurter missing SAR rate');
+                throw new \RuntimeException('ExchangeRate API missing SAR rate');
             }
 
-            $fetchedAt = Carbon::parse((string) ($json['date'] ?? now()->toDateTimeString()))
-                ->toIso8601String();
+            $fetchedAt = now()->toIso8601String();
+            if (!empty($json['time_last_update_utc'])) {
+                $fetchedAt = Carbon::parse((string) $json['time_last_update_utc'])->toIso8601String();
+            } elseif (!empty($json['time_last_update_unix'])) {
+                $fetchedAt = Carbon::createFromTimestamp((int) $json['time_last_update_unix'])->toIso8601String();
+            }
 
             $result = [
                 'base' => 'USD',
                 'target' => 'SAR',
                 'rate' => $rateStr,
-                'source' => 'frankfurter',
+                'source' => 'exchangerate-api',
                 'fetched_at' => $fetchedAt,
             ];
 
