@@ -18,6 +18,8 @@ class AuthService
 {
     public function guestStart(): array
     {
+        $this->assertAppRegistrationAllowed();
+
         $userRole = Role::where('name', 'user')->first();
         if (!$userRole) {
             MessageService::abort(500, 'messages.role.not_found');
@@ -94,6 +96,7 @@ class AuthService
 
     public function register($data)
     {
+        $this->assertAppRegistrationAllowed();
 
         $user = User::where('email', $data['email'])->first();
 
@@ -147,6 +150,8 @@ class AuthService
 
     public function registerFromGuest(array $data): array
     {
+        $this->assertAppRegistrationAllowed();
+
         $authUser = User::auth();
         if (!$authUser) {
             MessageService::abort(401, 'messages.unauthorized');
@@ -507,6 +512,13 @@ class AuthService
 
         // Finally, delete the user (soft delete)
         $user->delete();
+    }
+
+    private function assertAppRegistrationAllowed(): void
+    {
+        if (config('diplomasi.disable_app_registration')) {
+            MessageService::abort(403, 'auth.registration_disabled_by_admin');
+        }
     }
 
     /**
