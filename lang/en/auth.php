@@ -58,6 +58,6 @@ return [
     // Mail/OTP delivery
     'email_send_failed' => 'Failed to send verification email. Please check server mail configuration and try again.',
 
-    'registration_disabled_by_admin' => 'App registration is currently disabled by Diplomasi administration.',
+    'registration_disabled_by_admin' => 'App registration is currently suspended by Diplomasi administration.',
 
 ];
