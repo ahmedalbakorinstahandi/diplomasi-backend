@@ -21,9 +21,11 @@ class CreatePodcastRequest extends BaseFormRequest
             'order_index'            => ['nullable', 'integer', 'min:0'],
             'published_at'           => ['nullable', 'date'],
 
-            // Audio: either an uploaded file or an external URL, but not required simultaneously
-            'audio_file'             => ['nullable', 'file', 'mimes:mp3,aac,ogg,m4a,wav,flac,opus,webm', 'max:307200'], // 300 MB
+            // Audio source — two mutually exclusive options:
+            // 1. audio_url  : external URL (e.g. CDN, Soundcloud)
+            // 2. audio_path : relative path returned by general/upload-file
             'audio_url'              => ['nullable', 'string', 'max:2048'],
+            'audio_path'             => ['nullable', 'string', 'max:512'],
         ];
     }
 

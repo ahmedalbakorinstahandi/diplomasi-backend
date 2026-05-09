@@ -195,33 +195,36 @@ class PodcastAdminService
     // ── Audio file handling ────────────────────────────────────────────────────────
 
     /**
-     * Store the uploaded audio file, delete the old one if it exists,
-     * extract duration from the file metadata when possible, and merge
-     * the resolved values back into $data.
+     * Resolve the audio source from one of two mutually exclusive inputs:
+     *
+     *   audio_path — relative path returned by general/upload-file
+     *     → delete old stored file when the path changes
+     *     → clear audio_url (stored file takes precedence)
+     *     → attempt duration extraction from the stored file
+     *
+     *   audio_url  — external URL
+     *     → flows through toFillable() as-is; no special handling needed
+     *
+     * If neither is present the data is returned unchanged.
      */
     private function resolveAudioFile(array $data, ?Podcast $existing): array
     {
-        if (! isset($data['audio_file']) || ! ($data['audio_file'] instanceof \Illuminate\Http\UploadedFile)) {
-            unset($data['audio_file']);
-            return $data;
-        }
+        if (isset($data['audio_path']) && is_string($data['audio_path']) && $data['audio_path'] !== '') {
+            // Delete old stored file only when the path actually changes
+            if ($existing && $existing->audio_path && $existing->audio_path !== $data['audio_path']) {
+                FileService::deleteFile($existing->audio_path);
+            }
 
-        $file = $data['audio_file'];
-        unset($data['audio_file']);
+            $data['audio_url'] = null;
 
-        // Delete old stored file if it exists
-        if ($existing && $existing->audio_path) {
-            FileService::deleteFile($existing->audio_path);
-        }
-
-        $path = FileService::storeFile($file, 'podcasts/audio');
-        $data['audio_path'] = $path;
-        $data['audio_url']  = null; // uploaded file takes precedence over external URL
-
-        // Try to extract duration from file metadata
-        $duration = $this->extractDurationSeconds($file->getRealPath());
-        if ($duration !== null) {
-            $data['duration_seconds'] = $duration;
+            // Attempt duration extraction from the already-stored file
+            $fullPath = Storage::path($data['audio_path']);
+            if (file_exists($fullPath)) {
+                $duration = $this->extractDurationSeconds($fullPath);
+                if ($duration !== null) {
+                    $data['duration_seconds'] = $duration;
+                }
+            }
         }
 
         return $data;

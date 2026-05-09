@@ -25,9 +25,11 @@ class UpdatePodcastRequest extends BaseFormRequest
             'published_at'           => ['sometimes', 'nullable', 'date'],
             'duration_seconds'       => ['sometimes', 'nullable', 'integer', 'min:0'],
 
-            // Audio update: uploaded file overrides stored path/url
-            'audio_file'             => ['sometimes', 'nullable', 'file', 'mimes:mp3,aac,ogg,m4a,wav,flac,opus,webm', 'max:307200'],
+            // Audio source — two mutually exclusive options:
+            // 1. audio_url  : external URL (e.g. CDN, Soundcloud)
+            // 2. audio_path : relative path returned by general/upload-file
             'audio_url'              => ['sometimes', 'nullable', 'string', 'max:2048'],
+            'audio_path'             => ['sometimes', 'nullable', 'string', 'max:512'],
         ];
     }
 }
