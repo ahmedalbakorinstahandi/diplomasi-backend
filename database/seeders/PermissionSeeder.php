@@ -80,6 +80,15 @@ class PermissionSeeder extends Seeder
             ['name' => 'article.delete', 'description' => 'Delete articles'],
             ['name' => 'article.reorder', 'description' => 'Reorder articles'],
 
+            // Podcasts
+            ['name' => 'podcast.view',    'description' => 'View podcasts'],
+            ['name' => 'podcast.create',  'description' => 'Create podcasts'],
+            ['name' => 'podcast.update',  'description' => 'Update podcasts'],
+            ['name' => 'podcast.delete',  'description' => 'Soft-delete podcasts'],
+            ['name' => 'podcast.restore', 'description' => 'Restore soft-deleted podcasts'],
+            ['name' => 'podcast.publish', 'description' => 'Publish or unpublish podcasts'],
+            ['name' => 'podcast.reorder', 'description' => 'Reorder podcasts'],
+
             // Subscriptions
             ['name' => 'subscription.view', 'description' => 'View subscriptions'],
             ['name' => 'subscription.create', 'description' => 'Create subscriptions'],

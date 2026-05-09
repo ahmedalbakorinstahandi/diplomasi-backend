@@ -3,6 +3,7 @@
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
+use App\Http\Controllers\Content\PodcastAdminController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
@@ -133,6 +134,18 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('articles/{id}', [ArticleController::class, 'update']);
         Route::delete('articles/{id}', [ArticleController::class, 'delete']);
         Route::put('articles/{id}/reorder', [ArticleController::class, 'reorder']);
+
+        // Podcasts
+        Route::get('podcasts/stats', [PodcastAdminController::class, 'globalStats']);
+        Route::get('podcasts', [PodcastAdminController::class, 'index']);
+        Route::get('podcasts/{id}', [PodcastAdminController::class, 'show']);
+        Route::post('podcasts', [PodcastAdminController::class, 'create']);
+        Route::put('podcasts/{id}', [PodcastAdminController::class, 'update']);
+        Route::delete('podcasts/{id}', [PodcastAdminController::class, 'delete']);
+        Route::post('podcasts/{id}/restore', [PodcastAdminController::class, 'restore']);
+        Route::put('podcasts/{id}/publish', [PodcastAdminController::class, 'togglePublish']);
+        Route::put('podcasts/{id}/reorder', [PodcastAdminController::class, 'reorder']);
+        Route::get('podcasts/{id}/stats', [PodcastAdminController::class, 'stats']);
 
         // FAQs
         Route::get('faqs', [FaqController::class, 'index']);
