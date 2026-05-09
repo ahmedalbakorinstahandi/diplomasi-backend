@@ -9,6 +9,7 @@ use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Billing\MoyasarPreparePaymentController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
+use App\Http\Controllers\Content\PodcastController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
@@ -62,6 +63,10 @@ Route::group(['prefix' => 'user'], function () {
     Route::get('faqs', [FaqController::class, 'index']);
     Route::get('faqs/{id}', [FaqController::class, 'show']);
 
+    // Public podcasts (list & detail — no stream URL in list)
+    Route::get('podcasts', [PodcastController::class, 'index']);
+    Route::get('podcasts/{id}', [PodcastController::class, 'show']);
+
     // Public plans
     Route::get('plans', [PlanController::class, 'index']);
     Route::get('plans/{id}', [PlanController::class, 'show']);
@@ -106,6 +111,11 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
         Route::post('scenarios/{id}/attempts/{attemptId}/finish', [ScenarioController::class, 'finishAttempt']);
         Route::post('scenarios/{id}/attempts/{attemptId}/mark-description-read', [ScenarioController::class, 'markDescriptionRead']);
+
+        // Podcast progress & favorites (auth:sanctum only — NOT ensure.verified)
+        Route::post('podcasts/{id}/progress', [PodcastController::class, 'updateProgress']);
+        Route::post('podcasts/{id}/favorite', [PodcastController::class, 'addFavorite']);
+        Route::delete('podcasts/{id}/favorite', [PodcastController::class, 'removeFavorite']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);

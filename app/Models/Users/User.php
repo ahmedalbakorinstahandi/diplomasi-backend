@@ -387,4 +387,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\Content\Article::class, 'author_id');
     }
+
+    public function userPodcastProgress()
+    {
+        return $this->hasMany(\App\Models\Progress\UserPodcastProgress::class);
+    }
+
+    public function userPodcastFavorites()
+    {
+        return $this->hasMany(\App\Models\Progress\UserPodcastFavorite::class);
+    }
 }
