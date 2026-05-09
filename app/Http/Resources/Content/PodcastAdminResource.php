@@ -61,9 +61,9 @@ class PodcastAdminResource extends JsonResource
             'deleted_at'            => $podcast->deleted_at,
 
             // Relations
-            'course'                => $podcast->whenLoaded('course', fn () => [
-                'id'   => $podcast->course->id,
-                'name' => $podcast->course->name ?? $podcast->course->title ?? null,
+            'course'                => $this->whenLoaded('course', fn () => [
+                'id'   => $podcast->course?->id,
+                'name' => $podcast->course?->name ?? $podcast->course?->title ?? null,
             ]),
         ];
     }
