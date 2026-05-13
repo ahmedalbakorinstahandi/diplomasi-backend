@@ -28,6 +28,9 @@ class PodcastDetailResource extends PodcastResource
         $base['stream_url']   = $podcastService->resolveAudioUrl($podcast, $user);
         $base['download_url'] = $podcastService->resolveDownloadUrl($podcast, $user);
 
+        // Lets the app detect when the source file was replaced so offline copy can be refreshed
+        $base['updated_at'] = $podcast->updated_at?->toIso8601String();
+
         return $base;
     }
 }
