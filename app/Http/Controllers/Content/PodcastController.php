@@ -8,9 +8,11 @@ use App\Http\Resources\Content\PodcastDetailResource;
 use App\Http\Resources\Content\PodcastResource;
 use App\Http\Services\Content\PodcastService;
 use App\Models\Content\Podcast;
+use App\Models\Users\User;
 use App\Services\MessageService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class PodcastController extends Controller
 {
@@ -20,7 +22,9 @@ class PodcastController extends Controller
 
     public function index(Request $request)
     {
-        $podcasts = $this->podcastService->index($request->all(), $request->user());
+        $user = $this->resolvePodcastViewer($request);
+        $this->attachViewerToRequest($request, $user);
+        $podcasts = $this->podcastService->index($request->all(), $user);
 
         return ResponseService::response([
             'success'  => true,
@@ -33,7 +37,9 @@ class PodcastController extends Controller
 
     public function show(Request $request, int $id)
     {
-        $podcast = $this->podcastService->show($id, $request->user());
+        $user = $this->resolvePodcastViewer($request);
+        $this->attachViewerToRequest($request, $user);
+        $podcast = $this->podcastService->show($id, $user);
 
         return ResponseService::response([
             'success'  => true,
@@ -96,5 +102,44 @@ class PodcastController extends Controller
             'message' => 'messages.podcast.favorite_removed',
             'status'  => 200,
         ]);
+    }
+
+    /**
+     * List/show podcast routes are public (guests can browse), so Laravel does not
+     * run auth middleware and $request->user() is null even when the app sends Bearer token.
+     * Resolve the Sanctum user from the personal access token so favorites & progress load.
+     */
+    protected function resolvePodcastViewer(Request $request): ?User
+    {
+        $auth = $request->user();
+        if ($auth instanceof User) {
+            return $auth;
+        }
+
+        $plain = $request->bearerToken();
+        if ($plain === null || $plain === '') {
+            return null;
+        }
+
+        $accessToken = PersonalAccessToken::findToken($plain);
+        if ($accessToken === null) {
+            return null;
+        }
+
+        $model = $accessToken->tokenable;
+
+        return $model instanceof User ? $model : null;
+    }
+
+    /**
+     * So JsonResources can use $request->user() for lock / subscription checks.
+     */
+    protected function attachViewerToRequest(Request $request, ?User $user): void
+    {
+        if ($user === null) {
+            return;
+        }
+
+        $request->setUserResolver(static fn () => $user);
     }
 }
