@@ -61,7 +61,7 @@ class SetLocaleMiddleware
         $isFromApp = $context === 'app';
         $applyForceUpdate = $isFromApp && !$isWebhook;
 
-        if ($applyForceUpdate) {
+        if ($applyForceUpdate && $request->hasHeader('X-App-Version')) {
             $appVersion = $request->header('X-App-Version', '0.0.0');
             $minVersionSetting = Setting::where('key_name', 'app.min_version')->first();
             $minVersion = $minVersionSetting ? (string) $minVersionSetting->value : null;
