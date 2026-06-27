@@ -116,5 +116,62 @@ class Subscription extends Model
     {
         return $this->hasMany(\App\Models\Progress\UserCourse::class);
     }
+
+    public function paymentTransactions()
+    {
+        return $this->hasMany(PaymentTransaction::class);
+    }
+
+    /**
+     * Effective billing provider (stored value or inferred from payments).
+     */
+    public function resolveProvider(): ?string
+    {
+        if (!empty($this->provider)) {
+            return $this->provider;
+        }
+
+        if ($this->relationLoaded('paymentTransactions')) {
+            $fromLoaded = $this->paymentTransactions
+                ->filter(fn (PaymentTransaction $pt) => in_array((string) $pt->provider, ['moyasar', 'apple'], true))
+                ->sortByDesc('id')
+                ->first();
+
+            if ($fromLoaded) {
+                return (string) $fromLoaded->provider;
+            }
+        }
+
+        $fromSubscriptionPayment = PaymentTransaction::query()
+            ->where('subscription_id', $this->id)
+            ->whereIn('provider', ['moyasar', 'apple'])
+            ->orderByDesc('id')
+            ->value('provider');
+
+        if ($fromSubscriptionPayment) {
+            return (string) $fromSubscriptionPayment;
+        }
+
+        $fromUserPlanPayment = PaymentTransaction::query()
+            ->where('user_id', $this->user_id)
+            ->where('plan_id', $this->plan_id)
+            ->where('provider', 'moyasar')
+            ->where('status', 'paid')
+            ->orderByDesc('id')
+            ->value('provider');
+
+        if ($fromUserPlanPayment) {
+            return (string) $fromUserPlanPayment;
+        }
+
+        if (AppleIapSubscriptionOwnership::query()
+            ->where('user_id', $this->user_id)
+            ->where('plan_id', $this->plan_id)
+            ->exists()) {
+            return 'apple';
+        }
+
+        return null;
+    }
 }
 

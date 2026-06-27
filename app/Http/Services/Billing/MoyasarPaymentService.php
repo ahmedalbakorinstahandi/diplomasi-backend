@@ -674,6 +674,7 @@ class MoyasarPaymentService
             ]);
             DB::transaction(function () use ($subscription, $transaction, $periodStart, $periodEnd, $plan) {
                 $subscription->update([
+                    'provider' => $subscription->provider ?: 'moyasar',
                     'status' => 'active',
                     'start_date' => $periodStart,
                     'end_date' => $periodEnd,
@@ -852,6 +853,7 @@ class MoyasarPaymentService
                         );
 
                         $subscription->update([
+                            'provider' => $subscription->provider ?: 'moyasar',
                             'status' => 'active',
                             'start_date' => $periodStart,
                             'end_date' => $newEndDate,
