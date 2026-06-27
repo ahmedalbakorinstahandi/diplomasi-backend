@@ -13,7 +13,7 @@ class UpdateSubscriptionRequest extends BaseFormRequest
             'plan_id' => 'sometimes|required|exists:plans,id',
             'start_date' => 'sometimes|required|date',
             'end_date' => 'sometimes|required|date|after:start_date',
-            'status' => 'sometimes|nullable|in:active,inactive,cancelled,expired',
+            'status' => 'sometimes|nullable|in:active,inactive,cancelled,expired,past_due',
             'price' => 'sometimes|required|numeric|min:0',
             'currency' => 'sometimes|nullable|string|max:3',
             'auto_renew' => 'sometimes|nullable|boolean',

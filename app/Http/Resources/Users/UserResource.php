@@ -42,6 +42,10 @@ class UserResource extends JsonResource
             'registration_completed_at' => $this->registration_completed_at,
             'account_state' => $this->account_state,
             'approved' => false,
+            'last_opened_app_at' => $this->last_opened_app_at,
+            'last_activity_at' => $this->last_activity_at,
+            'is_active' => (bool) $this->is_active,
+            'guest_last_active_at' => $this->guest_last_active_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             

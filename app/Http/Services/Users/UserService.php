@@ -18,6 +18,8 @@ class UserService
     {
         $query = User::query()->with(['roles']);
 
+        $filters = $this->normalizeFilters($filters);
+
         $filters['per_page'] = $filters['per_page'] ?? 20;
         $filters['sort_field'] = $filters['sort_field'] ?? 'id';
         $filters['sort_order'] = $filters['sort_order'] ?? 'desc';
@@ -25,12 +27,26 @@ class UserService
         $searchFields = [['first_name', 'last_name'], 'email', 'phone'];
         $numericFields = [];
         $dateFields = ['created_at'];
-        $exactMatchFields = ['id', 'status'];
+        $exactMatchFields = ['id', 'status', 'is_guest'];
         $inFields = ['status'];
 
+        if (array_key_exists('is_guest', $filters) && $filters['is_guest'] !== null && $filters['is_guest'] !== '') {
+            $query->where('is_guest', filter_var($filters['is_guest'], FILTER_VALIDATE_BOOLEAN));
+        } else {
+            $query->where('is_guest', false);
+        }
 
-        $query->where('is_guest', false);
+        if (isset($filters['is_active'])) {
+            $isActive = filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN);
+            $query->where('status', $isActive ? 'active' : 'inactive');
+        }
 
+        if (!empty($filters['role'])) {
+            $roleName = $filters['role'];
+            $query->whereHas('roles', function ($q) use ($roleName) {
+                $q->where('name', $roleName)->whereNull('roles.deleted_at');
+            });
+        }
 
         $query = UserPermission::filterIndex($query);
 
@@ -45,6 +61,27 @@ class UserService
         );
 
         return $data;
+    }
+
+    protected function normalizeFilters(array $filters): array
+    {
+        if (!empty($filters['sort_by']) && empty($filters['sort_field'])) {
+            $filters['sort_field'] = $filters['sort_by'];
+        }
+
+        if (!empty($filters['sort_direction']) && empty($filters['sort_order'])) {
+            $filters['sort_order'] = $filters['sort_direction'];
+        }
+
+        if (!empty($filters['from_date']) && empty($filters['created_at_from'])) {
+            $filters['created_at_from'] = $filters['from_date'];
+        }
+
+        if (!empty($filters['to_date']) && empty($filters['created_at_to'])) {
+            $filters['created_at_to'] = $filters['to_date'];
+        }
+
+        return $filters;
     }
 
     public function show(int $id)

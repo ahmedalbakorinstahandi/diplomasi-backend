@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Billing\AdminSubscriptionController;
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\ContactMessageController;
@@ -176,6 +177,15 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('plans/{id}', [PlanController::class, 'update']);
         Route::delete('plans/{id}', [PlanController::class, 'delete']);
         Route::put('plans/{id}/reorder', [PlanController::class, 'reorder']);
+
+        // Subscriptions (admin)
+        Route::get('subscriptions', [AdminSubscriptionController::class, 'index']);
+        Route::get('subscriptions/{id}', [AdminSubscriptionController::class, 'show']);
+        Route::post('subscriptions', [AdminSubscriptionController::class, 'create']);
+        Route::put('subscriptions/{id}', [AdminSubscriptionController::class, 'update']);
+        Route::delete('subscriptions/{id}', [AdminSubscriptionController::class, 'delete']);
+        Route::post('subscriptions/{id}/cancel', [AdminSubscriptionController::class, 'cancel']);
+        Route::post('subscriptions/{id}/renew', [AdminSubscriptionController::class, 'renew']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);
