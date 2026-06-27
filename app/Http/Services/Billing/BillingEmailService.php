@@ -32,8 +32,15 @@ class BillingEmailService
         }
 
         $invoice->loadMissing(['paymentTransaction']);
-        $isRenewal = $invoice->paymentTransaction
-            && (int) ($invoice->paymentTransaction->subscription_id ?? 0) > 0;
+        if (!$invoice->paymentTransaction || (string) $invoice->paymentTransaction->status !== 'paid') {
+            Log::channel('single')->info('[billing.email] Skip invoice email: transaction not paid', [
+                'invoice_id' => $invoice->id,
+                'transaction_status' => $invoice->paymentTransaction?->status,
+            ]);
+            return;
+        }
+
+        $isRenewal = (int) ($invoice->paymentTransaction->subscription_id ?? 0) > 0;
 
         try {
             $content = $this->buildInvoiceEmailHtml($invoice, $user, $isRenewal);

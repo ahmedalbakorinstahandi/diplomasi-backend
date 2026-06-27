@@ -37,18 +37,21 @@ class SyncBillingArtifacts extends Command
         $logPath = function_exists('storage_path') ? storage_path('logs/debug-3f6903.log') : base_path('../../debug-3f6903.log');
 
         foreach ($transactions as $transaction) {
-            $invoice = $invoiceService->issueFromTransaction($transaction);
+            $invoice = null;
             $invoiceQueued = false;
-            if ($invoice) {
-                $issued++;
-                $invoiceQueued = BillingEmailNotification::query()
-                    ->where('type', 'invoice_issued')
-                    ->where('payload->invoice_id', $invoice->id)
-                    ->exists();
+            if ((string) $transaction->status === 'paid') {
+                $invoice = $invoiceService->issueFromTransaction($transaction);
+                if ($invoice) {
+                    $issued++;
+                    $invoiceQueued = BillingEmailNotification::query()
+                        ->where('type', 'invoice_issued')
+                        ->where('payload->invoice_id', $invoice->id)
+                        ->exists();
 
-                if (!$invoiceQueued) {
-                    $billingEmailService->queueInvoiceIssued($invoice);
-                    $queued++;
+                    if (!$invoiceQueued) {
+                        $billingEmailService->queueInvoiceIssued($invoice);
+                        $queued++;
+                    }
                 }
             }
 

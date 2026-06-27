@@ -77,11 +77,15 @@ class InvoiceService
         return $invoice;
     }
 
-    public function issueFromTransaction(PaymentTransaction $transaction): Invoice
+    public function issueFromTransaction(PaymentTransaction $transaction): ?Invoice
     {
         $existing = Invoice::query()->where('payment_transaction_id', $transaction->id)->first();
         if ($existing) {
             return $existing;
+        }
+
+        if ((string) $transaction->status !== 'paid') {
+            return null;
         }
 
         $displayCurrency = (string) ($transaction->display_currency ?? 'USD');

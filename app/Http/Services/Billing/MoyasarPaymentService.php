@@ -658,7 +658,6 @@ class MoyasarPaymentService
             ]);
             try {
                 app(BillingEmailService::class)->queueRenewalStatus($transaction->fresh(), false);
-                BillingNotification::renewalFailed((int) $subscription->user_id);
             } catch (\Throwable $e) {
                 report($e);
             }
@@ -946,7 +945,6 @@ class MoyasarPaymentService
             ]);
             try {
                 app(BillingEmailService::class)->queueRenewalStatus($finalized, false);
-                BillingNotification::renewalFailed((int) $finalized->user_id);
             } catch (\Throwable $e) {
                 report($e);
             }
