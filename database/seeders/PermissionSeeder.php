@@ -80,6 +80,16 @@ class PermissionSeeder extends Seeder
             ['name' => 'article.delete', 'description' => 'Delete articles'],
             ['name' => 'article.reorder', 'description' => 'Reorder articles'],
 
+            // CMS Pages
+            ['name' => 'page.view', 'description' => 'View pages'],
+            ['name' => 'page.create', 'description' => 'Create pages'],
+            ['name' => 'page.update', 'description' => 'Update pages'],
+            ['name' => 'page.delete', 'description' => 'Delete pages'],
+
+            // Contact messages
+            ['name' => 'contact_message.view', 'description' => 'View contact messages'],
+            ['name' => 'contact_message.update', 'description' => 'Update contact messages'],
+
             // Podcasts
             ['name' => 'podcast.view',    'description' => 'View podcasts'],
             ['name' => 'podcast.create',  'description' => 'Create podcasts'],

@@ -46,13 +46,13 @@ class DatabaseSeeder extends Seeder
             // UserLessonAttemptSeeder::class,
             // UserScenarioAttemptSeeder::class,
 
-            // // Content
-            // ArticleSeeder::class,
-            // PageSeeder::class,
-            // FaqSeeder::class,
+            // Content
+            ArticleSeeder::class,
+            PageSeeder::class,
+            FaqSeeder::class,
 
-            // // System
-            // SettingSeeder::class,
+            // System
+            SettingSeeder::class,
             // NotificationSeeder::class,
             // CertificateSeeder::class,
             // ActivityLogSeeder::class,

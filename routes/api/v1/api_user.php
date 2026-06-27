@@ -9,6 +9,7 @@ use App\Http\Controllers\Billing\SubscriptionController;
 use App\Http\Controllers\Billing\MoyasarPreparePaymentController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\FaqController;
+use App\Http\Controllers\Content\PageController;
 use App\Http\Controllers\Content\PodcastController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
@@ -62,6 +63,9 @@ Route::group(['prefix' => 'user'], function () {
     // Public FAQs
     Route::get('faqs', [FaqController::class, 'index']);
     Route::get('faqs/{id}', [FaqController::class, 'show']);
+
+    // Public CMS pages
+    Route::get('pages/{slug}', [PageController::class, 'showBySlug']);
 
     // Public podcasts (list & detail — no stream URL in list)
     Route::get('podcasts', [PodcastController::class, 'index']);

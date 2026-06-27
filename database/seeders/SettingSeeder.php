@@ -11,16 +11,20 @@ class SettingSeeder extends Seeder
     {
         $settings = [
             ['key_name' => 'app.name', 'value' => 'Diplomasi', 'type' => 'text', 'is_settings' => true],
-            ['key_name' => 'support.email', 'value' => 'support@demo.test', 'type' => 'text', 'is_settings' => true],
-            ['key_name' => 'support.phone', 'value' => '+201000000999', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'support.email', 'value' => 'support@diplomasi.app', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'support.phone', 'value' => '+962790000000', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'app.version', 'value' => '1.0.0', 'type' => 'text', 'is_settings' => true],
-            // suggested_min_version must be < min_version for optional update prompt to work
             ['key_name' => 'app.min_version', 'value' => '1.0.1', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'app.suggested_min_version', 'value' => '1.0.0', 'type' => 'text', 'is_settings' => true],
-            // ['key_name' => 'app.google_play_link', 'value' => 'https://play.google.com/store/apps/details?id=com.example.diplomasi', 'type' => 'text', 'is_settings' => true],
-            // ['key_name' => 'app.apple_store_link', 'value' => 'https://apps.apple.com/app/diplomasi/id123456789', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'app.google_play_link', 'value' => 'https://play.google.com/store/apps/details?id=com.diplomasi.app', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'app.apple_store_link', 'value' => 'https://apps.apple.com/app/diplomasi/id000000000', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'social.facebook', 'value' => 'https://facebook.com/diplomasi', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'social.instagram', 'value' => 'https://instagram.com/diplomasi', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'social.twitter', 'value' => 'https://twitter.com/diplomasi', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'social.linkedin', 'value' => 'https://linkedin.com/company/diplomasi', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'social.youtube', 'value' => 'https://youtube.com/@diplomasi', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'site.tagline', 'value' => 'منصة تعليمية للدبلوماسية والتفاوض', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'learning.max_attempts', 'value' => '3', 'type' => 'int', 'is_settings' => true],
-            // billing.moyasar.mode: test | live — toggled from dashboard; overrides MOYASAR_MODE when set
             ['key_name' => 'billing.moyasar.mode', 'value' => 'live', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'ui.home_banner', 'value' => json_encode(['title' => 'ابدأ رحلتك', 'subtitle' => 'تعلم بذكاء']), 'type' => 'json', 'is_settings' => true],
             ['key_name' => 'legal.terms_conditions', 'value' => '<p>نص تجريبي للشروط والأحكام.</p>', 'type' => 'html', 'is_settings' => true],
@@ -39,4 +43,3 @@ class SettingSeeder extends Seeder
         }
     }
 }
-

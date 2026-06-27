@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
+use App\Http\Controllers\Content\ContactMessageController;
 use App\Http\Controllers\Content\FaqController;
+use App\Http\Controllers\Content\PageController;
 use App\Http\Controllers\Content\PodcastAdminController;
 use App\Http\Controllers\Learning\CourseController;
 use App\Http\Controllers\Learning\GlossaryTermController;
@@ -134,6 +136,18 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('articles/{id}', [ArticleController::class, 'update']);
         Route::delete('articles/{id}', [ArticleController::class, 'delete']);
         Route::put('articles/{id}/reorder', [ArticleController::class, 'reorder']);
+
+        // CMS Pages
+        Route::get('pages', [PageController::class, 'index']);
+        Route::get('pages/{id}', [PageController::class, 'show']);
+        Route::post('pages', [PageController::class, 'create']);
+        Route::put('pages/{id}', [PageController::class, 'update']);
+        Route::delete('pages/{id}', [PageController::class, 'delete']);
+
+        // Contact messages
+        Route::get('contact-messages', [ContactMessageController::class, 'index']);
+        Route::get('contact-messages/{id}', [ContactMessageController::class, 'show']);
+        Route::put('contact-messages/{id}/mark-read', [ContactMessageController::class, 'markAsRead']);
 
         // Podcasts
         Route::get('podcasts/stats', [PodcastAdminController::class, 'globalStats']);

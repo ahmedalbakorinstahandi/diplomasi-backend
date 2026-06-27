@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Billing\MoyasarPublicConfigController;
+use App\Http\Controllers\Content\ContactController;
 use App\Http\Controllers\System\AppUpdateController;
 use App\Http\Controllers\System\CertificateController;
 use App\Http\Controllers\System\ImageController;
@@ -24,4 +25,8 @@ Route::group(['prefix' => 'general'], function () {
 
     // Certificate Verification (Public)
     Route::get('certificates/verify/{certificateCode}', [CertificateController::class, 'verify']);
+
+    // Contact form (public)
+    Route::post('contact', [ContactController::class, 'store'])
+        ->middleware('throttle:5,1');
 });
