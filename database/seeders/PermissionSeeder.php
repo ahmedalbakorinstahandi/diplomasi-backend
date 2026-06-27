@@ -107,6 +107,11 @@ class PermissionSeeder extends Seeder
             ['name' => 'subscription.cancel', 'description' => 'Cancel subscriptions'],
             ['name' => 'subscription.renew', 'description' => 'Renew subscriptions'],
 
+            // Billing — payments & invoices
+            ['name' => 'payment.view', 'description' => 'View payment transactions'],
+            ['name' => 'invoice.view', 'description' => 'View invoices'],
+            ['name' => 'invoice.download', 'description' => 'Download invoice PDFs'],
+
             // Notifications
             ['name' => 'notification.view', 'description' => 'View notifications'],
             ['name' => 'notification.create', 'description' => 'Create notifications'],

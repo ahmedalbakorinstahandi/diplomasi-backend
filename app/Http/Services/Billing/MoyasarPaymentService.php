@@ -1054,6 +1054,7 @@ class MoyasarPaymentService
 
         $payload = [
             'plan_id' => (int) $plan->id,
+            'provider' => 'moyasar',
             'status' => 'active',
             'start_date' => $periodStart,
             'end_date' => $periodEnd,

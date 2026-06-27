@@ -28,8 +28,8 @@ class AdminSubscriptionService
         ];
         $numericFields = ['user_id', 'plan_id', 'price'];
         $dateFields = ['created_at', 'start_date', 'end_date'];
-        $exactMatchFields = ['status', 'user_id', 'plan_id', 'auto_renew'];
-        $inFields = ['status'];
+        $exactMatchFields = ['status', 'user_id', 'plan_id', 'auto_renew', 'provider'];
+        $inFields = ['status', 'provider'];
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -60,7 +60,11 @@ class AdminSubscriptionService
 
     public function show(int $id): Subscription
     {
-        $subscription = Subscription::with(['user.roles', 'plan'])->find($id);
+        $subscription = Subscription::with([
+            'user.roles',
+            'plan',
+            'subscriptionEvents' => fn ($q) => $q->with('plan')->orderByDesc('created_at'),
+        ])->find($id);
 
         if (!$subscription) {
             MessageService::abort(404, 'messages.subscription.not_found');

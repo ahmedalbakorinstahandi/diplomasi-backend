@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\Billing\AdminInvoiceController;
+use App\Http\Controllers\Billing\AdminPaymentController;
 use App\Http\Controllers\Billing\AdminSubscriptionController;
+use App\Http\Controllers\Billing\AdminUserBillingController;
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Content\ArticleController;
 use App\Http\Controllers\Content\ContactMessageController;
@@ -36,6 +39,7 @@ Route::group(['prefix' => 'admin'], function () {
         Route::get('users', [UserController::class, 'index']);
         Route::get('users/{id}', [UserController::class, 'show']);
         Route::get('users/{id}/certificates', [UserController::class, 'certificates']);
+        Route::get('users/{id}/billing', [AdminUserBillingController::class, 'billing']);
         Route::post('users', [UserController::class, 'create']);
         Route::put('users/{id}', [UserController::class, 'update']);
         Route::delete('users/{id}', [UserController::class, 'delete']);
@@ -186,6 +190,13 @@ Route::group(['prefix' => 'admin'], function () {
         Route::delete('subscriptions/{id}', [AdminSubscriptionController::class, 'delete']);
         Route::post('subscriptions/{id}/cancel', [AdminSubscriptionController::class, 'cancel']);
         Route::post('subscriptions/{id}/renew', [AdminSubscriptionController::class, 'renew']);
+
+        // Payments & invoices (admin billing)
+        Route::get('payments', [AdminPaymentController::class, 'index']);
+        Route::get('payments/{id}', [AdminPaymentController::class, 'show']);
+        Route::get('invoices', [AdminInvoiceController::class, 'index']);
+        Route::get('invoices/{id}', [AdminInvoiceController::class, 'show']);
+        Route::get('invoices/{id}/download', [AdminInvoiceController::class, 'download']);
 
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);

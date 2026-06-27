@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Billing;
 
+use App\Http\Resources\Users\UserResource;
 use App\Services\FileService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -47,6 +48,8 @@ class InvoiceResource extends JsonResource
             'meta' => $this->meta,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'user' => $this->whenLoaded('user', fn () => new UserResource($this->user)),
+            'subscription' => $this->whenLoaded('subscription', fn () => new SubscriptionResource($this->subscription)),
             'payment_transaction' => $this->whenLoaded('paymentTransaction', function () {
                 return [
                     'id' => $this->paymentTransaction?->id,

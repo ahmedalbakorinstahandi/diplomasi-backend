@@ -37,6 +37,16 @@ class Invoice extends Model
         ];
     }
 
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\Users\User::class)->withTrashed();
+    }
+
+    public function subscription()
+    {
+        return $this->belongsTo(Subscription::class);
+    }
+
     public function paymentTransaction()
     {
         return $this->belongsTo(PaymentTransaction::class, 'payment_transaction_id');

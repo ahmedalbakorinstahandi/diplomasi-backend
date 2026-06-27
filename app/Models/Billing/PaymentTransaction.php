@@ -66,6 +66,16 @@ class PaymentTransaction extends Model
         ];
     }
 
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\Users\User::class)->withTrashed();
+    }
+
+    public function subscription()
+    {
+        return $this->belongsTo(Subscription::class);
+    }
+
     public function invoice()
     {
         return $this->hasOne(Invoice::class, 'payment_transaction_id');
