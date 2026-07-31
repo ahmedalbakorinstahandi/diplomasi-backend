@@ -124,6 +124,34 @@ class NegotiationLibraryApiTest extends TestCase
             ->assertJsonCount(3, 'data.responses');
     }
 
+    public function test_situations_list_exposes_prompt_for_locked_by_subscription_without_leaking_detail(): void
+    {
+        $level = $this->makeLevel(1, 'L1');
+        $free = $this->makeSituation($level, 1, true);
+        $paid = $this->makeSituation($level, 2, false);
+        $paid->update([
+            'prompt_text' => 'هذا أغلى من ميزانيتي ببساطة.',
+            'prompt_type' => 'quote',
+        ]);
+        $this->completeSituation($free);
+
+        $list = $this->authGet("/api/v1/user/negotiation/levels/{$level->id}/situations");
+        $list->assertStatus(200);
+
+        $paidItem = collect($list->json('data'))->firstWhere('id', $paid->id);
+        $this->assertNotNull($paidItem);
+        $this->assertSame('locked_by_subscription', $paidItem['access_status']);
+        $this->assertSame('هذا أغلى من ميزانيتي ببساطة.', $paidItem['prompt_text']);
+        $this->assertSame('quote', $paidItem['prompt_type']);
+        $this->assertArrayNotHasKey('responses', $paidItem);
+        $this->assertArrayNotHasKey('insight', $paidItem);
+        $this->assertArrayNotHasKey('prompt_context', $paidItem);
+
+        $this->authGet("/api/v1/user/negotiation/situations/{$paid->id}")
+            ->assertStatus(403)
+            ->assertJsonPath('details.access_status', 'locked_by_subscription');
+    }
+
     public function test_situation_detail_returns_three_responses_with_explanations(): void
     {
         $level = $this->makeLevel(1, 'L1');

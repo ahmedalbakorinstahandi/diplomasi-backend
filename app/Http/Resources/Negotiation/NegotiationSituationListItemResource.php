@@ -33,6 +33,8 @@ class NegotiationSituationListItemResource extends JsonResource
             'id' => $this->id,
             'order_index' => $this->order_index,
             'is_free' => (bool) $this->is_free,
+            'prompt_text' => $this->prompt_text,
+            'prompt_type' => $this->prompt_type,
             'access_status' => self::$accessCache[$this->id] ?? 'locked',
             'has_note' => isset(self::$noteIdsCache[$this->id]),
         ];
