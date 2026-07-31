@@ -16,9 +16,10 @@ return new class extends Migration
         Schema::create('user_negotiation_final_test_attempts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('user_id', 'unfta_user_fk')->references('id')->on('users');
             $table->unsignedBigInteger('negotiation_level_id');
-            $table->foreign('negotiation_level_id')->references('id')->on('negotiation_levels');
+            $table->foreign('negotiation_level_id', 'unfta_level_fk')
+                ->references('id')->on('negotiation_levels');
             $table->enum('status', ['in_progress', 'finished', 'abandoned'])->default('in_progress');
             $table->decimal('score', 6, 2)->nullable();
             $table->unsignedSmallInteger('total_questions')->default(15);
@@ -26,7 +27,7 @@ return new class extends Migration
             $table->timestamp('started_at')->nullable();
             $table->timestamp('finished_at')->nullable();
             $table->softDeletes();
-            $table->index(['user_id', 'negotiation_level_id', 'deleted_at']);
+            $table->index(['user_id', 'negotiation_level_id', 'deleted_at'], 'unfta_user_level_idx');
         });
 
         Schema::enableForeignKeyConstraints();

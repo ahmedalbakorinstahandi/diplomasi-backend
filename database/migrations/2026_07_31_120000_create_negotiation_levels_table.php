@@ -23,7 +23,7 @@ return new class extends Migration
             $table->boolean('is_published')->default(false);
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['is_published', 'order_index', 'deleted_at']);
+            $table->index(['is_published', 'order_index', 'deleted_at'], 'neg_levels_pub_ord_idx');
         });
 
         Schema::enableForeignKeyConstraints();

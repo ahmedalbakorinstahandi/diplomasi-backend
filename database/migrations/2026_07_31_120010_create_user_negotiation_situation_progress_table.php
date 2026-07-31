@@ -16,9 +16,10 @@ return new class extends Migration
         Schema::create('user_negotiation_situation_progress', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('user_id', 'unsp_user_fk')->references('id')->on('users');
             $table->unsignedBigInteger('negotiation_situation_id');
-            $table->foreign('negotiation_situation_id')->references('id')->on('negotiation_situations');
+            $table->foreign('negotiation_situation_id', 'unsp_situation_fk')
+                ->references('id')->on('negotiation_situations');
             $table->enum('status', ['not_started', 'in_progress', 'completed'])->default('not_started');
             $table->enum('track_status', ['locked', 'open', 'completed'])->default('locked');
             $table->boolean('is_completed')->default(false);
@@ -26,8 +27,8 @@ return new class extends Migration
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->softDeletes();
-            $table->unique(['user_id', 'negotiation_situation_id', 'deleted_at']);
-            $table->index(['user_id', 'negotiation_situation_id', 'deleted_at']);
+            $table->unique(['user_id', 'negotiation_situation_id', 'deleted_at'], 'unsp_user_sit_unique');
+            $table->index(['user_id', 'negotiation_situation_id', 'deleted_at'], 'unsp_user_sit_idx');
         });
 
         Schema::enableForeignKeyConstraints();

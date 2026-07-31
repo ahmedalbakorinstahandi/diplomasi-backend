@@ -16,17 +16,19 @@ return new class extends Migration
         Schema::create('user_negotiation_level_progress', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('user_id', 'unlp_user_fk')->references('id')->on('users');
             $table->unsignedBigInteger('negotiation_level_id');
-            $table->foreign('negotiation_level_id')->references('id')->on('negotiation_levels');
+            $table->foreign('negotiation_level_id', 'unlp_level_fk')
+                ->references('id')->on('negotiation_levels');
             $table->unsignedBigInteger('current_negotiation_situation_id')->nullable();
-            $table->foreign('current_negotiation_situation_id')->references('id')->on('negotiation_situations');
+            $table->foreign('current_negotiation_situation_id', 'unlp_current_sit_fk')
+                ->references('id')->on('negotiation_situations');
             $table->enum('status', ['not_started', 'in_progress', 'completed']);
             $table->decimal('score', 6, 2)->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->softDeletes();
-            $table->unique(['user_id', 'negotiation_level_id', 'deleted_at']);
+            $table->unique(['user_id', 'negotiation_level_id', 'deleted_at'], 'unlp_user_level_unique');
         });
 
         Schema::enableForeignKeyConstraints();

@@ -19,7 +19,8 @@ return new class extends Migration
             $table->foreign('user_negotiation_final_test_attempt_id', 'unfta_answers_attempt_fk')
                 ->references('id')->on('user_negotiation_final_test_attempts');
             $table->unsignedBigInteger('negotiation_situation_id');
-            $table->foreign('negotiation_situation_id')->references('id')->on('negotiation_situations');
+            $table->foreign('negotiation_situation_id', 'unfta_answers_sit_fk')
+                ->references('id')->on('negotiation_situations');
             $table->enum('asked_style', ['gentle', 'diplomatic', 'firm']);
             $table->unsignedBigInteger('selected_negotiation_response_id')->nullable();
             $table->foreign('selected_negotiation_response_id', 'unfta_answers_response_fk')
