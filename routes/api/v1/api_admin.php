@@ -17,6 +17,8 @@ use App\Http\Controllers\Learning\LessonQuestionController;
 use App\Http\Controllers\Learning\LevelCertificateTemplateController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
+use App\Http\Controllers\Negotiation\NegotiationLevelAdminController;
+use App\Http\Controllers\Negotiation\NegotiationSituationAdminController;
 use App\Http\Controllers\Scenarios\ScenarioController;
 use App\Http\Controllers\Scenarios\ScenarioQuestionController;
 use App\Http\Controllers\System\CertificateController;
@@ -96,6 +98,22 @@ Route::group(['prefix' => 'admin'], function () {
         // Route::delete('level-tracks/{id}', [LevelTrackController::class, 'delete']);
         Route::put('level-tracks/{id}/reorder', [LevelTrackController::class, 'reorder']);
         // Route::post('levels/{levelId}/sync-level-tracks', [LevelTrackController::class, 'syncForLevel']);
+
+        // Negotiation Responses Library — levels
+        Route::get('negotiation-levels', [NegotiationLevelAdminController::class, 'index']);
+        Route::get('negotiation-levels/{id}', [NegotiationLevelAdminController::class, 'show']);
+        Route::post('negotiation-levels', [NegotiationLevelAdminController::class, 'create']);
+        Route::put('negotiation-levels/{id}', [NegotiationLevelAdminController::class, 'update']);
+        Route::delete('negotiation-levels/{id}', [NegotiationLevelAdminController::class, 'delete']);
+        Route::put('negotiation-levels/{id}/reorder', [NegotiationLevelAdminController::class, 'reorder']);
+
+        // Negotiation Responses Library — situations (nested responses)
+        Route::get('negotiation-situations', [NegotiationSituationAdminController::class, 'index']);
+        Route::get('negotiation-situations/{id}', [NegotiationSituationAdminController::class, 'show']);
+        Route::post('negotiation-situations', [NegotiationSituationAdminController::class, 'create']);
+        Route::put('negotiation-situations/{id}', [NegotiationSituationAdminController::class, 'update']);
+        Route::delete('negotiation-situations/{id}', [NegotiationSituationAdminController::class, 'delete']);
+        Route::put('negotiation-situations/{id}/reorder', [NegotiationSituationAdminController::class, 'reorder']);
 
         // Scenarios
         Route::get('scenarios', [ScenarioController::class, 'index']);

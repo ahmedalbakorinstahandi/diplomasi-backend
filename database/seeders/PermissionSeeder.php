@@ -67,6 +67,20 @@ class PermissionSeeder extends Seeder
             ['name' => 'scenario.delete', 'description' => 'Delete scenarios'],
             ['name' => 'scenario.reorder', 'description' => 'Reorder scenarios'],
 
+            // Negotiation Responses Library — levels
+            ['name' => 'negotiation_level.view', 'description' => 'View negotiation levels'],
+            ['name' => 'negotiation_level.create', 'description' => 'Create negotiation levels'],
+            ['name' => 'negotiation_level.update', 'description' => 'Update negotiation levels'],
+            ['name' => 'negotiation_level.delete', 'description' => 'Delete negotiation levels'],
+            ['name' => 'negotiation_level.reorder', 'description' => 'Reorder negotiation levels'],
+
+            // Negotiation Responses Library — situations (responses nest under situation perms)
+            ['name' => 'negotiation_situation.view', 'description' => 'View negotiation situations'],
+            ['name' => 'negotiation_situation.create', 'description' => 'Create negotiation situations'],
+            ['name' => 'negotiation_situation.update', 'description' => 'Update negotiation situations'],
+            ['name' => 'negotiation_situation.delete', 'description' => 'Delete negotiation situations'],
+            ['name' => 'negotiation_situation.reorder', 'description' => 'Reorder negotiation situations'],
+
             // Progress (dashboard-only management if added later)
             ['name' => 'progress.view', 'description' => 'View progress'],
             ['name' => 'progress.create', 'description' => 'Create progress'],

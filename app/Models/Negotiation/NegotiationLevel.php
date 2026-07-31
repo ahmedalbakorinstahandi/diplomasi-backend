@@ -2,6 +2,7 @@
 
 namespace App\Models\Negotiation;
 
+use Database\Factories\Negotiation\NegotiationLevelFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,6 +10,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class NegotiationLevel extends Model
 {
     use HasFactory, SoftDeletes;
+
+    protected static function newFactory(): NegotiationLevelFactory
+    {
+        return NegotiationLevelFactory::new();
+    }
 
     protected $table = 'negotiation_levels';
 

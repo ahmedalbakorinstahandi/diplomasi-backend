@@ -25,26 +25,44 @@ class OrderHelper
 
     /**
      * تعيين ترتيب جديد تلقائي عند الإنشاء (بأعلى رقم موجود + 1).
-     * order_index فريد على مستوى الجدول كامل (global)، يعتمد على max(id).
+     * order_index فريد على مستوى الجدول كامل (global) ما لم يُمرَّر $scope
+     * لتقييد الحساب (مثلاً ضمن negotiation_level_id).
+     *
+     * @param  callable(Builder): void|null  $scope
      */
-    public static function assign(Model $model, string $orderField = 'order_index'): void
+    public static function assign(Model $model, string $orderField = 'order_index', ?callable $scope = null): void
     {
-        $max = static::queryIncludingTrashed($model)->max($orderField) ?? 0;
+        $query = static::queryIncludingTrashed($model);
+
+        if ($scope !== null) {
+            $scope($query);
+        }
+
+        $max = $query->max($orderField) ?? 0;
         $model->{$orderField} = $max + 1;
         $model->save();
     }
 
     /**
      * إعادة ترتيب عنصر بتحريكه إلى موقع جديد.
+     * مرّر $scope لتقييد الإزاحة بمجموعة فرعية (مثلاً نفس المستوى).
+     *
+     * @param  callable(Builder): void|null  $scope
      */
-    public static function reorder(Model $model, int $newOrder, string $orderField = 'order_index'): void
+    public static function reorder(Model $model, int $newOrder, string $orderField = 'order_index', ?callable $scope = null): void
     {
         $oldOrder = $model->{$orderField};
 
-        if ($oldOrder === $newOrder) return;
+        if ($oldOrder === $newOrder) {
+            return;
+        }
 
-        DB::transaction(function () use ($model, $oldOrder, $newOrder, $orderField) {
+        DB::transaction(function () use ($model, $oldOrder, $newOrder, $orderField, $scope) {
             $query = static::queryIncludingTrashed($model);
+
+            if ($scope !== null) {
+                $scope($query);
+            }
 
             if ($oldOrder < $newOrder) {
                 // نقل من أعلى إلى أدنى → نقص العناصر بين القديم والجديد
