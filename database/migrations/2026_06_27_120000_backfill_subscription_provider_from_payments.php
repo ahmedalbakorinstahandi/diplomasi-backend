@@ -8,59 +8,72 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('subscriptions') || ! Schema::hasTable('payment_transactions')) {
+            return;
+        }
+
         // Moyasar: linked payment on subscription
-        DB::statement("
-            UPDATE subscriptions s
-            INNER JOIN (
-                SELECT subscription_id, MAX(id) AS latest_id
-                FROM payment_transactions
-                WHERE subscription_id IS NOT NULL
-                  AND provider = 'moyasar'
-                  AND status = 'paid'
-                GROUP BY subscription_id
-            ) pt ON pt.subscription_id = s.id
-            SET s.provider = 'moyasar'
-            WHERE s.provider IS NULL
-        ");
+        $moyasarLinkedIds = DB::table('payment_transactions')
+            ->select('subscription_id')
+            ->whereNotNull('subscription_id')
+            ->where('provider', 'moyasar')
+            ->where('status', 'paid')
+            ->distinct()
+            ->pluck('subscription_id');
+
+        if ($moyasarLinkedIds->isNotEmpty()) {
+            DB::table('subscriptions')
+                ->whereNull('provider')
+                ->whereIn('id', $moyasarLinkedIds)
+                ->update(['provider' => 'moyasar']);
+        }
 
         // Moyasar: paid payment for same user + plan (first purchase before subscription_id was set)
-        DB::statement("
-            UPDATE subscriptions s
-            INNER JOIN (
-                SELECT user_id, plan_id, MAX(id) AS latest_id
-                FROM payment_transactions
-                WHERE provider = 'moyasar'
-                  AND status = 'paid'
-                  AND plan_id IS NOT NULL
-                GROUP BY user_id, plan_id
-            ) pt ON pt.user_id = s.user_id AND pt.plan_id = s.plan_id
-            SET s.provider = 'moyasar'
-            WHERE s.provider IS NULL
-        ");
+        $moyasarPairs = DB::table('payment_transactions')
+            ->select('user_id', 'plan_id')
+            ->where('provider', 'moyasar')
+            ->where('status', 'paid')
+            ->whereNotNull('plan_id')
+            ->distinct()
+            ->get();
+
+        foreach ($moyasarPairs as $pair) {
+            DB::table('subscriptions')
+                ->whereNull('provider')
+                ->where('user_id', $pair->user_id)
+                ->where('plan_id', $pair->plan_id)
+                ->update(['provider' => 'moyasar']);
+        }
 
         // Apple: linked payment
-        DB::statement("
-            UPDATE subscriptions s
-            INNER JOIN (
-                SELECT subscription_id, MAX(id) AS latest_id
-                FROM payment_transactions
-                WHERE subscription_id IS NOT NULL
-                  AND provider = 'apple'
-                GROUP BY subscription_id
-            ) pt ON pt.subscription_id = s.id
-            SET s.provider = 'apple'
-            WHERE s.provider IS NULL
-        ");
+        $appleLinkedIds = DB::table('payment_transactions')
+            ->select('subscription_id')
+            ->whereNotNull('subscription_id')
+            ->where('provider', 'apple')
+            ->distinct()
+            ->pluck('subscription_id');
+
+        if ($appleLinkedIds->isNotEmpty()) {
+            DB::table('subscriptions')
+                ->whereNull('provider')
+                ->whereIn('id', $appleLinkedIds)
+                ->update(['provider' => 'apple']);
+        }
 
         // Apple: IAP ownership record
         if (Schema::hasTable('apple_iap_subscription_ownerships')) {
-            DB::statement("
-                UPDATE subscriptions s
-                INNER JOIN apple_iap_subscription_ownerships o
-                    ON o.user_id = s.user_id AND o.plan_id = s.plan_id
-                SET s.provider = 'apple'
-                WHERE s.provider IS NULL
-            ");
+            $ownershipPairs = DB::table('apple_iap_subscription_ownerships')
+                ->select('user_id', 'plan_id')
+                ->distinct()
+                ->get();
+
+            foreach ($ownershipPairs as $pair) {
+                DB::table('subscriptions')
+                    ->whereNull('provider')
+                    ->where('user_id', $pair->user_id)
+                    ->where('plan_id', $pair->plan_id)
+                    ->update(['provider' => 'apple']);
+            }
         }
     }
 

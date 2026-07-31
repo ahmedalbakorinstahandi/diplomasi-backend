@@ -129,6 +129,50 @@ class GuestModeTest extends TestCase
         $response->assertStatus(400);
     }
 
+    public function test_forgot_password_verify_otp_succeeds_while_guest_token_is_present(): void
+    {
+        config(['diplomasi.disable_app_registration' => false]);
+
+        $guestUser = User::create([
+            'first_name' => 'Learner',
+            'last_name' => 'Guest',
+            'email' => null,
+            'phone' => null,
+            'password' => null,
+            'status' => 'active',
+            'is_guest' => true,
+            'email_verified' => false,
+        ]);
+        $guestToken = $guestUser->createToken('guest_auth_token')->plainTextToken;
+
+        $target = User::create([
+            'first_name' => 'Reset',
+            'last_name' => 'Target',
+            'email' => 'reset-target@example.com',
+            'phone' => '04444',
+            'password' => Hash::make('Password123!'),
+            'status' => 'active',
+            'is_guest' => false,
+            'email_verified' => true,
+            'otp' => '12345',
+            'otp_expire_at' => now()->addMinutes(5),
+        ]);
+
+        // App always attaches the guest Sanctum token; OTP must still resolve by email.
+        $verify = $this->withHeader('Authorization', 'Bearer ' . $guestToken)
+            ->postJson('/api/v1/auth/verify-otp', [
+                'email' => 'reset-target@example.com',
+                'otp' => '12345',
+            ]);
+
+        $verify->assertStatus(200)
+            ->assertJsonPath('data.id', $target->id)
+            ->assertJsonStructure(['access_token']);
+
+        $this->assertNull($target->fresh()->otp);
+        $this->assertNotNull(PersonalAccessToken::findToken($guestToken));
+    }
+
     public function test_verify_otp_rotates_all_tokens_after_guest_conversion(): void
     {
         $guest = $this->postJson('/api/v1/auth/guest')->json();

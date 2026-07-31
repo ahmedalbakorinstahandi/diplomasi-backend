@@ -321,7 +321,7 @@ class BillingEmailService
     {
         $attachments = is_array($notification->attachments) ? $notification->attachments : [];
         // إرسال من billing@ دائماً (الفاتورة والتجديد)
-        $fromAddress = env('BILLING_MAIL_FROM_ADDRESS') ?: 'billing@diplomasi.app';
+        $fromAddress = env('BILLING_MAIL_FROM_ADDRESS') ?: 'no-reply@diplomasi.app';
         $fromName = env('BILLING_MAIL_FROM_NAME') ?: 'Diplomasi';
 
         Mail::mailer('billing')->send([], [], function ($message) use ($notification, $attachments, $fromAddress, $fromName) {

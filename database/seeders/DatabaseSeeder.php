@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             // LessonQuestionOptionSeeder::class,
             // LessonSummarySeeder::class,
             // GlossaryTermSeeder::class,
+            // // Negotiation library content: php artisan negotiation:import [--publish]
 
             // // Scenarios
             // ScenarioSeeder::class,

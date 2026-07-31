@@ -16,6 +16,9 @@ use App\Http\Controllers\Learning\GlossaryTermController;
 use App\Http\Controllers\Learning\LessonController;
 use App\Http\Controllers\Learning\LevelController;
 use App\Http\Controllers\Learning\LevelTrackController;
+use App\Http\Controllers\Negotiation\NegotiationAssessmentController;
+use App\Http\Controllers\Negotiation\NegotiationLevelController;
+use App\Http\Controllers\Negotiation\NegotiationSituationController;
 use App\Http\Controllers\Progress\ProgressController;
 use App\Http\Controllers\Scenarios\ScenarioController;
 use App\Http\Controllers\System\CertificateController;
@@ -115,6 +118,28 @@ Route::group(['prefix' => 'user'], function () {
         Route::post('scenarios/submit-answer', [ScenarioController::class, 'submitAnswer']);
         Route::post('scenarios/{id}/attempts/{attemptId}/finish', [ScenarioController::class, 'finishAttempt']);
         Route::post('scenarios/{id}/attempts/{attemptId}/mark-description-read', [ScenarioController::class, 'markDescriptionRead']);
+
+        // Negotiation Responses Library (app learner — auth:sanctum only)
+        Route::prefix('negotiation')->group(function () {
+            Route::get('levels', [NegotiationLevelController::class, 'index']);
+            Route::get('levels/{level}', [NegotiationLevelController::class, 'show']);
+            Route::get('levels/{level}/situations', [NegotiationLevelController::class, 'situations']);
+
+            Route::get('situations/{situation}', [NegotiationSituationController::class, 'show']);
+            Route::get('situations/{situation}/note', [NegotiationSituationController::class, 'getNote']);
+            Route::put('situations/{situation}/note', [NegotiationSituationController::class, 'upsertNote']);
+
+            // Assessments + archives (Task 5B)
+            Route::post('situations/{situation}/quick-test/start', [NegotiationAssessmentController::class, 'startQuickTest']);
+            Route::post('quick-test/{attempt}/submit', [NegotiationAssessmentController::class, 'submitQuickTest']);
+            Route::get('quick-test/{attempt}', [NegotiationAssessmentController::class, 'reviewQuickTest']);
+            Route::get('situations/{situation}/attempts', [NegotiationAssessmentController::class, 'listSituationAttempts']);
+
+            Route::post('levels/{level}/final-test/start', [NegotiationAssessmentController::class, 'startFinalTest']);
+            Route::post('final-test/{attempt}/submit', [NegotiationAssessmentController::class, 'submitFinalTest']);
+            Route::get('final-test/{attempt}', [NegotiationAssessmentController::class, 'reviewFinalTest']);
+            Route::get('levels/{level}/final-test/attempts', [NegotiationAssessmentController::class, 'listFinalTestAttempts']);
+        });
 
         // Podcast progress & favorites (auth:sanctum only — NOT ensure.verified)
         Route::post('podcasts/{id}/progress', [PodcastController::class, 'updateProgress']);

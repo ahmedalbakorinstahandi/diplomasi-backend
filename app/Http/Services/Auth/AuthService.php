@@ -107,7 +107,7 @@ class AuthService
             );
         }
 
-        $otp = random_int(10000, 99999);
+        $otp = (string) random_int(10000, 99999);
         $minutes = 5;
         $otpExpireAt = now()->addMinutes($minutes);
 
@@ -227,78 +227,67 @@ class AuthService
 
     public function verifyOtp($data)
     {
-        $authenticatedUser = User::auth();
-        if (!$authenticatedUser) {
-            $bearerToken = request()->bearerToken();
-            if ($bearerToken) {
-                $personalToken = PersonalAccessToken::findToken($bearerToken);
-                if ($personalToken && $personalToken->tokenable instanceof User) {
-                    $authenticatedUser = $personalToken->tokenable;
-                }
-            }
-        }
-        $user = null;
-        $rotateAllTokens = false;
-
-        if ($authenticatedUser) {
-            $user = User::where('id', $authenticatedUser->id)->lockForUpdate()->first();
-            if (!$user) {
-                MessageService::abort(401, 'messages.unauthorized');
-            }
-
-            if (!empty($data['email']) && !empty($user->email) && strcasecmp((string) $data['email'], (string) $user->email) !== 0) {
+        return DB::transaction(function () use ($data) {
+            // OTP is always owned by the email account. Never prefer the bearer
+            // session user here: guests keep a Sanctum token and would otherwise
+            // be verified against their own (empty) otp row during forgot-password.
+            $email = isset($data['email']) ? trim((string) $data['email']) : '';
+            if ($email === '') {
                 MessageService::abort(401, 'auth.email_not_found');
             }
 
-            $rotateAllTokens = true;
-        } else {
-            $user = User::where('email', $data['email'])->first();
-        }
+            $user = User::where('email', $email)->lockForUpdate()->first();
+            if (!$user) {
+                MessageService::abort(401, 'auth.email_not_found');
+            }
 
-        if (!$user) {
-            MessageService::abort(
-                401,
-                'auth.email_not_found',
-            );
-        }
+            $otpFromDb = $user->otp !== null && $user->otp !== ''
+                ? trim((string) $user->otp)
+                : null;
+            $otpFromRequest = isset($data['otp'])
+                ? trim((string) $data['otp'])
+                : null;
 
-        // Normalize OTP type: DB may store it as string, request may send it as int.
-        $otpFromDb = isset($user->otp) ? (string) $user->otp : null;
-        $otpFromRequest = isset($data['otp']) ? (string) $data['otp'] : null;
+            if (
+                $otpFromDb === null ||
+                $otpFromRequest === null ||
+                !hash_equals($otpFromDb, $otpFromRequest) ||
+                !$user->otp_expire_at ||
+                $user->otp_expire_at->isPast()
+            ) {
+                MessageService::abort(401, 'auth.otp_invalid_or_expired');
+            }
 
-        if ($otpFromDb === null ||
-            $otpFromRequest === null ||
-            $otpFromDb !== $otpFromRequest ||
-            $user->otp_expire_at < now()) {
-            MessageService::abort(
-                401,
-                'auth.otp_invalid_or_expired',
-            );
-        }
+            $authenticatedUser = $this->resolveBearerUser();
+            $sameAuthenticatedUser = $authenticatedUser
+                && (int) $authenticatedUser->id === (int) $user->id;
 
-        $user->update([
-            'email_verified' => true,
-            'otp' => null,
-            'otp_expire_at' => null,
-        ]);
-
-        if (!$user->is_guest && !$user->guest_converted_at && $rotateAllTokens) {
             $user->update([
-                'guest_converted_at' => now(),
-                'registration_completed_at' => now(),
+                'email_verified' => true,
+                'otp' => null,
+                'otp_expire_at' => null,
             ]);
-        }
 
-        AccountNotification::verified((int) $user->id);
+            // Guest → registered conversion completes only when the session
+            // belongs to this same user (register-from-guest flow).
+            if ($sameAuthenticatedUser && !$user->is_guest && !$user->guest_converted_at) {
+                $user->update([
+                    'guest_converted_at' => now(),
+                    'registration_completed_at' => now(),
+                ]);
+            }
 
-        if ($rotateAllTokens) {
-            $user->tokens()->delete();
-        }
+            AccountNotification::verified((int) $user->id);
 
-        return [
-            'user' => $user,
-            'token' => $user->createToken($user->first_name . 'auth_token')->plainTextToken,
-        ];
+            if ($sameAuthenticatedUser) {
+                $user->tokens()->delete();
+            }
+
+            return [
+                'user' => $user->fresh(),
+                'token' => $user->createToken($user->first_name . 'auth_token')->plainTextToken,
+            ];
+        });
     }
 
     public function forgotPassword($data)
@@ -323,7 +312,7 @@ class AuthService
             $mailType = 'forgot_password';
         }
 
-        $code = random_int(10000, 99999);
+        $code = (string) random_int(10000, 99999);
         $minutes = 5;
         $otpExpireAt = now()->addMinutes($minutes);
         $user->update([
@@ -334,16 +323,36 @@ class AuthService
         $this->sendVerificationEmail(
             $user->email,
             $user->first_name,
-            (string) $code,
+            $code,
             $minutes,
             $mailType
         );
 
         return [
             'user' => $user,
-            'minutes' => 10,
-            'otp_expire_at' =>  $otpExpireAt,
+            'minutes' => $minutes,
+            'otp_expire_at' => $otpExpireAt,
         ];
+    }
+
+    private function resolveBearerUser(): ?User
+    {
+        $authenticatedUser = User::auth();
+        if ($authenticatedUser instanceof User) {
+            return $authenticatedUser;
+        }
+
+        $bearerToken = request()->bearerToken();
+        if (!$bearerToken) {
+            return null;
+        }
+
+        $personalToken = PersonalAccessToken::findToken($bearerToken);
+        if ($personalToken && $personalToken->tokenable instanceof User) {
+            return $personalToken->tokenable;
+        }
+
+        return null;
     }
 
     public function resetPassword($data)
