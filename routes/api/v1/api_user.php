@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AiNegotiator\AiNegotiatorCreditController;
+use App\Http\Controllers\AiNegotiator\AiNegotiatorSessionController;
 use App\Http\Controllers\Billing\AppleIapController;
 use App\Http\Controllers\Billing\PlanController;
 use App\Http\Controllers\Billing\MoyasarPaymentController;
@@ -179,6 +181,20 @@ Route::group(['prefix' => 'user'], function () {
             Route::post('billing/subscription/retry-payment', [SubscriptionController::class, 'retryPayment']);
             // Apple IAP
             Route::post('ios/purchase/verify', [AppleIapController::class, 'verify']);
+
+            // AI Negotiator
+            Route::prefix('ai-negotiator')->group(function () {
+                Route::get('sessions/active', [AiNegotiatorSessionController::class, 'getActive']);
+                Route::get('sessions/history', [AiNegotiatorSessionController::class, 'history']);
+                Route::get('sessions/{sessionId}', [AiNegotiatorSessionController::class, 'show']);
+                Route::post('sessions', [AiNegotiatorSessionController::class, 'start']);
+                Route::post('sessions/{sessionId}/messages', [AiNegotiatorSessionController::class, 'submitMessage'])
+                    ->middleware('throttle:20,1');
+                Route::post('sessions/{sessionId}/end', [AiNegotiatorSessionController::class, 'end']);
+                Route::post('sessions/{sessionId}/abandon', [AiNegotiatorSessionController::class, 'abandon']);
+
+                Route::get('credits/balance', [AiNegotiatorCreditController::class, 'balance']);
+            });
         });
     });
 });

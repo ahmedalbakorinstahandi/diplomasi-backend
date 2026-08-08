@@ -7,6 +7,8 @@ use App\Events\UserLevelCompleted;
 use App\Listeners\CheckCertificateEligibility;
 use App\Listeners\SendCourseCompletedNotification;
 use App\Listeners\SendLevelCompletedNotification;
+use App\Services\AiNegotiator\Llm\Contracts\LlmProviderInterface;
+use App\Services\AiNegotiator\Llm\LlmProviderFactory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -17,7 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(LlmProviderInterface::class, function () {
+            return LlmProviderFactory::make();
+        });
     }
 
     /**

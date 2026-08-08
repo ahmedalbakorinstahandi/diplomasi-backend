@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AiNegotiator\AiNegotiatorSessionAdminController;
+use App\Http\Controllers\AiNegotiator\AiNegotiatorSettingsNotificationController;
 use App\Http\Controllers\Billing\AdminInvoiceController;
 use App\Http\Controllers\Billing\AdminPaymentController;
 use App\Http\Controllers\Billing\AdminSubscriptionController;
@@ -114,6 +116,15 @@ Route::group(['prefix' => 'admin'], function () {
         Route::put('negotiation-situations/{id}', [NegotiationSituationAdminController::class, 'update']);
         Route::delete('negotiation-situations/{id}', [NegotiationSituationAdminController::class, 'delete']);
         Route::put('negotiation-situations/{id}/reorder', [NegotiationSituationAdminController::class, 'reorder']);
+
+        // AI Negotiator
+        Route::prefix('ai-negotiator')->group(function () {
+            Route::get('sessions', [AiNegotiatorSessionAdminController::class, 'index']);
+            Route::get('sessions/{sessionId}', [AiNegotiatorSessionAdminController::class, 'show']);
+            Route::post('sessions/{sessionId}/abandon', [AiNegotiatorSessionAdminController::class, 'forceAbandon']);
+            Route::delete('sessions/{sessionId}', [AiNegotiatorSessionAdminController::class, 'destroy']);
+            Route::post('settings/notify-subscribers', [AiNegotiatorSettingsNotificationController::class, 'notifySubscribers']);
+        });
 
         // Scenarios
         Route::get('scenarios', [ScenarioController::class, 'index']);

@@ -202,6 +202,21 @@ return [
         'responses_styles_invalid' => 'يجب أن تتضمن الردود الأساليب الثلاثة بالضبط: لطيف ودبلوماسي وحازم، دون تكرار',
     ],
 
+    'ai_negotiator' => [
+        'no_active_session' => 'لا توجد جلسة نشطة حالياً',
+        'session_started' => 'تم بدء جلسة المفاوض الذكي',
+        'session_already_active' => 'لديك جلسة نشطة بالفعل',
+        'insufficient_credits' => 'رصيد المحاولات غير كافٍ',
+        'llm_unavailable' => 'خدمة الذكاء الاصطناعي غير متاحة حالياً، حاول لاحقاً',
+        'session_not_found' => 'الجلسة غير موجودة',
+        'forbidden' => 'غير مصرح بالوصول إلى هذه الجلسة',
+        'invalid_session_state' => 'حالة الجلسة لا تسمح بهذا الإجراء',
+        'session_abandoned' => 'تم إنهاء الجلسة',
+        'session_ended' => 'تم إنهاء المحاكاة وتوليد التقييم',
+        'session_deleted' => 'تم حذف الجلسة',
+        'subscribers_notified' => 'تم إشعار المشتركين',
+    ],
+
     'scenario' => [
         'created' => 'تم إنشاء السيناريو بنجاح',
         'updated' => 'تم تحديث السيناريو بنجاح',

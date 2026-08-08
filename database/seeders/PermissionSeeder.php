@@ -174,6 +174,13 @@ class PermissionSeeder extends Seeder
             ['name' => 'certificate.view', 'description' => 'View certificates'],
             ['name' => 'certificate.issue', 'description' => 'Issue and regenerate certificates'],
             ['name' => 'certificate.revoke', 'description' => 'Revoke certificates'],
+
+            // AI Negotiator
+            ['name' => 'ai_negotiator_session.view', 'description' => 'View AI Negotiator sessions (dashboard)'],
+            ['name' => 'ai_negotiator_session.manage', 'description' => 'Manage/abandon/admin-operate sessions'],
+            ['name' => 'ai_negotiator_knowledge.view', 'description' => 'View knowledge base entities'],
+            ['name' => 'ai_negotiator_knowledge.manage', 'description' => 'Create/update/reorder/publish knowledge + rubric'],
+            ['name' => 'ai_negotiator_settings.manage', 'description' => 'Manage ai_negotiator.* settings'],
         ];
 
         // php artisan db:seed --class=PermissionSeeder

@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             PermissionSeeder::class,
+            AiNegotiatorRubricItemSeeder::class,
             RolePermissionSeeder::class,
 
             // Users/RBAC

@@ -397,4 +397,28 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\Progress\UserPodcastFavorite::class);
     }
+
+    /**
+     * Get the AI Negotiator sessions for the user.
+     */
+    public function aiNegotiatorSessions()
+    {
+        return $this->hasMany(\App\Models\AiNegotiator\AiNegotiatorSession::class);
+    }
+
+    /**
+     * Get the AI Negotiator credit balance for the user.
+     */
+    public function aiNegotiatorCredit()
+    {
+        return $this->hasOne(\App\Models\AiNegotiator\AiNegotiatorUserCredit::class);
+    }
+
+    /**
+     * Get the AI Negotiator credit transactions for the user.
+     */
+    public function aiNegotiatorCreditTransactions()
+    {
+        return $this->hasMany(\App\Models\AiNegotiator\AiNegotiatorCreditTransaction::class);
+    }
 }

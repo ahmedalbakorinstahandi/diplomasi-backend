@@ -28,6 +28,16 @@ class SettingSeeder extends Seeder
             ['key_name' => 'billing.moyasar.mode', 'value' => 'live', 'type' => 'text', 'is_settings' => true],
             ['key_name' => 'ui.home_banner', 'value' => json_encode(['title' => 'ابدأ رحلتك', 'subtitle' => 'تعلم بذكاء']), 'type' => 'json', 'is_settings' => true],
             ['key_name' => 'legal.terms_conditions', 'value' => '<p>نص تجريبي للشروط والأحكام.</p>', 'type' => 'html', 'is_settings' => true],
+
+            // AI Negotiator
+            ['key_name' => 'ai_negotiator.access_mode', 'value' => 'credits_based', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.free_credits_monthly', 'value' => '3', 'type' => 'int', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.paid_credits_monthly', 'value' => '30', 'type' => 'int', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.credit_reset_cycle', 'value' => 'monthly', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.llm_provider', 'value' => 'claude', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.llm_model', 'value' => 'claude-sonnet-4-6', 'type' => 'text', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.max_messages_per_session', 'value' => '40', 'type' => 'int', 'is_settings' => true],
+            ['key_name' => 'ai_negotiator.max_tokens_per_session', 'value' => '100000', 'type' => 'int', 'is_settings' => true],
         ];
 
         foreach ($settings as $s) {

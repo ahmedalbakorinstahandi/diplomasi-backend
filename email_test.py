@@ -2,16 +2,16 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-MAIL_HOST = "smtp.office365.com"
+MAIL_HOST = "smtp.ionos.de"
 MAIL_PORT = 587
-MAIL_USERNAME = "no-reply@diplomasi.app"
-MAIL_PASSWORD = "ELAF123elaf123"
-MAIL_FROM_ADDRESS = "no-reply@diplomasi.app"
-MAIL_FROM_NAME = "Diplomasi"
+MAIL_USERNAME = "rechnungen@evo-elektriker.de"
+MAIL_PASSWORD = "RamiEVO*Erfolg2026"
+MAIL_FROM_ADDRESS = "rechnungen@evo-elektriker.de"
+MAIL_FROM_NAME = "Evo Elektriker"
 TO_ADDRESS = "ahmed.albakor206@gmail.com"
 
-subject = "Diplomasi Test Email"
-body = "This is a test email from Diplomasi (no-reply)."
+subject = "Evo Elektriker Test Email"
+body = "This is a test email via IONOS SMTP (TLS)."
 
 msg = MIMEMultipart()
 msg["From"] = f"{MAIL_FROM_NAME} <{MAIL_FROM_ADDRESS}>"

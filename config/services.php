@@ -65,4 +65,11 @@ return [
         'timeout' => (int) env('TRANSLATION_TIMEOUT', 8),
     ],
 
+    'ai_negotiator' => [
+        'claude' => [
+            'api_key' => env('AI_NEGOTIATOR_CLAUDE_API_KEY'),
+            'base_url' => env('AI_NEGOTIATOR_CLAUDE_BASE_URL', 'https://api.anthropic.com/v1'),
+        ],
+    ],
+
 ];
